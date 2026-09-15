@@ -1,6 +1,6 @@
 {
-  "versionCode": 21,
-  "versionName": "1.0.21",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v21/app-debug.apk",
-  "releaseNotes": "fix: Resolve toBengaliDigits formatter method and android.net.Uri import"
+  "versionCode": 22,
+  "versionName": "1.0.22",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v22/app-debug.apk",
+  "releaseNotes": "feat: Add hardware Device ID Supabase anti-abuse protection to prevent Clear Data demo exploit"
 }
