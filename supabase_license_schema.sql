@@ -211,8 +211,149 @@ $$;
 GRANT EXECUTE ON FUNCTION public.issue_app_license(TEXT, TEXT, TEXT, TEXT, INT, TIMESTAMPTZ) TO anon, authenticated, service_role;
 
 -- ==============================================================================
--- Optional Test Data (Uncomment to test)
+-- 7. Anti-Abuse 1-Hour Free Demo Device Registry
+-- Tracks Hardware Device ID in Supabase to prevent 'Clear Data' or reinstall bypass
 -- ==============================================================================
--- INSERT INTO public.app_licenses (email, customer_name, customer_phone, order_id, max_devices)
--- VALUES ('test@webixsolution.com', 'Test Customer', '01700000000', 'ORD-1001', 1)
--- ON CONFLICT (email) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS public.demo_devices (
+    device_id TEXT PRIMARY KEY,
+    device_model TEXT DEFAULT '',
+    first_started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + INTERVAL '1 hour'),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE public.demo_devices ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Deny direct public access to demo_devices" ON public.demo_devices;
+CREATE POLICY "Deny direct public access to demo_devices"
+    ON public.demo_devices
+    FOR ALL
+    TO anon
+    USING (false);
+
+-- RPC to start or verify 1-hour demo session
+CREATE OR REPLACE FUNCTION public.start_or_verify_device_demo(
+    p_device_id TEXT,
+    p_device_model TEXT DEFAULT ''
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_record RECORD;
+    v_now TIMESTAMPTZ := now();
+    v_clean_device_id TEXT;
+    v_remaining_secs INT;
+BEGIN
+    v_clean_device_id := trim(p_device_id);
+
+    IF v_clean_device_id IS NULL OR v_clean_device_id = '' THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'remaining_seconds', 0,
+            'message', 'ডিভাইস শনাক্তকরণ ব্যর্থ হয়েছে।'
+        );
+    END IF;
+
+    -- Look up device in demo_devices
+    SELECT * INTO v_record
+    FROM public.demo_devices
+    WHERE device_id = v_clean_device_id;
+
+    IF NOT FOUND THEN
+        -- New device: Register and grant 1 hour
+        INSERT INTO public.demo_devices (
+            device_id,
+            device_model,
+            first_started_at,
+            expires_at
+        )
+        VALUES (
+            v_clean_device_id,
+            p_device_model,
+            v_now,
+            v_now + INTERVAL '1 hour'
+        );
+
+        RETURN jsonb_build_object(
+            'success', true,
+            'is_new', true,
+            'remaining_seconds', 3600,
+            'message', '১ ঘণ্টার ফ্রি ডেমো সফলভাবে শুরু হয়েছে।'
+        );
+    ELSE
+        -- Device was previously registered
+        IF v_now >= v_record.expires_at THEN
+            RETURN jsonb_build_object(
+                'success', false,
+                'is_new', false,
+                'remaining_seconds', 0,
+                'message', 'আপনার এই ডিভাইসে ১ ঘণ্টার ফ্রি ডেমো সেশন ইতিমধ্যে শেষ হয়েছে। Dokan-Pro নিয়মিত ব্যবহার করতে আজীবন লাইসেন্স সংগ্রহ করুন (৳৪৯০)।'
+            );
+        ELSE
+            v_remaining_secs := EXTRACT(EPOCH FROM (v_record.expires_at - v_now))::INT;
+            RETURN jsonb_build_object(
+                'success', true,
+                'is_new', false,
+                'remaining_seconds', v_remaining_secs,
+                'message', 'ডেমো সেশন রিস্টোর করা হয়েছে।'
+            );
+        END IF;
+    END IF;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.start_or_verify_device_demo(TEXT, TEXT) TO anon, authenticated;
+
+-- RPC to passively check if a device has used/expired demo
+CREATE OR REPLACE FUNCTION public.check_device_demo_status(
+    p_device_id TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_record RECORD;
+    v_now TIMESTAMPTZ := now();
+    v_clean_device_id TEXT;
+    v_remaining_secs INT;
+BEGIN
+    v_clean_device_id := trim(p_device_id);
+
+    SELECT * INTO v_record
+    FROM public.demo_devices
+    WHERE device_id = v_clean_device_id;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object(
+            'has_used_demo', false,
+            'is_expired', false,
+            'remaining_seconds', 3600
+        );
+    ELSE
+        IF v_now >= v_record.expires_at THEN
+            RETURN jsonb_build_object(
+                'has_used_demo', true,
+                'is_expired', true,
+                'remaining_seconds', 0
+            );
+        ELSE
+            v_remaining_secs := EXTRACT(EPOCH FROM (v_record.expires_at - v_now))::INT;
+            RETURN jsonb_build_object(
+                'has_used_demo', true,
+                'is_expired', false,
+                'remaining_seconds', v_remaining_secs
+            );
+        END IF;
+    END IF;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.check_device_demo_status(TEXT) TO anon, authenticated;
+

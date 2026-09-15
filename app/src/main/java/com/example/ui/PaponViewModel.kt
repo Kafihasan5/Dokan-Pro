@@ -162,23 +162,32 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
     fun startOneHourDemo() {
         viewModelScope.launch {
-            if (licenseManager.wasDemoUsed() && licenseManager.isDemoExpired()) {
-                showToast("আপনার ডিভাইসে ১ ঘণ্টার ডেমো সেশন ইতিমধ্যে সম্পন্ন হয়েছে।")
-                return@launch
-            }
-            val started = licenseManager.startOneHourDemo()
-            if (started) {
-                // Seed 7 days of realistic grocery shop dummy data
-                repository.seedDemoData()
-                _isDemoMode.value = true
-                _isDemoUsed.value = true
-                _isDemoExpired.value = false
-                _remainingDemoMillis.value = licenseManager.getRemainingDemoMillis()
-                _isAppActivated.value = true
-                startDemoTimerTicker()
-                showToast("১ ঘণ্টার ফ্রি ডেমো মোড চালু হয়েছে! ৭ দিনের ডামি ডাটা লোড করা হয়েছে।")
-            } else {
-                showToast("ডেমো মোড চালু করা সম্ভব হয়নি।")
+            _isActivating.value = true
+            when (val res = licenseManager.startOneHourDemo()) {
+                is com.example.data.license.DemoStartResult.Success -> {
+                    // Seed 7 days of realistic grocery shop dummy data
+                    repository.seedDemoData()
+                    _isDemoMode.value = true
+                    _isDemoUsed.value = true
+                    _isDemoExpired.value = false
+                    _remainingDemoMillis.value = res.remainingMillis
+                    _isAppActivated.value = true
+                    startDemoTimerTicker()
+                    _isActivating.value = false
+                    showToast(res.message.ifBlank { "১ ঘণ্টার ফ্রি ডেমো মোড চালু হয়েছে! ৭ দিনের ডামি ডাটা লোড করা হয়েছে।" })
+                }
+                is com.example.data.license.DemoStartResult.Expired -> {
+                    _isDemoMode.value = false
+                    _isDemoUsed.value = true
+                    _isDemoExpired.value = true
+                    _isAppActivated.value = false
+                    _isActivating.value = false
+                    showToast(res.message)
+                }
+                is com.example.data.license.DemoStartResult.Error -> {
+                    _isActivating.value = false
+                    showToast(res.message)
+                }
             }
         }
     }
@@ -238,6 +247,19 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
         if (licenseManager.isDemoMode()) {
             startDemoTimerTicker()
+        }
+
+        // Anti-abuse: Check hardware device ID in cloud on launch (e.g. if user did 'Clear Storage')
+        if (!licenseManager.isRealLicenseActive()) {
+            viewModelScope.launch {
+                licenseManager.syncDeviceDemoStatus()
+                _isDemoUsed.value = licenseManager.wasDemoUsed()
+                _isDemoExpired.value = licenseManager.isDemoExpired()
+                if (_isDemoExpired.value && _isDemoMode.value) {
+                    _isDemoMode.value = false
+                    _isAppActivated.value = false
+                }
+            }
         }
         
         // Initialize dynamic customer cloud credentials if configured

@@ -174,6 +174,7 @@ fun AppActivationScreen(
 
                         Button(
                             onClick = { viewModel.startOneHourDemo() },
+                            enabled = !isActivating,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(48.dp),
@@ -182,9 +183,19 @@ fun AppActivationScreen(
                                 containerColor = MaterialTheme.colorScheme.primary
                             )
                         ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = null)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("১ ঘণ্টার ফ্রি ডেমো শুরু করুন (৭ দিনের ডাটা সহ)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            if (isActivating) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("যাচাই করা হচ্ছে...", fontSize = 13.sp)
+                            } else {
+                                Icon(Icons.Default.PlayArrow, contentDescription = null)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("১ ঘণ্টার ফ্রি ডেমো শুরু করুন (৭ দিনের ডাটা সহ)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
                         }
                     }
                 }

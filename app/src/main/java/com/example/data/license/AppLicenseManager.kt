@@ -29,6 +29,12 @@ sealed class ActivationResult {
     data class Error(val message: String) : ActivationResult()
 }
 
+sealed class DemoStartResult {
+    data class Success(val remainingMillis: Long, val message: String) : DemoStartResult()
+    data class Expired(val message: String) : DemoStartResult()
+    data class Error(val message: String) : DemoStartResult()
+}
+
 class AppLicenseManager(private val context: Context) {
 
     private val tag = "AppLicenseManager"
@@ -89,21 +95,124 @@ class AppLicenseManager(private val context: Context) {
     }
 
     /**
-     * Start the 1-hour free demo mode.
-     * Returns true if started successfully, false if already used on this device.
+     * Start or verify 1-hour free demo mode using cloud anti-abuse hardware tracking.
+     * Prevents re-use via 'Clear Data' or reinstalling by verifying hardware device_id with Supabase!
      */
-    fun startOneHourDemo(): Boolean {
+    suspend fun startOneHourDemo(): DemoStartResult = withContext(Dispatchers.IO) {
+        // 1. Fast local check: if already recorded as expired locally
         if (wasDemoUsed() && isDemoExpired()) {
-            return false
+            return@withContext DemoStartResult.Expired(
+                "আপনার এই ডিভাইসে ১ ঘণ্টার ফ্রি ডেমো সেশন ইতিমধ্যে শেষ হয়েছে। Dokan-Pro নিয়মিত ব্যবহার করতে আজীবন লাইসেন্স সংগ্রহ করুন (৳৪৯০)।"
+            )
         }
-        val now = System.currentTimeMillis()
-        val expiresAt = now + DEMO_DURATION_MILLIS
-        prefs.edit()
-            .putBoolean(KEY_IS_DEMO_MODE, true)
-            .putLong(KEY_DEMO_EXPIRES_AT, expiresAt)
-            .putBoolean(KEY_DEMO_ALREADY_USED, true)
-            .apply()
-        return true
+
+        // 2. Hardware ID cloud verification with Supabase
+        if (!SupabaseConfig.isConnected) {
+            return@withContext DemoStartResult.Error(
+                "ক্লাউড সার্ভার কনফিগারেশন সেট করা নেই।"
+            )
+        }
+
+        val deviceId = getDeviceId()
+        val deviceModel = getDeviceModel()
+        val url = "${SupabaseConfig.url.trimEnd('/')}/rest/v1/rpc/start_or_verify_device_demo"
+
+        val payload = JSONObject().apply {
+            put("p_device_id", deviceId)
+            put("p_device_model", deviceModel)
+        }
+
+        try {
+            val request = Request.Builder()
+                .url(url)
+                .addHeader("apikey", SupabaseConfig.anonKey)
+                .addHeader("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                .addHeader("Content-Type", "application/json")
+                .post(payload.toString().toRequestBody(jsonMediaType))
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val code = response.code
+                val body = response.body?.string() ?: ""
+
+                if (!response.isSuccessful) {
+                    Log.w(tag, "start_or_verify_device_demo failed HTTP $code: $body")
+                    return@withContext DemoStartResult.Error("সার্ভারের সাথে সংযোগ স্থাপন করা যায়নি (কোড: $code)")
+                }
+
+                val json = JSONObject(body)
+                val success = json.optBoolean("success", false)
+                val remainingSecs = json.optInt("remaining_seconds", 0)
+                val message = json.optString("message", "")
+
+                if (success && remainingSecs > 0) {
+                    val remainingMillis = remainingSecs * 1000L
+                    val expiresAt = System.currentTimeMillis() + remainingMillis
+                    prefs.edit()
+                        .putBoolean(KEY_IS_DEMO_MODE, true)
+                        .putLong(KEY_DEMO_EXPIRES_AT, expiresAt)
+                        .putBoolean(KEY_DEMO_ALREADY_USED, true)
+                        .apply()
+                    return@withContext DemoStartResult.Success(remainingMillis, message)
+                } else {
+                    // Demo expired on this hardware device! Permanently lock locally
+                    prefs.edit()
+                        .putBoolean(KEY_IS_DEMO_MODE, false)
+                        .putLong(KEY_DEMO_EXPIRES_AT, 1L)
+                        .putBoolean(KEY_DEMO_ALREADY_USED, true)
+                        .apply()
+                    return@withContext DemoStartResult.Expired(
+                        message.ifBlank { "আপনার এই ডিভাইসে ১ ঘণ্টার ফ্রি ডেমো সেশন ইতিমধ্যে শেষ হয়েছে।" }
+                    )
+                }
+            }
+        } catch (e: java.net.UnknownHostException) {
+            return@withContext DemoStartResult.Error("১ ঘণ্টার ফ্রি ডেমো ভেরিফাই করার জন্য ইন্টারনেট সংযোগ প্রয়োজন। অনুগ্রহ করে ইন্টারনেট চালু করুন।")
+        } catch (e: Exception) {
+            return@withContext DemoStartResult.Error("ডেমো সেশন যাচাই করতে সমস্যা হয়েছে: ${e.message}")
+        }
+    }
+
+    /**
+     * Check if this device has already expired demo in Supabase (e.g. after 'Clear Data').
+     * If expired in cloud, immediately locks the local state so demo button stays disabled.
+     */
+    suspend fun syncDeviceDemoStatus(): Boolean = withContext(Dispatchers.IO) {
+        if (wasDemoUsed() && isDemoExpired()) return@withContext false
+        if (!SupabaseConfig.isConnected) return@withContext true
+
+        val deviceId = getDeviceId()
+        val url = "${SupabaseConfig.url.trimEnd('/')}/rest/v1/rpc/check_device_demo_status"
+        val payload = JSONObject().apply {
+            put("p_device_id", deviceId)
+        }
+
+        try {
+            val request = Request.Builder()
+                .url(url)
+                .addHeader("apikey", SupabaseConfig.anonKey)
+                .addHeader("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                .addHeader("Content-Type", "application/json")
+                .post(payload.toString().toRequestBody(jsonMediaType))
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val json = JSONObject(response.body?.string() ?: "")
+                    val hasUsed = json.optBoolean("has_used_demo", false)
+                    val isExpired = json.optBoolean("is_expired", false)
+                    if (hasUsed && isExpired) {
+                        prefs.edit()
+                            .putBoolean(KEY_IS_DEMO_MODE, false)
+                            .putLong(KEY_DEMO_EXPIRES_AT, 1L)
+                            .putBoolean(KEY_DEMO_ALREADY_USED, true)
+                            .apply()
+                        return@withContext false
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        return@withContext true
     }
 
     /**
