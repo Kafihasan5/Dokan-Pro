@@ -1,6 +1,6 @@
 {
-  "versionCode": 25,
-  "versionName": "1.0.25",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v25/app-debug.apk",
-  "releaseNotes": "feat: display dedicated Product Profit card with net surplus subtitle on Dashboard"
+  "versionCode": 27,
+  "versionName": "1.0.27",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v27/app-debug.apk",
+  "releaseNotes": "fix: add missing imports for background and WindowInsets"
 }
