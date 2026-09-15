@@ -304,6 +304,7 @@ fun DashboardScreen(
                 DashboardHeroSummary(
                     periodLabel = periodLabel,
                     salesTotalPoisha = periodSalesTotalPoisha,
+                    grossProfitPoisha = periodGrossProfitPoisha,
                     netProfitPoisha = periodNetProfitPoisha,
                     salesCount = periodSales.size,
                     todaySalesCount = todaySalesCount,
@@ -394,6 +395,7 @@ fun DashboardScreen(
 private fun DashboardHeroSummary(
     periodLabel: String,
     salesTotalPoisha: Long,
+    grossProfitPoisha: Long,
     netProfitPoisha: Long,
     salesCount: Int,
     todaySalesCount: Int,
@@ -554,28 +556,72 @@ private fun DashboardHeroSummary(
 
                 Spacer(modifier = Modifier.height(Spacing.md))
 
-                // Net Profit Pill on White 18% background
-                val isProfit = netProfitPoisha >= 0
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(Radius.pill))
-                        .background(Color.White.copy(alpha = 0.18f))
-                        .padding(horizontal = Spacing.md, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // Dedicated "পণ্যের লাভ" (Profit from Products) Card
+                val isGrossProfit = grossProfitPoisha >= 0
+                val netPrefix = if (netProfitPoisha < 0) "-" else ""
+                val netFormatted = Formatters.formatMoney(kotlin.math.abs(netProfitPoisha), config.useBengaliNumerals, config.currencySymbol)
+
+                Surface(
+                    shape = RoundedCornerShape(Radius.md),
+                    color = Color.White.copy(alpha = 0.18f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.28f)),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(
-                        imageVector = if (isProfit) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "নিট লাভ: ${Formatters.formatMoney(netProfitPoisha, config.useBengaliNumerals, config.currencySymbol)}",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = Spacing.md, vertical = 10.dp)
+                    ) {
+                        // Main Line: পণ্যের লাভ: ৳ ২,৫০০
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.22f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (isGrossProfit) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "পণ্যের লাভ:",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+
+                            Text(
+                                text = Formatters.formatMoney(grossProfitPoisha, config.useBengaliNumerals, config.currencySymbol),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Sub Line: (দোকান খরচ বাদে চূড়ান্ত উদ্বৃত্ত: ৳ ১,৮০০)
+                        val netColor = if (netProfitPoisha >= 0) Color.White.copy(alpha = 0.88f) else Color(0xFFFFCDD2)
+                        Text(
+                            text = "(দোকান খরচ বাদে চূড়ান্ত উদ্বৃত্ত: $netPrefix$netFormatted)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = netColor,
+                            modifier = Modifier.padding(start = 32.dp)
+                        )
+                    }
                 }
             }
         }
