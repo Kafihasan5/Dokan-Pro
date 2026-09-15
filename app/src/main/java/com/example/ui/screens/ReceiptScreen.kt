@@ -310,11 +310,13 @@ fun ReceiptScreen(
     if (showReturnDialog) {
         ProductReturnDialog(
             sale = currentSale,
-            saleItems = saleItems,
+            items = saleItems,
+            config = config,
             onDismiss = { showReturnDialog = false },
-            onConfirmReturn = { updatedSale ->
-                viewModel.processProductReturn(updatedSale)
-                showReturnDialog = false
+            onConfirmReturn = { returnedMap ->
+                viewModel.returnSaleItems(currentSale.id, returnedMap) {
+                    showReturnDialog = false
+                }
             }
         )
     }

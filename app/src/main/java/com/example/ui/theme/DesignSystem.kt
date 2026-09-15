@@ -89,7 +89,8 @@ data class DokanExtraColors(
     val infoContainer: Color,
     val ink2: Color,
     val ink3: Color,
-    val surfaceAlt: Color
+    val surfaceAlt: Color,
+    val border: Color = BorderLight
 )
 
 val LightDokanColors = DokanExtraColors(
@@ -105,7 +106,8 @@ val LightDokanColors = DokanExtraColors(
     infoContainer = InfoContainerLight,
     ink2 = Ink2Light,
     ink3 = Ink3Light,
-    surfaceAlt = SurfaceAltLight
+    surfaceAlt = SurfaceAltLight,
+    border = BorderLight
 )
 
 val DarkDokanColors = DokanExtraColors(
@@ -121,7 +123,8 @@ val DarkDokanColors = DokanExtraColors(
     infoContainer = InfoContainerDark,
     ink2 = Ink2Dark,
     ink3 = Ink3Dark,
-    surfaceAlt = SurfaceAltDark
+    surfaceAlt = SurfaceAltDark,
+    border = BorderDark
 )
 
 val LocalDokanColors = staticCompositionLocalOf { LightDokanColors }

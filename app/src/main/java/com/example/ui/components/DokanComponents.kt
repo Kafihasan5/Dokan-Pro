@@ -492,7 +492,7 @@ fun DokanDangerButton(
 fun DokanTextField(
     value: String,
     onValueChange: (String) -> Unit,
-    label: String,
+    label: String = "",
     modifier: Modifier = Modifier,
     placeholder: String? = null,
     keyboardType: KeyboardType = KeyboardType.Text,
@@ -513,12 +513,14 @@ fun DokanTextField(
                 .defaultMinSize(minHeight = 56.dp),
             enabled = enabled,
             singleLine = singleLine,
-            label = {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelMedium
-                )
-            },
+            label = if (label.isNotBlank()) {
+                {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            } else null,
             placeholder = if (!placeholder.isNullOrBlank()) {
                 { Text(text = placeholder, style = MaterialTheme.typography.bodyMedium) }
             } else null,

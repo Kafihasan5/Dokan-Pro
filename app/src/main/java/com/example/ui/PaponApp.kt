@@ -119,11 +119,11 @@ fun DokanProApp(
                         } else {
                             val isDeeper = targetState.ordinal > initialState.ordinal
                             if (isDeeper) {
-                                (slideInHorizontally(animationSpec = com.example.ui.theme.Motion.MotionStandard) { slidePx } + fadeIn(animationSpec = com.example.ui.theme.Motion.MotionStandard))
-                                    .togetherWith(slideOutHorizontally(animationSpec = com.example.ui.theme.Motion.MotionStandard) { -slidePx } + fadeOut(animationSpec = com.example.ui.theme.Motion.MotionStandard))
+                                (slideInHorizontally(animationSpec = com.example.ui.theme.Motion.MotionStandardIntOffset) { slidePx } + fadeIn(animationSpec = com.example.ui.theme.Motion.MotionStandard))
+                                    .togetherWith(slideOutHorizontally(animationSpec = com.example.ui.theme.Motion.MotionStandardIntOffset) { -slidePx } + fadeOut(animationSpec = com.example.ui.theme.Motion.MotionStandard))
                             } else {
-                                (slideInHorizontally(animationSpec = com.example.ui.theme.Motion.MotionStandard) { -slidePx } + fadeIn(animationSpec = com.example.ui.theme.Motion.MotionStandard))
-                                    .togetherWith(slideOutHorizontally(animationSpec = com.example.ui.theme.Motion.MotionStandard) { slidePx } + fadeOut(animationSpec = com.example.ui.theme.Motion.MotionStandard))
+                                (slideInHorizontally(animationSpec = com.example.ui.theme.Motion.MotionStandardIntOffset) { -slidePx } + fadeIn(animationSpec = com.example.ui.theme.Motion.MotionStandard))
+                                    .togetherWith(slideOutHorizontally(animationSpec = com.example.ui.theme.Motion.MotionStandardIntOffset) { slidePx } + fadeOut(animationSpec = com.example.ui.theme.Motion.MotionStandard))
                             }
                         }
                     },

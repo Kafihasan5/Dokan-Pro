@@ -619,6 +619,7 @@ private fun PosCartSheetContent(
     val changeReturnPoisha = if (cashTenderedPoisha > grandTotal) cashTenderedPoisha - grandTotal else 0L
 
     var showCustomerPicker by remember { mutableStateOf(false) }
+    val view = LocalView.current
 
     Column(modifier = Modifier.fillMaxWidth()) {
         // Collapsed Bar (72dp tall, clickable to expand)

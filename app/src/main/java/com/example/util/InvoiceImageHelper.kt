@@ -835,7 +835,7 @@ object InvoiceImageHelper {
         context.startActivity(Intent.createChooser(intent, "ইনভয়েস ছবি শেয়ার করুন"))
     }
 
-    fun buildSaleInvoiceCaption(config: ShopConfig, sale: Sale, customerPreviousDue: Long): String {
+    fun buildSaleInvoiceCaption(config: ShopConfig, sale: Sale, customerPreviousDue: Long = 0L): String {
         val shopName = config.shopName
         val inv = sale.invoiceNo
         val total = Formatters.formatMoney(sale.totalPoisha, config.useBengaliNumerals, config.currencySymbol)
@@ -862,6 +862,44 @@ object InvoiceImageHelper {
         sb.appendLine("-------------------------")
         sb.appendLine("ধন্যবাদ, আবার আসবেন!")
         if (config.shopPhone.isNotBlank()) sb.appendLine("যোগাযোগ: ${config.shopPhone}")
+        return sb.toString()
+    }
+
+    fun buildDueStatementCaption(config: ShopConfig, customer: Customer, balance: Long): String {
+        val shopName = config.shopName
+        val dueStr = Formatters.formatMoney(balance, config.useBengaliNumerals, config.currencySymbol)
+        val sb = StringBuilder()
+        sb.appendLine("📋 *$shopName*")
+        sb.appendLine("বাকি খাতার হিসাব বিবরণী")
+        sb.appendLine("গ্রাহক: ${customer.name}")
+        if (customer.phone.isNotBlank()) sb.appendLine("মোবাইল: ${customer.phone}")
+        sb.appendLine("-------------------------")
+        sb.appendLine("বর্তমান মোট বাকি: $dueStr")
+        sb.appendLine("অনুগ্রহ করে দ্রুত পরিশোধের ব্যবস্থা করবেন। ধন্যবাদ।")
+        return sb.toString()
+    }
+
+    fun buildPaymentReceiptCaption(
+        config: ShopConfig,
+        customer: Customer,
+        amountPoisha: Long,
+        previousDuePoisha: Long,
+        remainingDuePoisha: Long
+    ): String {
+        val shopName = config.shopName
+        val paidStr = Formatters.formatMoney(amountPoisha, config.useBengaliNumerals, config.currencySymbol)
+        val prevStr = Formatters.formatMoney(previousDuePoisha, config.useBengaliNumerals, config.currencySymbol)
+        val remStr = Formatters.formatMoney(remainingDuePoisha, config.useBengaliNumerals, config.currencySymbol)
+        val sb = StringBuilder()
+        sb.appendLine("🧾 *$shopName*")
+        sb.appendLine("বাকি আদায় মানি রিসিট")
+        sb.appendLine("গ্রাহক: ${customer.name}")
+        sb.appendLine("-------------------------")
+        sb.appendLine("পূর্বের বাকি: $prevStr")
+        sb.appendLine("আজ জমা: $paidStr")
+        sb.appendLine("বর্তমান বাকি: $remStr")
+        sb.appendLine("-------------------------")
+        sb.appendLine("ধন্যবাদ, আবার আসবেন!")
         return sb.toString()
     }
 }

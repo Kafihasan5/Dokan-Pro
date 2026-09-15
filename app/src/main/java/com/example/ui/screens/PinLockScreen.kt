@@ -123,7 +123,7 @@ fun PinLockScreen(
                 .padding(top = Spacing.sm),
             contentAlignment = Alignment.Center
         ) {
-            AnimatedVisibility(visible = errorMessage != null) {
+            androidx.compose.animation.AnimatedVisibility(visible = errorMessage != null) {
                 Text(
                     text = errorMessage ?: "",
                     color = StatusDanger,

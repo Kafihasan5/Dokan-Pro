@@ -24,6 +24,11 @@ object Motion {
         easing = FastOutSlowInEasing
     )
 
+    val MotionStandardIntOffset: TweenSpec<androidx.compose.ui.unit.IntOffset> = tween(
+        durationMillis = 250,
+        easing = FastOutSlowInEasing
+    )
+
     // 350ms, spring with low bounce
     val MotionEmphasis: SpringSpec<Float> = spring(
         dampingRatio = Spring.DampingRatioLowBouncy,
