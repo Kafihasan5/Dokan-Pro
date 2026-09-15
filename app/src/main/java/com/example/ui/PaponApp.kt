@@ -203,7 +203,6 @@ fun DokanProApp(
                 }
             }
         }
-    }
 
     // In-App Auto Update Dialog
     if (showUpdateDialogEvent && appUpdateInfo.isUpdateAvailable) {
