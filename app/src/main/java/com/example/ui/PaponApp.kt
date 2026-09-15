@@ -84,28 +84,13 @@ fun DokanProApp(
                     )
                 }
             },
-            bottomBar = {
-                // Floating navigation bar only on primary 5 tabs
-                val showNavBar = when (currentScreen) {
-                    AppScreen.DASHBOARD,
-                    AppScreen.PRODUCTS,
-                    AppScreen.POS,
-                    AppScreen.DUE_KHATA,
-                    AppScreen.REPORTS -> true
-                    else -> false
-                }
-
-                if (showNavBar) {
-                    FloatingNavBar(
-                        currentScreen = currentScreen,
-                        onNavigate = { viewModel.navigateTo(it) },
-                        onFabLongPress = { viewModel.toggleQuickActions() }
-                    )
-                }
-            },
             contentWindowInsets = WindowInsets(0, 0, 0, 0)
-        ) { innerPadding ->
-            Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+        ) { _ ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+            ) {
                 val isReduced = com.example.ui.theme.rememberReducedMotion()
                 val density = androidx.compose.ui.platform.LocalDensity.current
                 val slidePx = with(density) { 12.dp.roundToPx() }
@@ -211,6 +196,30 @@ fun DokanProApp(
                         onAddExpense = { viewModel.navigateTo(AppScreen.EXPENSES) },
                         onAddProduct = { viewModel.navigateTo(AppScreen.PRODUCTS) }
                     )
+                }
+
+                // Floating navigation bar truly floating over content at bottom
+                val showNavBar = when (currentScreen) {
+                    AppScreen.DASHBOARD,
+                    AppScreen.PRODUCTS,
+                    AppScreen.POS,
+                    AppScreen.DUE_KHATA,
+                    AppScreen.REPORTS -> true
+                    else -> false
+                }
+
+                if (showNavBar) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.BottomCenter)
+                    ) {
+                        FloatingNavBar(
+                            currentScreen = currentScreen,
+                            onNavigate = { viewModel.navigateTo(it) },
+                            onFabLongPress = { viewModel.toggleQuickActions() }
+                        )
+                    }
                 }
             }
         }

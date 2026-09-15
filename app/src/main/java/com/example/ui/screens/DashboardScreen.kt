@@ -279,9 +279,7 @@ fun DashboardScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = 120.dp)
+            modifier = Modifier.fillMaxSize()
         ) {
             TopHeader(
                 config = config,
@@ -370,7 +368,7 @@ fun DashboardScreen(
                     onReturnSale = { id, returnedMap -> viewModel.returnSaleItems(id, returnedMap) }
                 )
 
-                Spacer(modifier = Modifier.height(Spacing.xl))
+                Spacer(modifier = Modifier.height(130.dp))
             }
         }
     }

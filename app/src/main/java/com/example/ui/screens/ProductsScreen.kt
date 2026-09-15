@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Category
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -105,7 +106,8 @@ fun ProductsScreen(
                     .testTag("add_product_fab")
             )
         },
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { innerPadding ->
         PullToRefreshBox(
             isRefreshing = isManualRefreshing,
@@ -123,7 +125,9 @@ fun ProductsScreen(
                 .background(MaterialTheme.colorScheme.background)
         ) {
             Column(
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
             ) {
                 // 1) Compact Stock-Value Summary Strip at Top
                 ProductSummaryStrip(

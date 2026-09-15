@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -93,8 +94,6 @@ fun DokanScreenScaffold(
     floatingAction: @Composable (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val scrollState = rememberScrollState()
-
     Scaffold(
         floatingActionButton = { floatingAction?.invoke() },
         topBar = {
@@ -102,6 +101,7 @@ fun DokanScreenScaffold(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.surface)
+                    .statusBarsPadding()
             ) {
                 Row(
                     modifier = Modifier
@@ -147,27 +147,18 @@ fun DokanScreenScaffold(
                     )
                 }
 
-                // Hairline divider that only appears once content scrolls
-                AnimatedVisibility(
-                    visible = scrollState.value > 0,
-                    enter = fadeIn(),
-                    exit = fadeOut()
-                ) {
-                    HorizontalDivider(
-                        thickness = 1.dp,
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                    )
-                }
+                HorizontalDivider(
+                    thickness = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                )
             }
-        }
+        },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = innerPadding.calculateTopPadding())
-                .verticalScroll(scrollState)
-                .padding(horizontal = Spacing.lg)
-                .padding(bottom = 96.dp),
+                .padding(innerPadding),
             content = content
         )
     }

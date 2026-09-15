@@ -101,7 +101,8 @@ fun TopHeader(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+                    .padding(horizontal = Spacing.lg)
+                    .padding(top = 10.dp, bottom = Spacing.sm),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {

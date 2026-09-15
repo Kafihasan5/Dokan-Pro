@@ -114,6 +114,7 @@ fun ReportsScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
+            .statusBarsPadding()
             .background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(
             start = Spacing.lg,
