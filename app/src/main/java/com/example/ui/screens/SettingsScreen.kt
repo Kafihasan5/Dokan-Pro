@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -754,7 +755,7 @@ fun SettingsScreen(
                             val minutes = totalSeconds / 60
                             val seconds = totalSeconds % 60
                             val timeFormatted = String.format(java.util.Locale.ENGLISH, "%02d:%02d", minutes, seconds)
-                            val bengaliTime = com.example.util.Formatters.toBengaliNumerals(timeFormatted)
+                            val bengaliTime = com.example.util.Formatters.toBengaliDigits(timeFormatted)
 
                             Text("স্ট্যাটাস: ১ ঘণ্টার ফ্রি ডেমো মোড (বাকি: $bengaliTime মিনিট)", fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                             Text("ডিভাইস আইডি: ${viewModel.getDeviceId()}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)

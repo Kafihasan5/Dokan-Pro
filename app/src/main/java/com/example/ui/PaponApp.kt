@@ -217,7 +217,7 @@ private fun DemoCountdownTopBar(
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     val timeFormatted = String.format(java.util.Locale.ENGLISH, "%02d:%02d", minutes, seconds)
-    val bengaliTime = com.example.util.Formatters.toBengaliNumerals(timeFormatted)
+    val bengaliTime = com.example.util.Formatters.toBengaliDigits(timeFormatted)
 
     Surface(
         color = Color(0xFF0F172A), // Dark slate premium tone
