@@ -1,6 +1,6 @@
 {
-  "versionCode": 29,
-  "versionName": "1.0.29",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v29/app-debug.apk",
-  "releaseNotes": "feat: change app name to Dokan Pro and fix 20 dummy products seeding on onboarding"
+  "versionCode": 31,
+  "versionName": "1.0.31",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v31/app-debug.apk",
+  "releaseNotes": "fix: remove extra closing brace in PaponApp.kt"
 }
