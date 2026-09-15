@@ -484,6 +484,7 @@ fun ProductPosCard(
         }
     }
 }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
