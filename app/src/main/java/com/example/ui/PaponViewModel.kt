@@ -12,6 +12,8 @@ import com.example.util.Formatters
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import java.util.Calendar
 import org.json.JSONArray
 
@@ -123,6 +125,64 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     private val _licenseInfo = MutableStateFlow(licenseManager.getLicenseInfo())
     val licenseInfo: StateFlow<com.example.data.license.LicenseInfo?> = _licenseInfo.asStateFlow()
 
+    // 1-Hour Free Demo Mode State
+    private val _isDemoMode = MutableStateFlow(licenseManager.isDemoMode())
+    val isDemoMode: StateFlow<Boolean> = _isDemoMode.asStateFlow()
+
+    private val _remainingDemoMillis = MutableStateFlow(licenseManager.getRemainingDemoMillis())
+    val remainingDemoMillis: StateFlow<Long> = _remainingDemoMillis.asStateFlow()
+
+    private val _isDemoUsed = MutableStateFlow(licenseManager.wasDemoUsed())
+    val isDemoUsed: StateFlow<Boolean> = _isDemoUsed.asStateFlow()
+
+    private val _isDemoExpired = MutableStateFlow(licenseManager.isDemoExpired())
+    val isDemoExpired: StateFlow<Boolean> = _isDemoExpired.asStateFlow()
+
+    private var demoTimerJob: Job? = null
+
+    private fun startDemoTimerTicker() {
+        demoTimerJob?.cancel()
+        demoTimerJob = viewModelScope.launch {
+            while (licenseManager.isDemoMode()) {
+                val remaining = licenseManager.getRemainingDemoMillis()
+                _remainingDemoMillis.value = remaining
+                if (remaining <= 0) {
+                    _isDemoMode.value = false
+                    _isDemoExpired.value = true
+                    if (!licenseManager.isRealLicenseActive()) {
+                        _isAppActivated.value = false
+                        showToast("⏱️ ১ ঘণ্টার ফ্রি ডেমো মেয়াদ সমাপ্ত হয়েছে। নিয়মিত ব্যবহারের জন্য লাইসেন্স সংগ্রহ করুন (৳৪৯০)।")
+                    }
+                    break
+                }
+                delay(1000L)
+            }
+        }
+    }
+
+    fun startOneHourDemo() {
+        viewModelScope.launch {
+            if (licenseManager.wasDemoUsed() && licenseManager.isDemoExpired()) {
+                showToast("আপনার ডিভাইসে ১ ঘণ্টার ডেমো সেশন ইতিমধ্যে সম্পন্ন হয়েছে।")
+                return@launch
+            }
+            val started = licenseManager.startOneHourDemo()
+            if (started) {
+                // Seed 7 days of realistic grocery shop dummy data
+                repository.seedDemoData()
+                _isDemoMode.value = true
+                _isDemoUsed.value = true
+                _isDemoExpired.value = false
+                _remainingDemoMillis.value = licenseManager.getRemainingDemoMillis()
+                _isAppActivated.value = true
+                startDemoTimerTicker()
+                showToast("১ ঘণ্টার ফ্রি ডেমো মোড চালু হয়েছে! ৭ দিনের ডামি ডাটা লোড করা হয়েছে।")
+            } else {
+                showToast("ডেমো মোড চালু করা সম্ভব হয়নি।")
+            }
+        }
+    }
+
     // Customer Personal Supabase Cloud Credentials & Sync State
     private val _customerSupabaseUrl = MutableStateFlow(prefs.getString("customer_supabase_url", "") ?: "")
     val customerSupabaseUrl: StateFlow<String> = _customerSupabaseUrl.asStateFlow()
@@ -148,6 +208,15 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
             _activationError.value = null
             when (val res = licenseManager.activateWithEmail(email)) {
                 is com.example.data.license.ActivationResult.Success -> {
+                    // CRITICAL REQUIREMENT: Real customer activated the app!
+                    // If demo was used or currently active, wipe all dummy data clean so they get a 100% fresh shop.
+                    val wasDemo = licenseManager.wasDemoUsed() || _isDemoMode.value
+                    if (wasDemo) {
+                        repository.clearAllDummyData()
+                        licenseManager.clearDemoState()
+                    }
+                    demoTimerJob?.cancel()
+                    _isDemoMode.value = false
                     _isAppActivated.value = true
                     _licenseInfo.value = res.info
                     _isActivating.value = false
@@ -166,6 +235,10 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         loadUnits()
         val db = PaponDatabase.getInstance(application)
         repository = PaponRepository(db.paponDao())
+
+        if (licenseManager.isDemoMode()) {
+            startDemoTimerTicker()
+        }
         
         // Initialize dynamic customer cloud credentials if configured
         repository.updateCustomerCloudCredentials(_customerSupabaseUrl.value, _customerSupabaseKey.value)

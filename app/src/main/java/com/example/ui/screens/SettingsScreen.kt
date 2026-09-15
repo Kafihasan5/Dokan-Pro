@@ -60,6 +60,10 @@ fun SettingsScreen(
     val categories by viewModel.categories.collectAsState()
     val units by viewModel.units.collectAsState()
     val licenseInfo by viewModel.licenseInfo.collectAsState()
+    val isDemoMode by viewModel.isDemoMode.collectAsState()
+    val remainingDemoMillis by viewModel.remainingDemoMillis.collectAsState()
+    var showDemoActivationDialog by remember { mutableStateOf(false) }
+    var demoActivationEmail by remember { mutableStateOf("") }
 
     val customerSupabaseUrl by viewModel.customerSupabaseUrl.collectAsState()
     val customerSupabaseKey by viewModel.customerSupabaseKey.collectAsState()
@@ -745,6 +749,48 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text("স্ট্যাটাস: সক্রিয় (Active & Verified)", fontSize = 12.sp, color = StatusSuccess, fontWeight = FontWeight.Bold)
+                        } else if (isDemoMode) {
+                            val totalSeconds = (remainingDemoMillis / 1000).coerceAtLeast(0)
+                            val minutes = totalSeconds / 60
+                            val seconds = totalSeconds % 60
+                            val timeFormatted = String.format(java.util.Locale.ENGLISH, "%02d:%02d", minutes, seconds)
+                            val bengaliTime = com.example.util.Formatters.toBengaliNumerals(timeFormatted)
+
+                            Text("স্ট্যাটাস: ১ ঘণ্টার ফ্রি ডেমো মোড (বাকি: $bengaliTime মিনিট)", fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            Text("ডিভাইস আইডি: ${viewModel.getDeviceId()}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                text = "বর্তমানে ৭ দিনের ডামি ডাটা সংযুক্ত আছে। নিয়মিত ব্যবহারের জন্য ওয়েবসাইট থেকে আজীবন লাইসেন্স সংগ্রহ করে (৳৪৯০) আপনার ইমেইল দিয়ে সক্রিয় করুন। সক্রিয় করার সাথে সাথে সমস্ত ডামি ডাটা মুছে ফ্রেশ শপ ডেটাবেস প্রস্তুত হবে।",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 16.sp
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        try {
+                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://webixsolution.store/product/dokan-pro"))
+                                            context.startActivity(intent)
+                                        } catch (_: Exception) {}
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Text("লাইসেন্স কিনুন (৳৪৯০)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                OutlinedButton(
+                                    onClick = { showDemoActivationDialog = true },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Text("অ্যাক্টিভ করুন", fontSize = 12.sp)
+                                }
+                            }
                         } else {
                             Text("ডিভাইস আইডি: ${viewModel.getDeviceId()}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("স্ট্যাটাস: সক্রিয় (অফলাইন লোকাল মোড)", fontSize = 12.sp, color = StatusSuccess)
@@ -1124,6 +1170,50 @@ CREATE TABLE IF NOT EXISTS public.app_config (config_key TEXT PRIMARY KEY, confi
             dismissButton = {
                 TextButton(onClick = { showSqlSchemaDialog = false }) {
                     Text("বন্ধ করুন")
+                }
+            }
+        )
+    }
+
+    if (showDemoActivationDialog) {
+        AlertDialog(
+            onDismissRequest = { showDemoActivationDialog = false },
+            icon = { Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Dokan-Pro লাইসেন্স সক্রিয় করুন", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Webix Solution ওয়েবসাইট থেকে ক্রয়কৃত ইমেইলটি লিখুন। সক্রিয় হওয়ার সাথে সাথে সমস্ত ডামি ডাটা স্বয়ংক্রিয়ভাবে মুছে সম্পূর্ণ ফ্রেশ ডেটাবেস চালু হবে।",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 16.sp
+                    )
+                    OutlinedTextField(
+                        value = demoActivationEmail,
+                        onValueChange = { demoActivationEmail = it },
+                        placeholder = { Text("customer@gmail.com") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (demoActivationEmail.isNotBlank()) {
+                            showDemoActivationDialog = false
+                            viewModel.activateApp(demoActivationEmail.trim())
+                        }
+                    },
+                    enabled = demoActivationEmail.isNotBlank()
+                ) {
+                    Text("সক্রিয় করুন")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDemoActivationDialog = false }) {
+                    Text("বাতিল")
                 }
             }
         )

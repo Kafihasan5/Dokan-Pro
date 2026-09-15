@@ -41,6 +41,12 @@ class AppLicenseManager(private val context: Context) {
         private const val KEY_ACTIVATED_AT = "activated_at"
         private const val KEY_EXPIRES_AT = "expires_at"
         private const val KEY_DEVICE_ID = "device_id"
+
+        // 1-Hour Free Demo Mode Keys
+        private const val KEY_IS_DEMO_MODE = "is_demo_mode"
+        private const val KEY_DEMO_EXPIRES_AT = "demo_expires_at"
+        private const val KEY_DEMO_ALREADY_USED = "demo_already_used"
+        const val DEMO_DURATION_MILLIS = 60 * 60 * 1000L // 1 hour (60 minutes)
     }
 
     private val client = OkHttpClient.Builder()
@@ -83,11 +89,93 @@ class AppLicenseManager(private val context: Context) {
     }
 
     /**
-     * Checks whether the app is currently activated locally.
+     * Start the 1-hour free demo mode.
+     * Returns true if started successfully, false if already used on this device.
+     */
+    fun startOneHourDemo(): Boolean {
+        if (wasDemoUsed() && isDemoExpired()) {
+            return false
+        }
+        val now = System.currentTimeMillis()
+        val expiresAt = now + DEMO_DURATION_MILLIS
+        prefs.edit()
+            .putBoolean(KEY_IS_DEMO_MODE, true)
+            .putLong(KEY_DEMO_EXPIRES_AT, expiresAt)
+            .putBoolean(KEY_DEMO_ALREADY_USED, true)
+            .apply()
+        return true
+    }
+
+    /**
+     * Checks if current session is in demo mode.
+     */
+    fun isDemoMode(): Boolean {
+        if (!prefs.getBoolean(KEY_IS_DEMO_MODE, false)) return false
+        val expiresAt = prefs.getLong(KEY_DEMO_EXPIRES_AT, 0L)
+        val isExpired = System.currentTimeMillis() >= expiresAt
+        if (isExpired) {
+            prefs.edit().putBoolean(KEY_IS_DEMO_MODE, false).apply()
+            return false
+        }
+        return true
+    }
+
+    /**
+     * Returns remaining demo duration in milliseconds.
+     */
+    fun getRemainingDemoMillis(): Long {
+        if (!prefs.getBoolean(KEY_IS_DEMO_MODE, false)) return 0L
+        val expiresAt = prefs.getLong(KEY_DEMO_EXPIRES_AT, 0L)
+        val remaining = expiresAt - System.currentTimeMillis()
+        return if (remaining > 0) remaining else 0L
+    }
+
+    /**
+     * Checks whether the 1-hour demo was already initiated previously on this device.
+     */
+    fun wasDemoUsed(): Boolean {
+        return prefs.getBoolean(KEY_DEMO_ALREADY_USED, false)
+    }
+
+    /**
+     * Checks if the 1-hour demo session has expired.
+     */
+    fun isDemoExpired(): Boolean {
+        val expiresAt = prefs.getLong(KEY_DEMO_EXPIRES_AT, 0L)
+        return wasDemoUsed() && (expiresAt > 0L && System.currentTimeMillis() >= expiresAt)
+    }
+
+    /**
+     * Checks if real paid license is active (not demo).
+     */
+    fun isRealLicenseActive(): Boolean {
+        return prefs.getBoolean(KEY_IS_ACTIVATED, false) && !prefs.getBoolean(KEY_IS_DEMO_MODE, false)
+    }
+
+    /**
+     * Clear demo mode state when user activates with a real license.
+     */
+    fun clearDemoState() {
+        prefs.edit()
+            .putBoolean(KEY_IS_DEMO_MODE, false)
+            .remove(KEY_DEMO_EXPIRES_AT)
+            .apply()
+    }
+
+    /**
+     * Checks whether the app is currently activated locally (or running in valid 1-hour demo).
      * Offline-first: returns true instantly from local storage without network calls!
      */
     fun isActivated(): Boolean {
-        return prefs.getBoolean(KEY_IS_ACTIVATED, false)
+        // Real purchased license
+        if (prefs.getBoolean(KEY_IS_ACTIVATED, false)) {
+            return true
+        }
+        // Active 1-hour demo mode
+        if (isDemoMode()) {
+            return true
+        }
+        return false
     }
 
     /**
@@ -173,6 +261,8 @@ class AppLicenseManager(private val context: Context) {
                         .putString(KEY_CUSTOMER_NAME, custName)
                         .putLong(KEY_ACTIVATED_AT, now)
                         .putString(KEY_EXPIRES_AT, expiresAt)
+                        .putBoolean(KEY_IS_DEMO_MODE, false)
+                        .remove(KEY_DEMO_EXPIRES_AT)
                         .apply()
 
                     val info = LicenseInfo(
@@ -207,6 +297,8 @@ class AppLicenseManager(private val context: Context) {
             .remove(KEY_CUSTOMER_NAME)
             .remove(KEY_ACTIVATED_AT)
             .remove(KEY_EXPIRES_AT)
+            .remove(KEY_IS_DEMO_MODE)
+            .remove(KEY_DEMO_EXPIRES_AT)
             .apply()
     }
 }

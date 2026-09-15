@@ -801,6 +801,7 @@ class PaponRepository(private val dao: PaponDao) {
         dao.clearPurchases()
         dao.clearPurchaseItems()
         dao.clearSuppliers()
+        dao.clearSupplierLedger()
         dao.clearStockAdjustments()
         dao.clearDeletedRecords()
 
@@ -818,6 +819,10 @@ class PaponRepository(private val dao: PaponDao) {
         }
     }
 
+    suspend fun seedDemoData() = withContext(Dispatchers.IO) {
+        com.example.data.demo.DemoDataSeeder.seed7DaysDemoData(dao)
+    }
+
     suspend fun wipeAllDataCloudAndLocal(): Boolean = withContext(Dispatchers.IO) {
         dao.clearProducts()
         dao.clearSales()
@@ -828,6 +833,7 @@ class PaponRepository(private val dao: PaponDao) {
         dao.clearPurchases()
         dao.clearPurchaseItems()
         dao.clearSuppliers()
+        dao.clearSupplierLedger()
         dao.clearStockAdjustments()
         dao.clearDeletedRecords()
 
