@@ -1,6 +1,6 @@
 {
-  "versionCode": 28,
-  "versionName": "1.0.28",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v28/app-debug.apk",
-  "releaseNotes": "feat: redesign POS cart and checkout with floating button and modal bottom sheet"
+  "versionCode": 29,
+  "versionName": "1.0.29",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v29/app-debug.apk",
+  "releaseNotes": "feat: change app name to Dokan Pro and fix 20 dummy products seeding on onboarding"
 }
