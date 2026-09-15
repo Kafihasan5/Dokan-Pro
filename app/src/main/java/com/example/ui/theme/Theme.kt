@@ -48,7 +48,7 @@ private val LightColorScheme = lightColorScheme(
 )
 
 @Composable
-fun PaponShopTheme(
+fun DokanProTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
@@ -74,11 +74,19 @@ fun PaponShopTheme(
 }
 
 @Composable
+fun PaponShopTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    content: @Composable () -> Unit,
+) {
+    DokanProTheme(darkTheme = darkTheme, content = content)
+}
+
+@Composable
 fun MyApplicationTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    PaponShopTheme(darkTheme = darkTheme, content = content)
+    DokanProTheme(darkTheme = darkTheme, content = content)
 }
 

@@ -17,7 +17,7 @@ android {
   val vName = project.findProperty("versionName")?.toString() ?: "1.0.0"
 
   defaultConfig {
-    applicationId = "com.aistudio.paponshop.bpos"
+    applicationId = "com.webix.dokanpro"
     minSdk = 24
     targetSdk = 36
     versionCode = vCode

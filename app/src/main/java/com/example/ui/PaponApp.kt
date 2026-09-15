@@ -15,7 +15,7 @@ import com.example.ui.components.UpdateDialog
 import com.example.ui.screens.*
 
 @Composable
-fun PaponApp(
+fun DokanProApp(
     viewModel: PaponViewModel = viewModel()
 ) {
     val context = LocalContext.current
@@ -179,4 +179,9 @@ fun PaponApp(
             onDismiss = { showUpdateDialog = false }
         )
     }
+}
+
+@Composable
+fun PaponApp(viewModel: PaponViewModel = androidx.lifecycle.viewmodel.compose.viewModel()) {
+    DokanProApp(viewModel = viewModel)
 }

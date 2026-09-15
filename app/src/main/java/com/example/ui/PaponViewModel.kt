@@ -29,7 +29,7 @@ data class CartItem(
 }
 
 data class ShopConfig(
-    val shopName: String = "পাপন শপ",
+    val shopName: String = "দোকান প্রো",
     val shopAddress: String = "বাজার রোড, ঢাকা",
     val shopPhone: String = "০১৭১১-০০০০০০",
     val tagline: String = "আপনার বিশ্বস্ত মুদি দোকান",
@@ -739,7 +739,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
-        if (password.trim() != "paponshop") {
+        if (password.trim().lowercase() != "dokanpro") {
             onError("ভুল পাসওয়ার্ড! সঠিক পাসওয়ার্ড লিখুন।")
             return
         }
@@ -882,7 +882,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun loadShopConfig() {
         try {
-            val shopName = prefs.getString("shop_name", "পাপন শপ") ?: "পাপন শপ"
+            val shopName = prefs.getString("shop_name", "দোকান প্রো") ?: "দোকান প্রো"
             val shopAddress = prefs.getString("shop_address", "বাজার রোড, ঢাকা") ?: "বাজার রোড, ঢাকা"
             val shopPhone = prefs.getString("shop_phone", "০১৭১১-০০০০০০") ?: "০১৭১১-০০০০০০"
             val tagline = prefs.getString("tagline", "আপনার বিশ্বস্ত মুদি দোকান") ?: "আপনার বিশ্বস্ত মুদি দোকান"
@@ -1064,3 +1064,5 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 }
+
+typealias DokanProViewModel = PaponViewModel

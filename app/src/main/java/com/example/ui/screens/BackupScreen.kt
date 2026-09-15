@@ -121,7 +121,7 @@ fun BackupScreen(
                                     val sendIntent = Intent().apply {
                                         action = Intent.ACTION_SEND
                                         putExtra(Intent.EXTRA_TEXT, jsonString)
-                                        putExtra(Intent.EXTRA_TITLE, "PaponShop_Backup_${System.currentTimeMillis()}.json")
+                                        putExtra(Intent.EXTRA_TITLE, "DokanPro_Backup_${System.currentTimeMillis()}.json")
                                         type = "application/json"
                                     }
                                     context.startActivity(Intent.createChooser(sendIntent, "Google Drive এ ব্যাকআপ সংরক্ষণ করুন"))

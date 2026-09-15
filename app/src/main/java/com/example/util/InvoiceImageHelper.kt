@@ -329,7 +329,7 @@ object InvoiceImageHelper {
         y += 30f
         paint.textSize = 15f
         paint.color = c(0xFF94A3B8)
-        canvas.drawText("পাপন শপ ডিজিটাল ইনভয়েস সিস্টেম দ্বারা প্রস্তুতকৃত", BITMAP_WIDTH / 2f, y, paint)
+        canvas.drawText("দোকান প্রো ডিজিটাল ইনভয়েস সিস্টেম দ্বারা প্রস্তুতকৃত", BITMAP_WIDTH / 2f, y, paint)
 
         // Bottom Accent
         paint.color = c(0xFF059669)
@@ -539,7 +539,7 @@ object InvoiceImageHelper {
         y += 28f
         paint.textSize = 15f
         paint.color = c(0xFF94A3B8)
-        canvas.drawText("পাপন শপ খতিয়ান সিস্টেম দ্বারা স্বয়ংক্রিয়ভাবে তৈরি", BITMAP_WIDTH / 2f, y, paint)
+        canvas.drawText("দোকান প্রো খতিয়ান সিস্টেম দ্বারা স্বয়ংক্রিয়ভাবে তৈরি", BITMAP_WIDTH / 2f, y, paint)
 
         // Bottom Accent
         paint.color = c(0xFFDC2626)
@@ -704,7 +704,7 @@ object InvoiceImageHelper {
         y += 28f
         paint.textSize = 15f
         paint.color = c(0xFF94A3B8)
-        canvas.drawText("পাপন শপ ডিজিটাল ভাউচার সিস্টেম", BITMAP_WIDTH / 2f, y, paint)
+        canvas.drawText("দোকান প্রো ডিজিটাল ভাউচার সিস্টেম", BITMAP_WIDTH / 2f, y, paint)
 
         paint.color = c(0xFF059669)
         canvas.drawRect(0f, (totalHeight - 12).toFloat(), BITMAP_WIDTH.toFloat(), totalHeight.toFloat(), paint)
@@ -815,7 +815,7 @@ object InvoiceImageHelper {
     // ==========================================
 
     /**
-     * Save Bitmap to device public Pictures/PaponShop directory (visible in Gallery)
+     * Save Bitmap to device public Pictures/DokanPro directory (visible in Gallery)
      */
     fun saveBitmapToGallery(context: Context, bitmap: Bitmap, fileNamePrefix: String): Uri? {
         val fileName = "${fileNamePrefix}_${System.currentTimeMillis()}.png"
@@ -826,7 +826,7 @@ object InvoiceImageHelper {
                 val contentValues = ContentValues().apply {
                     put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
                     put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/PaponShop")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/DokanPro")
                     put(MediaStore.MediaColumns.IS_PENDING, 1)
                 }
                 val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
@@ -841,7 +841,7 @@ object InvoiceImageHelper {
                     return uri
                 }
             } else {
-                val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "PaponShop")
+                val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "DokanPro")
                 if (!dir.exists()) dir.mkdirs()
                 val file = File(dir, fileName)
                 FileOutputStream(file).use { out ->

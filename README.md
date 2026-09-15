@@ -2,11 +2,14 @@
 <img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
 </div>
 
-# Run and deploy your AI Studio app
+# Dokan Pro - অফলাইন মোবাইল POS ও দোকান ব্যবস্থাপনা অ্যাপ
 
-This contains everything you need to run your app locally.
+**Dokan Pro** হলো মুদি ও যেকোনো রিটেইল ব্যবসার জন্য সম্পূর্ণ অফলাইন মোবাইল পয়েন্ট অফ সেল (POS) এবং হিসাব খাতা ব্যবস্থাপনা অ্যাপ্লিকেশন।
 
-View your app in AI Studio: https://ai.studio/apps/7ebb7eb7-67db-4f65-b419-9661a4dd763b
+- **অফিসিয়াল ওয়েবসাইট:** [Webix Solution](https://webixsolution.com)
+- **লাইসেন্স ও অ্যাক্টিভেশন:** Webix Solution Laravel & Supabase Licensing
+- **ডাটা প্রাইভেসি:** ১০০% লোকাল ও সুরক্ষিত অফলাইন SQLite (Room Database)
+
 
 ## Run Locally
 

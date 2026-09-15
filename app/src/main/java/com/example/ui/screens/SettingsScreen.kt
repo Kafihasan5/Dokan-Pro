@@ -785,7 +785,7 @@ fun SettingsScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        "সতর্কতা: ক্লাউড সার্ভার (Supabase) এবং ফোন থেকে সকল পণ্য, বিক্রির রেকর্ড, কাস্টমার তালিকা, বাকি খাতা ও খরচের সমস্ত হিসাব স্থায়ীভাবে মুছে যাবে। এটি আর ফিরিয়ে আনা সম্ভব নয়!\n\nমুছে ফেলতে পাসওয়ার্ড লিখুন:",
+                        "সতর্কতা: ফোন থেকে সকল পণ্য, বিক্রির রেকর্ড, কাস্টমার তালিকা, বাকি খাতা ও খরচের সমস্ত হিসাব স্থায়ীভাবে মুছে যাবে। এটি আর ফিরিয়ে আনা সম্ভব নয়!\n\nমুছে ফেলতে পাসওয়ার্ড লিখুন (dokanpro):",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -844,7 +844,7 @@ fun SettingsScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        if (inputPassword.trim() != "paponshop") {
+                        if (inputPassword.trim().lowercase() != "dokanpro") {
                             errorMessage = "ভুল পাসওয়ার্ড! সঠিক পাসওয়ার্ড লিখুন।"
                             return@Button
                         }

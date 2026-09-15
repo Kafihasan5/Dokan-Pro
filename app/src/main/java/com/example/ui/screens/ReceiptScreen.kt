@@ -418,7 +418,7 @@ fun ReceiptScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
                     Text("--- ধন্যবাদ! আবার আসবেন ---", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("পাপন শপ ডিজিটাল ইনভয়েস সিস্টেম", fontSize = 10.sp, color = Color.Gray, modifier = Modifier.padding(top = 2.dp))
+                    Text("দোকান প্রো ডিজিটাল ইনভয়েস সিস্টেম", fontSize = 10.sp, color = Color.Gray, modifier = Modifier.padding(top = 2.dp))
                 }
             }
         }

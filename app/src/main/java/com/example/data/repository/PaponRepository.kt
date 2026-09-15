@@ -302,7 +302,7 @@ class PaponRepository(private val dao: PaponDao) {
 
     suspend fun createBackupJson(): String = withContext(Dispatchers.IO) {
         val root = JSONObject()
-        root.put("app", "Papon Shop")
+        root.put("app", "Dokan Pro")
         root.put("version", "1.0")
         root.put("timestamp", System.currentTimeMillis())
 
@@ -397,7 +397,7 @@ class PaponRepository(private val dao: PaponDao) {
             BackupLog(
                 type = "manual",
                 status = "success",
-                fileName = "papon_backup_${System.currentTimeMillis()}.json",
+                fileName = "dokan_pro_backup_${System.currentTimeMillis()}.json",
                 sizeBytes = jsonStr.toByteArray().size.toLong(),
                 recordCount = products.size + customers.size + sales.size + expenses.size
             )

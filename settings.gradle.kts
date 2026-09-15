@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Papon Shop"
+rootProject.name = "Dokan Pro"
 
 include(":app")

@@ -8,9 +8,9 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.ui.PaponApp
+import com.example.ui.DokanProApp
 import com.example.ui.PaponViewModel
-import com.example.ui.theme.PaponShopTheme
+import com.example.ui.theme.DokanProTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -25,8 +25,8 @@ class MainActivity : ComponentActivity() {
                 "light" -> false
                 else -> systemDark
             }
-            PaponShopTheme(darkTheme = isDark) {
-                PaponApp(viewModel = viewModel)
+            DokanProTheme(darkTheme = isDark) {
+                DokanProApp(viewModel = viewModel)
             }
         }
     }
