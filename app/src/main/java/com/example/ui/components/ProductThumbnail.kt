@@ -2,6 +2,7 @@ package com.example.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,7 +29,8 @@ fun ProductThumbnail(
     size: Dp = 48.dp,
     shape: Shape = RoundedCornerShape(10.dp),
     fallbackIcon: ImageVector = Icons.Default.Inventory2,
-    contentDescription: String? = null
+    contentDescription: String? = null,
+    contentScale: ContentScale = ContentScale.Fit
 ) {
     val localFile = remember(imagePath) {
         if (!imagePath.isNullOrBlank()) {
@@ -41,11 +43,12 @@ fun ProductThumbnail(
         AsyncImage(
             model = localFile,
             contentDescription = contentDescription,
-            contentScale = ContentScale.Crop,
+            contentScale = contentScale,
             modifier = modifier
                 .size(size)
                 .clip(shape)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                .padding(2.dp)
         )
     } else {
         Box(

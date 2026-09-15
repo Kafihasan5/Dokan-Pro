@@ -411,16 +411,23 @@ fun ProductPosCard(
     ) {
         Column {
             if (localFile != null) {
-                AsyncImage(
-                    model = localFile,
-                    contentDescription = product.nameBn,
-                    contentScale = ContentScale.Crop,
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(84.dp)
+                        .height(115.dp)
                         .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                )
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AsyncImage(
+                        model = localFile,
+                        contentDescription = product.nameBn,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(6.dp)
+                    )
+                }
             }
 
             Box(modifier = Modifier.padding(10.dp)) {

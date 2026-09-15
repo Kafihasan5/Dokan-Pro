@@ -591,11 +591,12 @@ fun ProductFormDialog(
                                         AsyncImage(
                                             model = modelToLoad,
                                             contentDescription = "পণ্যের ছবি",
-                                            contentScale = ContentScale.Crop,
+                                            contentScale = ContentScale.Fit,
                                             modifier = Modifier
                                                 .size(60.dp)
                                                 .clip(RoundedCornerShape(10.dp))
                                                 .background(MaterialTheme.colorScheme.surface)
+                                                .padding(2.dp)
                                         )
 
                                         Spacer(modifier = Modifier.width(12.dp))
