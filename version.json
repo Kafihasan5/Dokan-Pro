@@ -1,6 +1,6 @@
 {
-  "versionCode": 19,
-  "versionName": "1.0.19",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v19/app-debug.apk",
-  "releaseNotes": "Ensure AppUpdater falls through to GitHub Releases API if version.json is cached"
+  "versionCode": 21,
+  "versionName": "1.0.21",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v21/app-debug.apk",
+  "releaseNotes": "fix: Resolve toBengaliDigits formatter method and android.net.Uri import"
 }
