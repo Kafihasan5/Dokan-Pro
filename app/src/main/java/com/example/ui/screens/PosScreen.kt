@@ -107,6 +107,7 @@ import com.example.data.entity.Product
 import com.example.ui.CartItem
 import com.example.ui.PaponViewModel
 import com.example.ui.ShopConfig
+import com.example.ui.components.AnimatedAmount
 import com.example.ui.components.DokanPrimaryButton
 import com.example.ui.components.DokanTextField
 import com.example.ui.components.EmptyState
@@ -376,7 +377,7 @@ fun PosScreen(
                             inCartQty = inCartQty,
                             config = config,
                             onTap = {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                                 viewModel.addProductToCart(product, 1.0)
                             },
                             onLongTap = {
@@ -768,10 +769,12 @@ private fun PosCartSheetContent(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("সর্বমোট প্রদেয়:", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text(
-                            text = Formatters.formatMoney(grandTotal, config.useBengaliNumerals, config.currencySymbol),
+                        AnimatedAmount(
+                            value = grandTotal,
                             style = amountTextStyle(26.sp),
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.primary,
+                            useBengaliNumerals = config.useBengaliNumerals,
+                            currencySymbol = config.currencySymbol
                         )
                     }
                 }
@@ -838,7 +841,9 @@ private fun PosCartSheetContent(
                 text = if (selectedPaymentMethod == "due") "বাকিতে বিল সম্পন্ন করুন" else "বিল সম্পন্ন করুন",
                 onClick = {
                     viewModel.checkoutSale(
-                        onSuccess = {},
+                        onSuccess = {
+                            view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                        },
                         onError = { err -> viewModel.showToast(err) }
                     )
                 },
@@ -874,6 +879,7 @@ private fun PosCartItemRow(
     onQtyChange: (Double) -> Unit,
     onRemove: () -> Unit
 ) {
+    val view = LocalView.current
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -907,7 +913,10 @@ private fun PosCartItemRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // Minus stepper (40dp target)
                 Surface(
-                    onClick = { onQtyChange(item.qty - 1.0) },
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        onQtyChange(item.qty - 1.0)
+                    },
                     shape = RoundedCornerShape(Radius.xs),
                     color = MaterialTheme.dokanColors.surfaceAlt,
                     modifier = Modifier.size(40.dp)
@@ -926,7 +935,10 @@ private fun PosCartItemRow(
 
                 // Plus stepper (40dp target)
                 Surface(
-                    onClick = { onQtyChange(item.qty + 1.0) },
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        onQtyChange(item.qty + 1.0)
+                    },
                     shape = RoundedCornerShape(Radius.xs),
                     color = MaterialTheme.dokanColors.surfaceAlt,
                     modifier = Modifier.size(40.dp)

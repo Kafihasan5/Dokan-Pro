@@ -106,73 +106,98 @@ fun DokanProApp(
             contentWindowInsets = WindowInsets(0, 0, 0, 0)
         ) { innerPadding ->
             Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-                when (currentScreen) {
-                    AppScreen.DASHBOARD -> {
-                        DashboardScreen(
-                            viewModel = viewModel,
-                            config = shopConfig,
-                            onNavigate = { viewModel.navigateTo(it) }
-                        )
-                    }
-                    AppScreen.PRODUCTS -> {
-                        ProductsScreen(
-                            viewModel = viewModel,
-                            config = shopConfig
-                        )
-                    }
-                    AppScreen.POS -> {
-                        PosScreen(
-                            viewModel = viewModel,
-                            config = shopConfig
-                        )
-                    }
-                    AppScreen.DUE_KHATA -> {
-                        DueKhataScreen(
-                            viewModel = viewModel,
-                            config = shopConfig
-                        )
-                    }
-                    AppScreen.REPORTS -> {
-                        ReportsScreen(
-                            viewModel = viewModel,
-                            config = shopConfig
-                        )
-                    }
-                    AppScreen.RECEIPT -> {
-                        ReceiptScreen(
-                            viewModel = viewModel,
-                            config = shopConfig,
-                            onNewSale = { viewModel.navigateTo(AppScreen.POS) },
-                            onGoHome = { viewModel.navigateTo(AppScreen.DASHBOARD) }
-                        )
-                    }
-                    AppScreen.PURCHASES -> {
-                        PurchasesScreen(
-                            viewModel = viewModel,
-                            config = shopConfig,
-                            onBack = { viewModel.navigateTo(AppScreen.DASHBOARD) }
-                        )
-                    }
-                    AppScreen.EXPENSES -> {
-                        ExpensesScreen(
-                            viewModel = viewModel,
-                            config = shopConfig,
-                            onBack = { viewModel.navigateTo(AppScreen.DASHBOARD) }
-                        )
-                    }
-                    AppScreen.BACKUP -> {
-                        BackupScreen(
-                            viewModel = viewModel,
-                            config = shopConfig,
-                            onBack = { viewModel.navigateTo(AppScreen.DASHBOARD) }
-                        )
-                    }
-                    AppScreen.SETTINGS -> {
-                        SettingsScreen(
-                            viewModel = viewModel,
-                            config = shopConfig,
-                            onBack = { viewModel.navigateTo(AppScreen.DASHBOARD) }
-                        )
+                val isReduced = com.example.ui.theme.rememberReducedMotion()
+                val density = androidx.compose.ui.platform.LocalDensity.current
+                val slidePx = with(density) { 12.dp.roundToPx() }
+
+                AnimatedContent(
+                    targetState = currentScreen,
+                    transitionSpec = {
+                        if (isReduced) {
+                            fadeIn(animationSpec = com.example.ui.theme.Motion.MotionFast)
+                                .togetherWith(fadeOut(animationSpec = com.example.ui.theme.Motion.MotionFast))
+                        } else {
+                            val isDeeper = targetState.ordinal > initialState.ordinal
+                            if (isDeeper) {
+                                (slideInHorizontally(animationSpec = com.example.ui.theme.Motion.MotionStandard) { slidePx } + fadeIn(animationSpec = com.example.ui.theme.Motion.MotionStandard))
+                                    .togetherWith(slideOutHorizontally(animationSpec = com.example.ui.theme.Motion.MotionStandard) { -slidePx } + fadeOut(animationSpec = com.example.ui.theme.Motion.MotionStandard))
+                            } else {
+                                (slideInHorizontally(animationSpec = com.example.ui.theme.Motion.MotionStandard) { -slidePx } + fadeIn(animationSpec = com.example.ui.theme.Motion.MotionStandard))
+                                    .togetherWith(slideOutHorizontally(animationSpec = com.example.ui.theme.Motion.MotionStandard) { slidePx } + fadeOut(animationSpec = com.example.ui.theme.Motion.MotionStandard))
+                            }
+                        }
+                    },
+                    label = "ScreenTransition",
+                    modifier = Modifier.fillMaxSize()
+                ) { screen ->
+                    when (screen) {
+                        AppScreen.DASHBOARD -> {
+                            DashboardScreen(
+                                viewModel = viewModel,
+                                config = shopConfig,
+                                onNavigate = { viewModel.navigateTo(it) }
+                            )
+                        }
+                        AppScreen.PRODUCTS -> {
+                            ProductsScreen(
+                                viewModel = viewModel,
+                                config = shopConfig
+                            )
+                        }
+                        AppScreen.POS -> {
+                            PosScreen(
+                                viewModel = viewModel,
+                                config = shopConfig
+                            )
+                        }
+                        AppScreen.DUE_KHATA -> {
+                            DueKhataScreen(
+                                viewModel = viewModel,
+                                config = shopConfig
+                            )
+                        }
+                        AppScreen.REPORTS -> {
+                            ReportsScreen(
+                                viewModel = viewModel,
+                                config = shopConfig
+                            )
+                        }
+                        AppScreen.RECEIPT -> {
+                            ReceiptScreen(
+                                viewModel = viewModel,
+                                config = shopConfig,
+                                onNewSale = { viewModel.navigateTo(AppScreen.POS) },
+                                onGoHome = { viewModel.navigateTo(AppScreen.DASHBOARD) }
+                            )
+                        }
+                        AppScreen.PURCHASES -> {
+                            PurchasesScreen(
+                                viewModel = viewModel,
+                                config = shopConfig,
+                                onBack = { viewModel.navigateTo(AppScreen.DASHBOARD) }
+                            )
+                        }
+                        AppScreen.EXPENSES -> {
+                            ExpensesScreen(
+                                viewModel = viewModel,
+                                config = shopConfig,
+                                onBack = { viewModel.navigateTo(AppScreen.DASHBOARD) }
+                            )
+                        }
+                        AppScreen.BACKUP -> {
+                            BackupScreen(
+                                viewModel = viewModel,
+                                config = shopConfig,
+                                onBack = { viewModel.navigateTo(AppScreen.DASHBOARD) }
+                            )
+                        }
+                        AppScreen.SETTINGS -> {
+                            SettingsScreen(
+                                viewModel = viewModel,
+                                config = shopConfig,
+                                onBack = { viewModel.navigateTo(AppScreen.DASHBOARD) }
+                            )
+                        }
                     }
                 }
 

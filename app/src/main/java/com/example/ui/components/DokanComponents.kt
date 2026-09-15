@@ -2,9 +2,21 @@ package com.example.ui.components
 
 import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.composed
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.TextStyle
+import com.example.util.Formatters
+import com.example.ui.theme.Motion
+import com.example.ui.theme.rememberReducedMotion
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -631,6 +643,134 @@ fun FilterChipRow(
             )
         }
     }
+}
+
+// ==============================================================================
+// 8. SHIMMER & SKELETON LOADING
+// ==============================================================================
+fun Modifier.shimmer(): Modifier = composed {
+    val isReduced = rememberReducedMotion()
+    if (isReduced) {
+        return@composed this.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+    }
+    val transition = rememberInfiniteTransition(label = "shimmerTransition")
+    val translateAnim by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1200f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1100, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmerTranslate"
+    )
+
+    val shimmerColors = listOf(
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f),
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+    )
+
+    this.background(
+        brush = Brush.linearGradient(
+            colors = shimmerColors,
+            start = Offset(x = translateAnim - 600f, y = translateAnim - 600f),
+            end = Offset(x = translateAnim, y = translateAnim)
+        )
+    )
+}
+
+@Composable
+fun DokanSkeletonList(
+    itemCount: Int = 6,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+    ) {
+        repeat(itemCount) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(Radius.md))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(Spacing.md),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .shimmer()
+                )
+                Spacer(modifier = Modifier.width(Spacing.md))
+                Column(modifier = Modifier.weight(1f)) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.6f)
+                            .height(16.dp)
+                            .clip(RoundedCornerShape(Radius.xs))
+                            .shimmer()
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.35f)
+                            .height(12.dp)
+                            .clip(RoundedCornerShape(Radius.xs))
+                            .shimmer()
+                    )
+                }
+                Spacer(modifier = Modifier.width(Spacing.md))
+                Box(
+                    modifier = Modifier
+                        .width(64.dp)
+                        .height(20.dp)
+                        .clip(RoundedCornerShape(Radius.xs))
+                        .shimmer()
+                )
+            }
+        }
+    }
+}
+
+// ==============================================================================
+// 9. ANIMATED AMOUNT
+// ==============================================================================
+@Composable
+fun AnimatedAmount(
+    value: Long,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
+    useBengaliNumerals: Boolean = true,
+    currencySymbol: String = "৳"
+) {
+    val isReduced = rememberReducedMotion()
+    val animatedValue = remember { Animatable(value.toFloat()) }
+
+    LaunchedEffect(value, isReduced) {
+        if (isReduced) {
+            animatedValue.snapTo(value.toFloat())
+        } else {
+            animatedValue.animateTo(
+                targetValue = value.toFloat(),
+                animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+            )
+        }
+    }
+
+    val displayValue = animatedValue.value.toLong()
+    val formatted = Formatters.formatMoney(displayValue, useBengaliNumerals, currencySymbol)
+
+    Text(
+        text = formatted,
+        style = style,
+        color = color,
+        modifier = modifier
+    )
 }
 
 // ==============================================================================

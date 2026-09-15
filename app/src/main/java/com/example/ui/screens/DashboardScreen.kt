@@ -106,7 +106,9 @@ import com.example.data.entity.SaleItem
 import com.example.ui.AppScreen
 import com.example.ui.PaponViewModel
 import com.example.ui.ShopConfig
+import com.example.ui.components.AnimatedAmount
 import com.example.ui.components.DokanConfirmDialog
+import com.example.ui.components.DokanSkeletonList
 import com.example.ui.components.DokanTextField
 import com.example.ui.components.EmptyState
 import com.example.ui.components.ProductReturnDialog
@@ -360,6 +362,7 @@ fun DashboardScreen(
                     },
                     onPageSelected = { currentSalesPage = it },
                     config = config,
+                    isSyncing = isSyncing,
                     onViewReceipt = { sale -> viewModel.viewSaleReceipt(sale) },
                     onDeleteSale = { id -> viewModel.deleteSale(id) },
                     onReturnSale = { id, returnedMap -> viewModel.returnSaleItems(id, returnedMap) }
@@ -534,10 +537,12 @@ private fun DashboardHeroSummary(
                 Spacer(modifier = Modifier.height(Spacing.sm))
 
                 // Sales Amount Figure at 34sp
-                Text(
-                    text = Formatters.formatMoney(salesTotalPoisha, config.useBengaliNumerals, config.currencySymbol),
+                AnimatedAmount(
+                    value = salesTotalPoisha,
                     style = amountTextStyle(34.sp),
-                    color = Color.White
+                    color = Color.White,
+                    useBengaliNumerals = config.useBengaliNumerals,
+                    currencySymbol = config.currencySymbol
                 )
 
                 Text(
@@ -988,6 +993,7 @@ private fun DashboardSalesHistorySection(
     onSearchQueryChange: (String) -> Unit,
     onPageSelected: (Int) -> Unit,
     config: ShopConfig,
+    isSyncing: Boolean = false,
     onViewReceipt: (Sale) -> Unit,
     onDeleteSale: (Long) -> Unit,
     onReturnSale: (Long, Map<Long, Double>) -> Unit
@@ -1012,11 +1018,15 @@ private fun DashboardSalesHistorySection(
         )
 
         if (sales.isEmpty()) {
-            EmptyState(
-                icon = Icons.Default.ReceiptLong,
-                title = if (searchQuery.isNotBlank()) "খোঁজার সাথে কোনো বিক্রয় মেলেনি" else "এখনো কোনো বিক্রয় রেকর্ড নেই",
-                message = "নতুন বিক্রয় সম্পন্ন হলে এখানে তালিকা দেখা যাবে।"
-            )
+            if (isSyncing && searchQuery.isBlank()) {
+                DokanSkeletonList(itemCount = 4)
+            } else {
+                EmptyState(
+                    icon = Icons.Default.ReceiptLong,
+                    title = if (searchQuery.isNotBlank()) "খোঁজার সাথে কোনো বিক্রয় মেলেনি" else "এখনো কোনো বিক্রয় রেকর্ড নেই",
+                    message = "নতুন বিক্রয় সম্পন্ন হলে এখানে তালিকা দেখা যাবে।"
+                )
+            }
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 sales.forEach { sale ->

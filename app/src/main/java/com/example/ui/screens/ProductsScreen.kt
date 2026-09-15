@@ -42,6 +42,7 @@ import com.example.ui.ShopConfig
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.util.Formatters
+import com.example.ui.components.DokanSkeletonList
 import com.example.util.ImageStorageHelper
 import kotlinx.coroutines.launch
 import java.io.File
@@ -68,6 +69,12 @@ fun ProductsScreen(
     var productForStockAdjust by remember { mutableStateOf<Product?>(null) }
     var showCategoryUnitManager by remember { mutableStateOf(false) }
     var initialManageTab by remember { mutableStateOf(0) }
+    var isFirstLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(350)
+        isFirstLoading = false
+    }
 
     val filteredProducts = remember(products, searchQuery, selectedCatId, showOnlyLowStock) {
         products.filter { prod ->
@@ -163,7 +170,14 @@ fun ProductsScreen(
                 }
 
                 // 3 & 6) Product List or Empty State
-                if (products.isEmpty()) {
+                if (isFirstLoading && products.isEmpty()) {
+                    DokanSkeletonList(
+                        itemCount = 6,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    )
+                } else if (products.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .weight(1f)

@@ -95,7 +95,9 @@ import com.example.data.entity.Customer
 import com.example.data.entity.CustomerLedger
 import com.example.ui.PaponViewModel
 import com.example.ui.ShopConfig
+import com.example.ui.components.AnimatedAmount
 import com.example.ui.components.DokanConfirmDialog
+import com.example.ui.components.DokanSkeletonList
 import com.example.ui.components.DokanPrimaryButton
 import com.example.ui.components.DokanTextField
 import com.example.ui.components.EmptyState
@@ -138,6 +140,12 @@ fun DueKhataScreen(
     var customerBalanceForPayment by remember { mutableStateOf(0L) }
     var customerToDelete by remember { mutableStateOf<Customer?>(null) }
     var showAddCustomerDialog by remember { mutableStateOf(false) }
+    var isFirstLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(350)
+        isFirstLoading = false
+    }
 
     val filteredCustomers = remember(customers, searchQuery) {
         customers.filter {
@@ -238,7 +246,14 @@ fun DueKhataScreen(
             }
 
             // Customer List
-            if (filteredCustomers.isEmpty()) {
+            if (isFirstLoading && customers.isEmpty()) {
+                DokanSkeletonList(
+                    itemCount = 6,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                )
+            } else if (filteredCustomers.isEmpty()) {
                 EmptyState(
                     icon = Icons.Default.MenuBook,
                     title = if (searchQuery.isNotBlank()) "কোনো কাস্টমার মেলেনি" else "এখনো কোনো কাস্টমার নেই",
@@ -391,10 +406,12 @@ private fun TotalDueLedgerBanner(
                 Spacer(modifier = Modifier.height(Spacing.xs))
 
                 // Outstanding in amountTextStyle(34.sp) in Gold500
-                Text(
-                    text = Formatters.formatMoney(totalDue, config.useBengaliNumerals, config.currencySymbol),
+                AnimatedAmount(
+                    value = totalDue,
                     style = amountTextStyle(34.sp),
-                    color = Gold500
+                    color = Gold500,
+                    useBengaliNumerals = config.useBengaliNumerals,
+                    currencySymbol = config.currencySymbol
                 )
 
                 Spacer(modifier = Modifier.height(Spacing.xs))
