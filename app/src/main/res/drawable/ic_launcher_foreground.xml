@@ -1,0 +1,44 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Store Awning / Roof -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M27,40 L81,40 L77,31 L31,31 Z" />
+    <path
+        android:fillColor="#A7F3D0"
+        android:pathData="M37,40 L47,40 L45,31 L35,31 Z" />
+    <path
+        android:fillColor="#A7F3D0"
+        android:pathData="M61,40 L71,40 L69,31 L59,31 Z" />
+
+    <!-- Shopfront / Cash Register Body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,43 L78,43 A3,3 0 0,1 81,46 L81,74 A3,3 0 0,1 78,77 L30,77 A3,3 0 0,1 27,74 L27,46 A3,3 0 0,1 30,43 Z" />
+
+    <!-- POS Register Screen -->
+    <path
+        android:fillColor="#046C4E"
+        android:pathData="M33,48 L75,48 A2,2 0 0,1 77,50 L77,64 A2,2 0 0,1 75,66 L33,66 A2,2 0 0,1 31,50 L31,50 A2,2 0 0,1 33,48 Z" />
+
+    <!-- Screen Content: Taka / Currency Symbol and Barcode Lines -->
+    <path
+        android:fillColor="#34D399"
+        android:pathData="M36,52 L44,52 L44,54 L36,54 Z M36,56 L48,56 L48,58 L36,58 Z M36,60 L42,60 L42,62 L36,62 Z" />
+
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M60,52 L72,52 L72,62 L60,62 Z" />
+    <path
+        android:fillColor="#046C4E"
+        android:pathData="M63,55 L69,55 L69,59 L63,59 Z" />
+
+    <!-- Cash Drawer Slot / Buttons -->
+    <path
+        android:fillColor="#0E9F6E"
+        android:pathData="M34,70 L54,70 L54,73 L34,73 Z M60,70 L64,70 L64,73 L60,73 Z M68,70 L74,70 L74,73 L68,73 Z" />
+</vector>
+

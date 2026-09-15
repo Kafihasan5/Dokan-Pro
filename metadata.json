@@ -1,0 +1,6 @@
+{
+  "name": "Papon Shop",
+  "description": "মুদি দোকানের জন্য অফলাইন মোবাইল POS ও দোকান ব্যবস্থাপনা অ্যাপ",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
