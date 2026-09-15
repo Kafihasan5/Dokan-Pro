@@ -25,15 +25,9 @@ fun DokanProApp(
     val toastMessage by viewModel.toastMessage.collectAsState()
     val quickActionsOpen by viewModel.quickActionsOpen.collectAsState()
     val appUpdateInfo by viewModel.appUpdateInfo.collectAsState()
-    var showUpdateDialog by remember { mutableStateOf(false) }
+    val showUpdateDialogEvent by viewModel.showUpdateDialogEvent.collectAsState()
 
     val isAppActivated by viewModel.isAppActivated.collectAsState()
-
-    LaunchedEffect(appUpdateInfo.isUpdateAvailable) {
-        if (appUpdateInfo.isUpdateAvailable) {
-            showUpdateDialog = true
-        }
-    }
 
     // Handle toast messages
     LaunchedEffect(toastMessage) {
@@ -168,7 +162,7 @@ fun DokanProApp(
     }
 
     // In-App Auto Update Dialog
-    if (showUpdateDialog && appUpdateInfo.isUpdateAvailable) {
+    if (showUpdateDialogEvent && appUpdateInfo.isUpdateAvailable) {
         UpdateDialog(
             updateInfo = com.example.util.AppUpdateInfo(
                 versionCode = appUpdateInfo.latestVersionCode,
@@ -176,7 +170,7 @@ fun DokanProApp(
                 downloadUrl = appUpdateInfo.apkDownloadUrl,
                 releaseNotes = appUpdateInfo.updateNotes
             ),
-            onDismiss = { showUpdateDialog = false }
+            onDismiss = { viewModel.dismissUpdateDialog() }
         )
     }
 }

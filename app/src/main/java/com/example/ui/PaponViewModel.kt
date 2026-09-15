@@ -90,6 +90,22 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     private val _appUpdateInfo = MutableStateFlow(AppUpdateInfo())
     val appUpdateInfo: StateFlow<AppUpdateInfo> = _appUpdateInfo.asStateFlow()
 
+    private val _isCheckingUpdate = MutableStateFlow(false)
+    val isCheckingUpdate: StateFlow<Boolean> = _isCheckingUpdate.asStateFlow()
+
+    private val _showUpdateDialogEvent = MutableStateFlow(false)
+    val showUpdateDialogEvent: StateFlow<Boolean> = _showUpdateDialogEvent.asStateFlow()
+
+    fun openUpdateDialog() {
+        if (_appUpdateInfo.value.isUpdateAvailable) {
+            _showUpdateDialogEvent.value = true
+        }
+    }
+
+    fun dismissUpdateDialog() {
+        _showUpdateDialogEvent.value = false
+    }
+
     private val defaultUnits = listOf("কেজি", "গ্রাম", "লিটার", "মিলি", "পিস", "প্যাকেট", "হালি", "ডজন", "বস্তা", "বক্স", "কার্টুন", "মিটার", "বোতল")
     private val _units = MutableStateFlow<List<String>>(defaultUnits)
     val units: StateFlow<List<String>> = _units.asStateFlow()
@@ -915,6 +931,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
     fun checkForUpdates(silent: Boolean = false) {
         viewModelScope.launch {
+            _isCheckingUpdate.value = true
             try {
                 val gitUpdate = AppUpdater.checkForUpdate()
                 if (gitUpdate != null) {
@@ -928,25 +945,36 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                         apkDownloadUrl = gitUpdate.downloadUrl,
                         isForceUpdate = false
                     )
+                    _showUpdateDialogEvent.value = true
                     if (!silent) {
                         showToast("নতুন আপডেট পাওয়া গেছে: v${gitUpdate.versionName}")
                     }
+                    _isCheckingUpdate.value = false
                     return@launch
                 }
 
-                val res = repository.pullFromSupabase(force = true)
-                if (res.configUpdates.isNotEmpty()) {
-                    applyRemoteConfig(res.configUpdates)
-                }
+                try {
+                    val res = repository.pullFromSupabase(force = true)
+                    if (res.configUpdates.isNotEmpty()) {
+                        applyRemoteConfig(res.configUpdates)
+                    }
+                } catch (_: Exception) { }
+
                 if (!silent) {
                     if (_appUpdateInfo.value.isUpdateAvailable) {
+                        _showUpdateDialogEvent.value = true
                         showToast("নতুন আপডেট পাওয়া গেছে: v${_appUpdateInfo.value.latestVersionName}")
                     } else {
                         showToast("আপনার অ্যাপটি সম্পূর্ণ আপ-টু-ডেট (v${BuildConfig.VERSION_NAME})")
                     }
                 }
             } catch (e: Exception) {
-                if (!silent) showToast("আপডেট চেক ব্যর্থ: ${e.message}")
+                e.printStackTrace()
+                if (!silent) {
+                    showToast("আপডেট চেক ব্যর্থ: ইন্টারনেট সংযোগ পরীক্ষা করুন")
+                }
+            } finally {
+                _isCheckingUpdate.value = false
             }
         }
     }

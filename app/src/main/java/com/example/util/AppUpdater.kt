@@ -37,24 +37,75 @@ object AppUpdater {
     // Connected to GitHub repository for in-app updates
     private const val GITHUB_REPO = "Kafihasan5/Dokan-Pro"
     private val RAW_VERSION_URL: String
-        get() = if (GITHUB_REPO.isNotBlank()) "https://raw.githubusercontent.com/$GITHUB_REPO/main/version.json" else ""
-    private val GITHUB_RELEASES_API: String
-        get() = if (GITHUB_REPO.isNotBlank()) "https://api.github.com/repos/$GITHUB_REPO/releases/latest" else ""
+        get() = if (GITHUB_REPO.isNotBlank()) {
+            "https://raw.githubusercontent.com/$GITHUB_REPO/main/version.json?nocache=${System.currentTimeMillis()}"
+        } else ""
 
-    private val client = OkHttpClient.Builder()
+    private val GITHUB_RELEASES_API: String
+        get() = if (GITHUB_REPO.isNotBlank()) {
+            "https://api.github.com/repos/$GITHUB_REPO/releases/latest"
+        } else ""
+
+    private val apiClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
         .build()
+
+    private val downloadClient = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(180, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .build()
+
+    /**
+     * Compare version codes and semantic version names (e.g. 1.0.12 vs 1.0.8)
+     */
+    fun isNewerVersion(
+        remoteCode: Int,
+        remoteName: String,
+        currentCode: Int = BuildConfig.VERSION_CODE,
+        currentName: String = BuildConfig.VERSION_NAME
+    ): Boolean {
+        // 1. Direct versionCode check
+        if (remoteCode > currentCode && remoteCode > 0) return true
+
+        // 2. Semantic versionName comparison (e.g. "1.0.12" > "1.0.8")
+        val rClean = remoteName.removePrefix("v").removePrefix("Release").trim()
+        val cClean = currentName.removePrefix("v").removePrefix("Release").trim()
+
+        val rParts = rClean.split(".").mapNotNull { it.takeWhile { ch -> ch.isDigit() }.toIntOrNull() }
+        val cParts = cClean.split(".").mapNotNull { it.takeWhile { ch -> ch.isDigit() }.toIntOrNull() }
+
+        if (rParts.isNotEmpty() && cParts.isNotEmpty()) {
+            val maxLen = maxOf(rParts.size, cParts.size)
+            for (i in 0 until maxLen) {
+                val r = rParts.getOrElse(i) { 0 }
+                val c = cParts.getOrElse(i) { 0 }
+                if (r > c) return true
+                if (r < c) return false
+            }
+        }
+
+        return false
+    }
 
     suspend fun checkForUpdate(): AppUpdateInfo? = withContext(Dispatchers.IO) {
         if (GITHUB_REPO.isBlank()) return@withContext null
-        // 1. Check version.json on GitHub (fast, no rate limits)
+
+        // 1. Check version.json on GitHub (fast, avoids GitHub API rate limits)
         try {
             val request = Request.Builder()
                 .url(RAW_VERSION_URL)
-                .header("Cache-Control", "no-cache")
+                .header("Cache-Control", "no-cache, no-store, must-revalidate")
+                .header("Pragma", "no-cache")
+                .header("User-Agent", "Dokan-Pro-App")
                 .build()
-            client.newCall(request).execute().use { response ->
+
+            apiClient.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
                     val body = response.body?.string()
                     if (!body.isNullOrEmpty()) {
@@ -64,21 +115,22 @@ object AppUpdater {
                         val downloadUrl = json.optString("downloadUrl", "")
                         val releaseNotes = json.optString("releaseNotes", "")
 
-                        if (remoteVersionCode > BuildConfig.VERSION_CODE && downloadUrl.isNotEmpty()) {
+                        if (isNewerVersion(remoteVersionCode, remoteVersionName) && downloadUrl.isNotBlank()) {
                             return@withContext AppUpdateInfo(
                                 versionCode = remoteVersionCode,
-                                versionName = remoteVersionName,
+                                versionName = remoteVersionName.ifBlank { "v$remoteVersionCode" },
                                 downloadUrl = downloadUrl,
                                 releaseNotes = releaseNotes
                             )
-                        } else if (remoteVersionCode <= BuildConfig.VERSION_CODE && remoteVersionCode > 0) {
+                        } else if (remoteVersionCode > 0 && !isNewerVersion(remoteVersionCode, remoteVersionName)) {
+                            // Up to date according to version.json
                             return@withContext null
                         }
                     }
                 }
             }
         } catch (_: Exception) {
-            // Fall through to releases API
+            // Fall through to GitHub Releases API fallback
         }
 
         // 2. Fallback: GitHub Releases API
@@ -88,7 +140,8 @@ object AppUpdater {
                 .header("Accept", "application/vnd.github.v3+json")
                 .header("User-Agent", "Dokan-Pro-App")
                 .build()
-            client.newCall(request).execute().use { response ->
+
+            apiClient.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
                     val body = response.body?.string()
                     if (!body.isNullOrEmpty()) {
@@ -111,10 +164,11 @@ object AppUpdater {
                             }
                         }
 
-                        if (remoteVersionCode > BuildConfig.VERSION_CODE && downloadUrl.isNotEmpty()) {
+                        val versionName = releaseName.ifBlank { tagName }
+                        if (isNewerVersion(remoteVersionCode, versionName) && downloadUrl.isNotBlank()) {
                             return@withContext AppUpdateInfo(
                                 versionCode = remoteVersionCode,
-                                versionName = releaseName,
+                                versionName = versionName,
                                 downloadUrl = downloadUrl,
                                 releaseNotes = notes
                             )
@@ -137,9 +191,10 @@ object AppUpdater {
         try {
             val request = Request.Builder()
                 .url(downloadUrl)
+                .header("User-Agent", "Dokan-Pro-App")
                 .build()
 
-            client.newCall(request).execute().use { response ->
+            downloadClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext null
                 val body = response.body ?: return@withContext null
                 val contentLength = body.contentLength()
@@ -150,7 +205,7 @@ object AppUpdater {
 
                 body.byteStream().use { input ->
                     FileOutputStream(apkFile).use { output ->
-                        val buffer = ByteArray(8 * 1024)
+                        val buffer = ByteArray(16 * 1024)
                         var bytesRead: Int
                         var totalRead = 0L
 
@@ -158,14 +213,19 @@ object AppUpdater {
                             output.write(buffer, 0, bytesRead)
                             totalRead += bytesRead
                             if (contentLength > 0) {
-                                val progress = ((totalRead * 100) / contentLength).toInt()
+                                val progress = ((totalRead * 100) / contentLength).toInt().coerceIn(0, 100)
                                 onProgress(progress)
                             }
                         }
                         output.flush()
                     }
                 }
-                apkFile
+
+                if (apkFile.exists() && apkFile.length() > 0) {
+                    apkFile
+                } else {
+                    null
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -175,6 +235,8 @@ object AppUpdater {
 
     fun installApk(context: Context, apkFile: File) {
         try {
+            if (!apkFile.exists() || apkFile.length() == 0L) return
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 if (!context.packageManager.canRequestPackageInstalls()) {
                     val settingsIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {

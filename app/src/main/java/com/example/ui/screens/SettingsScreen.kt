@@ -50,13 +50,13 @@ fun SettingsScreen(
     var userRole by remember { mutableStateOf(config.userRole) } // "owner" or "staff"
     var allowNegativeStock by remember { mutableStateOf(config.allowNegativeStock) }
     var showWipeAllDataDialog by remember { mutableStateOf(false) }
-    var showInAppSettingsUpdateDialog by remember { mutableStateOf(false) }
     var showCategoryUnitManager by remember { mutableStateOf(false) }
     var initialManageTab by remember { mutableStateOf(0) }
 
     val isSyncing by viewModel.isSyncing.collectAsState()
     val lastSyncTime by viewModel.lastSyncTime.collectAsState()
     val appUpdateInfo by viewModel.appUpdateInfo.collectAsState()
+    val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val units by viewModel.units.collectAsState()
     val licenseInfo by viewModel.licenseInfo.collectAsState()
@@ -786,11 +786,22 @@ fun SettingsScreen(
                             }
 
                             OutlinedButton(
-                                onClick = { viewModel.checkForUpdates(silent = false) }
+                                onClick = { viewModel.checkForUpdates(silent = false) },
+                                enabled = !isCheckingUpdate
                             ) {
-                                Icon(Icons.Default.SystemUpdate, contentDescription = null)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("আপডেট চেক")
+                                if (isCheckingUpdate) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("যাচাই হচ্ছে...")
+                                } else {
+                                    Icon(Icons.Default.SystemUpdate, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("আপডেট চেক")
+                                }
                             }
                         }
 
@@ -829,7 +840,7 @@ fun SettingsScreen(
                                     Spacer(modifier = Modifier.height(10.dp))
                                     Button(
                                         onClick = {
-                                            showInAppSettingsUpdateDialog = true
+                                            viewModel.openUpdateDialog()
                                         },
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = RoundedCornerShape(8.dp)
@@ -1013,18 +1024,6 @@ fun SettingsScreen(
                     Text("বাতিল")
                 }
             }
-        )
-    }
-
-    if (showInAppSettingsUpdateDialog && appUpdateInfo.isUpdateAvailable) {
-        UpdateDialog(
-            updateInfo = com.example.util.AppUpdateInfo(
-                versionCode = appUpdateInfo.latestVersionCode,
-                versionName = appUpdateInfo.latestVersionName,
-                downloadUrl = appUpdateInfo.apkDownloadUrl,
-                releaseNotes = appUpdateInfo.updateNotes
-            ),
-            onDismiss = { showInAppSettingsUpdateDialog = false }
         )
     }
 
