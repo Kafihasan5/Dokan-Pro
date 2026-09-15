@@ -1,6 +1,6 @@
 {
-  "versionCode": 18,
-  "versionName": "1.0.18",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v18/app-debug.apk",
-  "releaseNotes": "Fix product image cropping on POS screen and thumbnails using ContentScale.Fit"
+  "versionCode": 19,
+  "versionName": "1.0.19",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v19/app-debug.apk",
+  "releaseNotes": "Ensure AppUpdater falls through to GitHub Releases API if version.json is cached"
 }
