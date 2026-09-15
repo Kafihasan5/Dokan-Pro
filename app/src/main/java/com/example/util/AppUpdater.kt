@@ -34,8 +34,8 @@ sealed class UpdateState {
 }
 
 object AppUpdater {
-    // Configured when connecting a GitHub repository for in-app updates (e.g. "username/repo")
-    private const val GITHUB_REPO = ""
+    // Connected to GitHub repository for in-app updates
+    private const val GITHUB_REPO = "Kafihasan5/Dokan-Pro"
     private val RAW_VERSION_URL: String
         get() = if (GITHUB_REPO.isNotBlank()) "https://raw.githubusercontent.com/$GITHUB_REPO/main/version.json" else ""
     private val GITHUB_RELEASES_API: String
@@ -86,7 +86,7 @@ object AppUpdater {
             val request = Request.Builder()
                 .url(GITHUB_RELEASES_API)
                 .header("Accept", "application/vnd.github.v3+json")
-                .header("User-Agent", "PaponShop-App")
+                .header("User-Agent", "Dokan-Pro-App")
                 .build()
             client.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
@@ -145,7 +145,7 @@ object AppUpdater {
                 val contentLength = body.contentLength()
 
                 val updateDir = File(context.cacheDir, "updates").apply { mkdirs() }
-                val apkFile = File(updateDir, "paponshop_update.apk")
+                val apkFile = File(updateDir, "dokan_pro_update.apk")
                 if (apkFile.exists()) apkFile.delete()
 
                 body.byteStream().use { input ->

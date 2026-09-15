@@ -84,7 +84,7 @@ jobs:
           {
             "versionCode": ${{ github.run_number }},
             "versionName": "1.0.${{ github.run_number }}",
-            "downloadUrl": "https://github.com/Kafihasan5/paponshop/releases/download/v${{ github.run_number }}/app-debug.apk",
+            "downloadUrl": "https://github.com/${{ github.repository }}/releases/download/v${{ github.run_number }}/app-debug.apk",
             "releaseNotes": "$COMMIT_MSG"
           }
           EOF
