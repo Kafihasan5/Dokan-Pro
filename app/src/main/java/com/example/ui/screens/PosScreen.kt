@@ -24,25 +24,32 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
@@ -63,7 +70,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -73,15 +80,15 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberBottomSheetScaffoldState
-import androidx.compose.material3.rememberStandardBottomSheetState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -157,55 +164,17 @@ fun PosScreen(
 
     val totalItemsCount = cartItems.sumOf { it.qty }
     val subtotalPoisha = cartItems.sumOf { it.lineTotalPoisha }
+    val discountPoisha by viewModel.discountPoisha.collectAsState()
+    val vat = if (config.vatEnabled) ((subtotalPoisha - discountPoisha) * (config.vatPercentage / 100.0)).toLong() else 0L
+    val grandTotal = (subtotalPoisha - discountPoisha + vat).coerceAtLeast(0)
 
-    val bottomSheetState = rememberStandardBottomSheetState(
-        initialValue = SheetValue.PartiallyExpanded,
-        skipHiddenState = true
-    )
-    val scaffoldState = rememberBottomSheetScaffoldState(bottomSheetState = bottomSheetState)
-    val peekHeight = if (cartItems.isEmpty()) 0.dp else 72.dp
+    var showCartModalSheet by remember { mutableStateOf(false) }
 
-    BottomSheetScaffold(
-        scaffoldState = scaffoldState,
-        sheetPeekHeight = peekHeight,
-        sheetSwipeEnabled = cartItems.isNotEmpty(),
-        sheetShape = RoundedCornerShape(topStart = Radius.lg, topEnd = Radius.lg),
-        sheetContainerColor = MaterialTheme.colorScheme.surface,
-        sheetShadowElevation = 16.dp,
-        sheetContent = {
-            if (cartItems.isNotEmpty()) {
-                PosCartSheetContent(
-                    viewModel = viewModel,
-                    config = config,
-                    customers = customers,
-                    cartItems = cartItems,
-                    subtotalPoisha = subtotalPoisha,
-                    totalItemsCount = totalItemsCount,
-                    isExpanded = bottomSheetState.targetValue == SheetValue.Expanded,
-                    onToggleExpand = {
-                        scope.launch {
-                            if (bottomSheetState.currentValue == SheetValue.Expanded) {
-                                bottomSheetState.partialExpand()
-                            } else {
-                                bottomSheetState.expand()
-                            }
-                        }
-                    },
-                    onHoldCart = {
-                        viewModel.holdCurrentCart()
-                        scope.launch { bottomSheetState.partialExpand() }
-                    },
-                    onClearCart = {
-                        viewModel.clearCart()
-                        scope.launch { bottomSheetState.partialExpand() }
-                    }
-                )
-            } else {
-                Box(modifier = Modifier.height(1.dp))
-            }
-        },
-        modifier = modifier.fillMaxSize()
-    ) { contentPadding ->
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -329,6 +298,41 @@ fun PosScreen(
                                 }
                             }
                         }
+
+                        // Cart shortcut icon button with badge
+                        if (cartItems.isNotEmpty()) {
+                            IconButton(
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    showCartModalSheet = true
+                                },
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(RoundedCornerShape(Radius.sm))
+                                    .background(MaterialTheme.colorScheme.primaryContainer)
+                            ) {
+                                BadgedBox(
+                                    badge = {
+                                        Badge(
+                                            containerColor = MaterialTheme.colorScheme.primary,
+                                            contentColor = Color.White
+                                        ) {
+                                            Text(
+                                                text = if (config.useBengaliNumerals) Formatters.toBengaliDigits(cartItems.size.toString()) else cartItems.size.toString(),
+                                                style = MaterialTheme.typography.labelSmall
+                                            )
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ShoppingCart,
+                                        contentDescription = "কার্ট",
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(Spacing.xs))
@@ -388,6 +392,68 @@ fun PosScreen(
                     }
                 }
             }
+        }
+
+        // Floating Cart Checkout Button floating safely above FloatingNavBar
+        AnimatedVisibility(
+            visible = cartItems.isNotEmpty(),
+            enter = slideInVertically(
+                initialOffsetY = { it * 2 },
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioLowBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+            ) + fadeIn(),
+            exit = slideOutVertically(
+                targetOffsetY = { it * 2 }
+            ) + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(bottom = 96.dp, start = Spacing.md, end = Spacing.md)
+        ) {
+            FloatingCartCheckoutButton(
+                itemCount = cartItems.size,
+                totalQty = totalItemsCount,
+                grandTotalPoisha = grandTotal,
+                config = config,
+                onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    showCartModalSheet = true
+                }
+            )
+        }
+    }
+
+    // Modal Bottom Sheet for Cart & Bill Checkout
+    if (showCartModalSheet && cartItems.isNotEmpty()) {
+        ModalBottomSheet(
+            onDismissRequest = { showCartModalSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            shape = RoundedCornerShape(topStart = Radius.lg, topEnd = Radius.lg),
+            containerColor = MaterialTheme.colorScheme.surface,
+            tonalElevation = 8.dp,
+            dragHandle = {
+                BottomSheetDefaults.DragHandle()
+            }
+        ) {
+            PosCartModalSheetContent(
+                viewModel = viewModel,
+                config = config,
+                customers = customers,
+                cartItems = cartItems,
+                subtotalPoisha = subtotalPoisha,
+                totalItemsCount = totalItemsCount,
+                onDismiss = { showCartModalSheet = false },
+                onHoldCart = {
+                    viewModel.holdCurrentCart()
+                    showCartModalSheet = false
+                },
+                onClearCart = {
+                    viewModel.clearCart()
+                    showCartModalSheet = false
+                }
+            )
         }
     }
 
@@ -594,18 +660,133 @@ private fun PosProductGridCard(
 }
 
 // ==============================================================================
-// 2. POS CART BOTTOM SHEET CONTENT (72dp Collapsed Bar + Full Expanded Sheet)
+// 2. FLOATING CART CHECKOUT BUTTON (ABOVE NAV BAR)
 // ==============================================================================
 @Composable
-private fun PosCartSheetContent(
+fun FloatingCartCheckoutButton(
+    itemCount: Int,
+    totalQty: Double,
+    grandTotalPoisha: Long,
+    config: ShopConfig,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.96f else 1.0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "cart_btn_scale"
+    )
+
+    Surface(
+        onClick = onClick,
+        interactionSource = interactionSource,
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.primary,
+        shadowElevation = 14.dp,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .scale(scale)
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.30f),
+                shape = RoundedCornerShape(20.dp)
+            )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Left Side: Cart Icon Badge + Total & Item count
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f, fill = false)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.22f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ShoppingCart,
+                        contentDescription = "কার্ট",
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(Spacing.sm))
+
+                Column {
+                    Text(
+                        text = Formatters.formatMoney(grandTotalPoisha, config.useBengaliNumerals, config.currencySymbol),
+                        style = amountTextStyle(18.sp),
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(itemCount.toString()) else itemCount} পদ (${Formatters.formatQty(totalQty, "পণ্য", config.useBengaliNumerals)})",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.90f),
+                        maxLines = 1
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(Spacing.xs))
+
+            // Right Side: Action Pill "বিল সম্পন্ন করুন" with Arrow
+            Surface(
+                shape = RoundedCornerShape(Radius.pill),
+                color = Color.White.copy(alpha = 0.22f)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "বিল সম্পন্ন করুন",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        maxLines = 1
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Default.ArrowForward,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ==============================================================================
+// 3. POS CART MODAL BOTTOM SHEET CONTENT
+// ==============================================================================
+@Composable
+private fun PosCartModalSheetContent(
     viewModel: PaponViewModel,
     config: ShopConfig,
     customers: List<Customer>,
     cartItems: List<CartItem>,
     subtotalPoisha: Long,
     totalItemsCount: Double,
-    isExpanded: Boolean,
-    onToggleExpand: () -> Unit,
+    onDismiss: () -> Unit,
     onHoldCart: () -> Unit,
     onClearCart: () -> Unit
 ) {
@@ -621,117 +802,126 @@ private fun PosCartSheetContent(
     var showCustomerPicker by remember { mutableStateOf(false) }
     val view = LocalView.current
 
-    Column(modifier = Modifier.fillMaxWidth()) {
-        // Collapsed Bar (72dp tall, clickable to expand)
-        Surface(
-            onClick = onToggleExpand,
+    if (cartItems.isEmpty()) {
+        LaunchedEffect(Unit) {
+            onDismiss()
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .imePadding()
+    ) {
+        // Modal Sheet Header
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(72.dp),
-            color = MaterialTheme.colorScheme.primary
+                .padding(horizontal = Spacing.lg, vertical = Spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = Spacing.lg),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.20f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ShoppingCart,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
+            Column {
+                Text(
+                    text = "কার্ট ও বিল",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(cartItems.size.toString()) else cartItems.size} পদ (${Formatters.formatQty(totalItemsCount, "পণ্য", config.useBengaliNumerals)})",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
-                    Spacer(modifier = Modifier.width(Spacing.md))
-
-                    Column {
-                        Text(
-                            text = Formatters.formatMoney(grandTotal, config.useBengaliNumerals, config.currencySymbol),
-                            style = amountTextStyle(18.sp),
-                            color = Color.White
-                        )
-                        Text(
-                            text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(cartItems.size.toString()) else cartItems.size} পদ (${Formatters.formatQty(totalItemsCount, "পণ্য", config.useBengaliNumerals)})",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.85f)
-                        )
-                    }
-                }
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = if (isExpanded) "সংক্ষেপ করুন" else "কার্ট ও বিল",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(
+                    onClick = onHoldCart,
+                    contentPadding = PaddingValues(horizontal = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PauseCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.dokanColors.warning,
+                        modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "হোল্ড",
+                        color = MaterialTheme.dokanColors.warning,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                TextButton(
+                    onClick = onClearCart,
+                    contentPadding = PaddingValues(horizontal = 8.dp)
+                ) {
                     Icon(
-                        imageVector = if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
+                        imageVector = Icons.Default.Delete,
                         contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
+                        tint = MaterialTheme.dokanColors.danger,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "খালি",
+                        color = MaterialTheme.dokanColors.danger,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "বন্ধ করুন",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
         }
 
-        // Expanded Details
+        HorizontalDivider(modifier = Modifier.padding(top = Spacing.xs, bottom = Spacing.sm))
+
+        // Scrollable content
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.lg, vertical = Spacing.md)
-                .padding(bottom = 24.dp)
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Spacing.lg)
+                .padding(bottom = 32.dp)
         ) {
-            // Cart Actions
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "ব্যাগে থাকা পণ্যসমূহ",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                Row {
-                    TextButton(onClick = onHoldCart) {
-                        Text("হোল্ড", color = MaterialTheme.dokanColors.warning, style = MaterialTheme.typography.labelMedium)
-                    }
-                    TextButton(onClick = onClearCart) {
-                        Text("খালি করুন", color = MaterialTheme.dokanColors.danger, style = MaterialTheme.typography.labelMedium)
-                    }
-                }
-            }
+            // Cart Items Header
+            Text(
+                text = "ব্যাগে থাকা পণ্যসমূহ",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(bottom = Spacing.xs)
+            )
 
             // Cart Items List
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 200.dp),
-                verticalArrangement = Arrangement.spacedBy(Spacing.xs)
-            ) {
-                items(cartItems) { item ->
-                    PosCartItemRow(
-                        item = item,
-                        config = config,
-                        onQtyChange = { newQty -> viewModel.updateCartItemQty(item.productId, newQty) },
-                        onRemove = { viewModel.removeCartItem(item.productId) }
-                    )
-                }
+            cartItems.forEach { item ->
+                PosCartItemRow(
+                    item = item,
+                    config = config,
+                    onQtyChange = { newQty ->
+                        if (newQty <= 0) {
+                            viewModel.removeCartItem(item.productId)
+                        } else {
+                            viewModel.updateCartItemQty(item.productId, newQty)
+                        }
+                    },
+                    onRemove = { viewModel.removeCartItem(item.productId) }
+                )
+                Spacer(modifier = Modifier.height(Spacing.xs))
             }
 
             Spacer(modifier = Modifier.height(Spacing.sm))
@@ -759,6 +949,17 @@ private fun PosCartSheetContent(
                         ) {
                             Text("ছাড়:", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.dokanColors.danger)
                             Text("-${Formatters.formatMoney(discountPoisha, config.useBengaliNumerals, config.currencySymbol)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.dokanColors.danger)
+                        }
+                    }
+
+                    if (config.vatEnabled && vat > 0) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("ভ্যাট (${config.vatPercentage}%):", style = MaterialTheme.typography.bodyMedium)
+                            Text(Formatters.formatMoney(vat, config.useBengaliNumerals, config.currencySymbol), style = MaterialTheme.typography.bodyMedium)
                         }
                     }
 
@@ -844,6 +1045,7 @@ private fun PosCartSheetContent(
                     viewModel.checkoutSale(
                         onSuccess = {
                             view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                            onDismiss()
                         },
                         onError = { err -> viewModel.showToast(err) }
                     )
