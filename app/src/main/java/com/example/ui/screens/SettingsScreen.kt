@@ -1077,7 +1077,7 @@ CREATE TABLE IF NOT EXISTS public.customer_ledger (id BIGINT PRIMARY KEY, custom
 CREATE TABLE IF NOT EXISTS public.expenses (id BIGINT PRIMARY KEY, category_id BIGINT DEFAULT 1, category_name TEXT NOT NULL, amount_poisha BIGINT NOT NULL, note TEXT, expense_date BIGINT NOT NULL, created_at BIGINT NOT NULL);
 CREATE TABLE IF NOT EXISTS public.suppliers (id BIGINT PRIMARY KEY, name TEXT NOT NULL, phone TEXT NOT NULL, company TEXT, address TEXT, is_active BOOLEAN DEFAULT TRUE, created_at BIGINT NOT NULL);
 CREATE TABLE IF NOT EXISTS public.purchases (id BIGINT PRIMARY KEY, invoice_no TEXT NOT NULL, supplier_id BIGINT, supplier_name TEXT, purchase_date BIGINT NOT NULL, total_poisha BIGINT NOT NULL, paid_amount_poisha BIGINT NOT NULL, due_amount_poisha BIGINT DEFAULT 0, note TEXT, created_at BIGINT NOT NULL);
-CREATE TABLE IF NOT EXISTS public.purchase_items (id BIGINT PRIMARY KEY, purchase_id BIGINT, product_id BIGINT, product_name TEXT NOT NULL, unit_name TEXT DEFAULT 'পিস', qty NUMERIC NOT NULL, unit_cost_poisha BIGINT NOT NULL, line_total_poisha BIGINT NOT NULL);
+CREATE TABLE IF NOT EXISTS public.purchase_items (id BIGINT PRIMARY KEY, purchase_id BIGINT, product_id BIGINT, product_name TEXT NOT NULL, qty NUMERIC NOT NULL, unit_price_poisha BIGINT NOT NULL, line_total_poisha BIGINT NOT NULL);
 CREATE TABLE IF NOT EXISTS public.stock_adjustments (id BIGINT PRIMARY KEY, product_id BIGINT, product_name TEXT NOT NULL, qty_change NUMERIC NOT NULL, reason TEXT NOT NULL, note TEXT, created_at BIGINT NOT NULL);
 CREATE TABLE IF NOT EXISTS public.app_config (config_key TEXT PRIMARY KEY, config_value TEXT NOT NULL, updated_at BIGINT);
         """.trimIndent()

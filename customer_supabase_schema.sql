@@ -134,9 +134,8 @@ CREATE TABLE IF NOT EXISTS public.purchase_items (
     purchase_id BIGINT REFERENCES public.purchases(id) ON DELETE CASCADE,
     product_id BIGINT,
     product_name TEXT NOT NULL,
-    unit_name TEXT DEFAULT 'পিস',
     qty NUMERIC NOT NULL,
-    unit_cost_poisha BIGINT NOT NULL,
+    unit_price_poisha BIGINT NOT NULL,
     line_total_poisha BIGINT NOT NULL
 );
 

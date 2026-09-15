@@ -918,9 +918,8 @@ class SupabaseSyncManager(private val dao: PaponDao) {
                         put("purchase_id", it.purchaseId)
                         put("product_id", it.productId)
                         put("product_name", it.productName)
-                        put("unit_name", it.unitName)
                         put("qty", it.qty)
-                        put("unit_cost_poisha", it.unitCostPoisha)
+                        put("unit_price_poisha", it.unitPricePoisha)
                         put("line_total_poisha", it.lineTotalPoisha)
                     })
                 }

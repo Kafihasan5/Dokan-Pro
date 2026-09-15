@@ -426,15 +426,14 @@ class PaponRepository(private val dao: PaponDao) {
         // Purchase Items
         val purchaseItems = dao.getAllPurchaseItemsSync()
         val purItemsArr = JSONArray()
-        for (pi in purchaseItems) {
+        purchaseItems.forEach { pi ->
             val obj = JSONObject()
             obj.put("id", pi.id)
             obj.put("purchaseId", pi.purchaseId)
             obj.put("productId", pi.productId)
             obj.put("productName", pi.productName)
-            obj.put("unitName", pi.unitName)
             obj.put("qty", pi.qty)
-            obj.put("unitCostPoisha", pi.unitCostPoisha)
+            obj.put("unitPricePoisha", pi.unitPricePoisha)
             obj.put("lineTotalPoisha", pi.lineTotalPoisha)
             purItemsArr.put(obj)
         }
@@ -626,9 +625,8 @@ class PaponRepository(private val dao: PaponDao) {
                             purchaseId = obj.optLong("purchaseId", 0L),
                             productId = obj.optLong("productId", 0L),
                             productName = obj.optString("productName", ""),
-                            unitName = obj.optString("unitName", "পিস"),
                             qty = obj.optDouble("qty", 1.0),
-                            unitCostPoisha = obj.optLong("unitCostPoisha", 0L),
+                            unitPricePoisha = obj.optLong("unitPricePoisha", obj.optLong("unitCostPoisha", 0L)),
                             lineTotalPoisha = obj.optLong("lineTotalPoisha", 0L)
                         )
                     )
