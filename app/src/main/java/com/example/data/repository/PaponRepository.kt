@@ -391,6 +391,55 @@ class PaponRepository(private val dao: PaponDao) {
         }
         root.put("expenses", expArr)
 
+        // Suppliers
+        val suppliers = dao.getAllSuppliersSync()
+        val supArr = JSONArray()
+        for (sp in suppliers) {
+            val obj = JSONObject()
+            obj.put("id", sp.id)
+            obj.put("name", sp.name)
+            obj.put("phone", sp.phone)
+            obj.put("company", sp.company ?: JSONObject.NULL)
+            obj.put("address", sp.address ?: JSONObject.NULL)
+            supArr.put(obj)
+        }
+        root.put("suppliers", supArr)
+
+        // Purchases
+        val purchases = dao.getAllPurchasesSync()
+        val purArr = JSONArray()
+        for (pur in purchases) {
+            val obj = JSONObject()
+            obj.put("id", pur.id)
+            obj.put("invoiceNo", pur.invoiceNo)
+            obj.put("supplierId", pur.supplierId)
+            obj.put("supplierName", pur.supplierName)
+            obj.put("purchaseDate", pur.purchaseDate)
+            obj.put("totalPoisha", pur.totalPoisha)
+            obj.put("paidAmountPoisha", pur.paidAmountPoisha)
+            obj.put("dueAmountPoisha", pur.dueAmountPoisha)
+            obj.put("note", pur.note ?: JSONObject.NULL)
+            purArr.put(obj)
+        }
+        root.put("purchases", purArr)
+
+        // Purchase Items
+        val purchaseItems = dao.getAllPurchaseItemsSync()
+        val purItemsArr = JSONArray()
+        for (pi in purchaseItems) {
+            val obj = JSONObject()
+            obj.put("id", pi.id)
+            obj.put("purchaseId", pi.purchaseId)
+            obj.put("productId", pi.productId)
+            obj.put("productName", pi.productName)
+            obj.put("unitName", pi.unitName)
+            obj.put("qty", pi.qty)
+            obj.put("unitCostPoisha", pi.unitCostPoisha)
+            obj.put("lineTotalPoisha", pi.lineTotalPoisha)
+            purItemsArr.put(obj)
+        }
+        root.put("purchaseItems", purItemsArr)
+
         val jsonStr = root.toString(2)
 
         dao.insertBackupLog(
@@ -399,7 +448,7 @@ class PaponRepository(private val dao: PaponDao) {
                 status = "success",
                 fileName = "dokan_pro_backup_${System.currentTimeMillis()}.json",
                 sizeBytes = jsonStr.toByteArray().size.toLong(),
-                recordCount = products.size + customers.size + sales.size + expenses.size
+                recordCount = products.size + customers.size + sales.size + expenses.size + purchases.size + suppliers.size
             )
         )
 
@@ -521,6 +570,70 @@ class PaponRepository(private val dao: PaponDao) {
                     )
                 }
                 if (list.isNotEmpty()) dao.insertExpenses(list)
+            }
+
+            // Restore Suppliers
+            if (root.has("suppliers")) {
+                val arr = root.getJSONArray("suppliers")
+                val list = mutableListOf<Supplier>()
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    list.add(
+                        Supplier(
+                            id = obj.optLong("id", 0L),
+                            name = obj.optString("name", ""),
+                            phone = obj.optString("phone", ""),
+                            company = if (obj.isNull("company")) null else obj.optString("company"),
+                            address = if (obj.isNull("address")) null else obj.optString("address")
+                        )
+                    )
+                }
+                if (list.isNotEmpty()) dao.insertSuppliers(list)
+            }
+
+            // Restore Purchases
+            if (root.has("purchases")) {
+                val arr = root.getJSONArray("purchases")
+                val list = mutableListOf<Purchase>()
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    list.add(
+                        Purchase(
+                            id = obj.optLong("id", 0L),
+                            invoiceNo = obj.optString("invoiceNo", ""),
+                            supplierId = obj.optLong("supplierId", 1L),
+                            supplierName = obj.optString("supplierName", ""),
+                            purchaseDate = obj.optLong("purchaseDate", System.currentTimeMillis()),
+                            totalPoisha = obj.optLong("totalPoisha", 0L),
+                            paidAmountPoisha = obj.optLong("paidAmountPoisha", 0L),
+                            dueAmountPoisha = obj.optLong("dueAmountPoisha", 0L),
+                            note = if (obj.isNull("note")) null else obj.optString("note")
+                        )
+                    )
+                }
+                if (list.isNotEmpty()) dao.insertPurchases(list)
+            }
+
+            // Restore Purchase Items
+            if (root.has("purchaseItems")) {
+                val arr = root.getJSONArray("purchaseItems")
+                val list = mutableListOf<PurchaseItem>()
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    list.add(
+                        PurchaseItem(
+                            id = obj.optLong("id", 0L),
+                            purchaseId = obj.optLong("purchaseId", 0L),
+                            productId = obj.optLong("productId", 0L),
+                            productName = obj.optString("productName", ""),
+                            unitName = obj.optString("unitName", "পিস"),
+                            qty = obj.optDouble("qty", 1.0),
+                            unitCostPoisha = obj.optLong("unitCostPoisha", 0L),
+                            lineTotalPoisha = obj.optLong("lineTotalPoisha", 0L)
+                        )
+                    )
+                }
+                if (list.isNotEmpty()) dao.insertPurchaseItems(list)
             }
 
             dao.insertBackupLog(
@@ -674,6 +787,61 @@ class PaponRepository(private val dao: PaponDao) {
 
     suspend fun pullFromSupabase(force: Boolean = false): com.example.data.supabase.SyncResult = withContext(Dispatchers.IO) {
         supabaseSync.pullFromSupabase(force)
+    }
+
+    fun updateCustomerCloudCredentials(url: String, key: String) {
+        supabaseSync.setCustomerCredentials(url, key)
+    }
+
+    val isCustomerCloudConfigured: Boolean
+        get() = supabaseSync.isCustomerConfigured
+
+    suspend fun testCustomerCloudConnection(url: String, key: String): Pair<Boolean, String> {
+        return supabaseSync.testConnection(url, key)
+    }
+
+    suspend fun backupToCustomerCloud(): Pair<Boolean, String> = withContext(Dispatchers.IO) {
+        if (!supabaseSync.isCustomerConfigured) {
+            return@withContext Pair(false, "কাস্টমার ক্লাউড সিঙ্ক কনফিগার করা নেই। অনুগ্রহ করে সেটিংস থেকে Supabase URL ও Key সেট করুন।")
+        }
+        val success = supabaseSync.syncAllLocalToSupabase()
+        val recordCount = dao.getAllProductsSync().size + dao.getAllSalesSync().size + dao.getAllCustomersSync().size
+        dao.insertBackupLog(
+            BackupLog(
+                type = "cloud_push",
+                status = if (success) "success" else "failed",
+                fileName = "Supabase Cloud Backup",
+                sizeBytes = 0L,
+                recordCount = recordCount
+            )
+        )
+        if (success) {
+            Pair(true, "ক্লাউডে সম্পূর্ণ ডেটা সফলভাবে ব্যাকআপ সংরক্ষণ করা হয়েছে!")
+        } else {
+            Pair(false, "ক্লাউডে ব্যাকআপ ব্যর্থ হয়েছে। অনুগ্রহ করে ইন্টারনেট ও Supabase সেটিংস পরীক্ষা করুন।")
+        }
+    }
+
+    suspend fun restoreFromCustomerCloud(): Pair<Boolean, String> = withContext(Dispatchers.IO) {
+        if (!supabaseSync.isCustomerConfigured) {
+            return@withContext Pair(false, "কাস্টমার ক্লাউড সিঙ্ক কনফিগার করা নেই। অনুগ্রহ করে সেটিংস থেকে Supabase URL ও Key সেট করুন।")
+        }
+        val result = supabaseSync.pullFromSupabase(force = true)
+        val recordCount = result.pulledProductsCount + result.pulledSalesCount
+        dao.insertBackupLog(
+            BackupLog(
+                type = "cloud_pull",
+                status = if (result.success) "success" else "failed",
+                fileName = "Supabase Cloud Restore",
+                sizeBytes = 0L,
+                recordCount = recordCount
+            )
+        )
+        if (result.success) {
+            Pair(true, "ক্লাউড থেকে সফলভাবে ডেটা রিস্টোর সম্পন্ন হয়েছে! (${result.pulledProductsCount}টি পণ্য, ${result.pulledSalesCount}টি বিক্রি)")
+        } else {
+            Pair(false, result.message.ifBlank { "ক্লাউড থেকে রিস্টোর ব্যর্থ হয়েছে।" })
+        }
     }
 
     suspend fun resetAllData() = withContext(Dispatchers.IO) {

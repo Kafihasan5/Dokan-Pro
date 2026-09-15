@@ -212,6 +212,9 @@ interface PaponDao {
     @Query("SELECT * FROM purchases")
     suspend fun getAllPurchasesSync(): List<Purchase>
 
+    @Query("SELECT * FROM purchase_items")
+    suspend fun getAllPurchaseItemsSync(): List<PurchaseItem>
+
     @Query("SELECT * FROM expenses")
     suspend fun getAllExpensesSync(): List<Expense>
 

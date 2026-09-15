@@ -107,6 +107,19 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     private val _licenseInfo = MutableStateFlow(licenseManager.getLicenseInfo())
     val licenseInfo: StateFlow<com.example.data.license.LicenseInfo?> = _licenseInfo.asStateFlow()
 
+    // Customer Personal Supabase Cloud Credentials & Sync State
+    private val _customerSupabaseUrl = MutableStateFlow(prefs.getString("customer_supabase_url", "") ?: "")
+    val customerSupabaseUrl: StateFlow<String> = _customerSupabaseUrl.asStateFlow()
+
+    private val _customerSupabaseKey = MutableStateFlow(prefs.getString("customer_supabase_key", "") ?: "")
+    val customerSupabaseKey: StateFlow<String> = _customerSupabaseKey.asStateFlow()
+
+    private val _isCustomerCloudConfigured = MutableStateFlow(
+        (prefs.getString("customer_supabase_url", "") ?: "").isNotBlank() &&
+        (prefs.getString("customer_supabase_key", "") ?: "").isNotBlank()
+    )
+    val isCustomerCloudConfigured: StateFlow<Boolean> = _isCustomerCloudConfigured.asStateFlow()
+
     fun getDeviceId(): String = licenseManager.getDeviceId()
 
     fun clearActivationError() {
@@ -138,19 +151,26 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         val db = PaponDatabase.getInstance(application)
         repository = PaponRepository(db.paponDao())
         
+        // Initialize dynamic customer cloud credentials if configured
+        repository.updateCustomerCloudCredentials(_customerSupabaseUrl.value, _customerSupabaseKey.value)
+
         // Listen for network restoration to immediately sync offline changes
         networkMonitor.setOnNetworkRestoredCallback {
             viewModelScope.launch {
                 // Connection is back! Instantly push all offline sales, products, expenses & pull remote updates
-                syncToSupabase(silent = true)
+                if (_isCustomerCloudConfigured.value) {
+                    syncToSupabase(silent = true)
+                }
             }
         }
 
         viewModelScope.launch {
             repository.seedInitialDataIfEmpty()
-            // Initial sync (pull remote changes and push any local data)
-            syncToSupabase(silent = true)
-            // Start automatic background poll (pulls changes made in Supabase every 5s for realtime updates)
+            // Initial sync (pull remote changes and push any local data if customer cloud configured)
+            if (_isCustomerCloudConfigured.value) {
+                syncToSupabase(silent = true)
+            }
+            // Start automatic background poll (pulls changes made in Supabase every 20s for realtime updates)
             startPeriodicSync()
             // Check for in-app updates from GitHub
             checkForUpdates(silent = true)
@@ -158,12 +178,11 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun startPeriodicSync() {
-        if (!com.example.data.supabase.SupabaseConfig.IS_SHOP_DATA_SYNC_ENABLED) return
         viewModelScope.launch {
             while (isActive) {
                 kotlinx.coroutines.delay(20_000) // 20 seconds background poll
                 try {
-                    if (networkMonitor.isCurrentlyOnline()) {
+                    if (_isCustomerCloudConfigured.value && networkMonitor.isCurrentlyOnline()) {
                         val result = repository.pullFromSupabase(force = false)
                         if (result.success) {
                             _lastSyncTime.value = System.currentTimeMillis()
@@ -219,9 +238,9 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
     fun syncToSupabase(silent: Boolean = false) {
         viewModelScope.launch {
-            if (!com.example.data.supabase.SupabaseConfig.IS_SHOP_DATA_SYNC_ENABLED) {
+            if (!_isCustomerCloudConfigured.value) {
                 if (!silent) {
-                    showToast("দোকানের হিসাব সম্পূর্ণ লোকাল ও অফলাইনে সংরক্ষিত (ক্লাউড সিঙ্ক নিষ্ক্রিয়)")
+                    showToast("কাস্টমার ক্লাউড সিঙ্ক সেটআপ করা নেই। Settings থেকে Supabase URL ও Key সেট করুন।")
                 }
                 return@launch
             }
@@ -251,6 +270,69 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
             } finally {
                 _isSyncing.value = false
             }
+        }
+    }
+
+    fun saveCustomerCloudConfig(url: String, key: String, onComplete: () -> Unit = {}) {
+        val cleanUrl = url.trim().trimEnd('/')
+        val cleanKey = key.trim()
+        prefs.edit()
+            .putString("customer_supabase_url", cleanUrl)
+            .putString("customer_supabase_key", cleanKey)
+            .apply()
+        _customerSupabaseUrl.value = cleanUrl
+        _customerSupabaseKey.value = cleanKey
+        val isConf = cleanUrl.isNotBlank() && cleanKey.isNotBlank()
+        _isCustomerCloudConfigured.value = isConf
+        repository.updateCustomerCloudCredentials(cleanUrl, cleanKey)
+        showToast("সুপাবেস ক্লাউড সেটিংস সংরক্ষণ করা হয়েছে")
+        onComplete()
+    }
+
+    fun clearCustomerCloudConfig(onComplete: () -> Unit = {}) {
+        prefs.edit()
+            .remove("customer_supabase_url")
+            .remove("customer_supabase_key")
+            .apply()
+        _customerSupabaseUrl.value = ""
+        _customerSupabaseKey.value = ""
+        _isCustomerCloudConfigured.value = false
+        repository.updateCustomerCloudCredentials("", "")
+        showToast("ক্লাউড সংযোগ সফলভাবে বিচ্ছিন্ন করা হয়েছে")
+        onComplete()
+    }
+
+    fun testCustomerCloudConnection(url: String, key: String, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            val res = repository.testCustomerCloudConnection(url, key)
+            showToast(res.second)
+            onResult(res.first, res.second)
+        }
+    }
+
+    fun backupToCustomerCloud(onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            _isSyncing.value = true
+            val res = repository.backupToCustomerCloud()
+            _isSyncing.value = false
+            if (res.first) {
+                _lastSyncTime.value = System.currentTimeMillis()
+            }
+            showToast(res.second)
+            onResult(res.first, res.second)
+        }
+    }
+
+    fun restoreFromCustomerCloud(onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            _isSyncing.value = true
+            val res = repository.restoreFromCustomerCloud()
+            _isSyncing.value = false
+            if (res.first) {
+                _lastSyncTime.value = System.currentTimeMillis()
+            }
+            showToast(res.second)
+            onResult(res.first, res.second)
         }
     }
 

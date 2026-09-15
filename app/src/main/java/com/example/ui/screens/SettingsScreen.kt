@@ -61,6 +61,18 @@ fun SettingsScreen(
     val units by viewModel.units.collectAsState()
     val licenseInfo by viewModel.licenseInfo.collectAsState()
 
+    val customerSupabaseUrl by viewModel.customerSupabaseUrl.collectAsState()
+    val customerSupabaseKey by viewModel.customerSupabaseKey.collectAsState()
+    val isCustomerCloudConfigured by viewModel.isCustomerCloudConfigured.collectAsState()
+
+    var cloudUrlInput by remember(customerSupabaseUrl) { mutableStateOf(customerSupabaseUrl) }
+    var cloudKeyInput by remember(customerSupabaseKey) { mutableStateOf(customerSupabaseKey) }
+    var isCloudKeyVisible by remember { mutableStateOf(false) }
+    var isTestingCloud by remember { mutableStateOf(false) }
+    var cloudTestMessage by remember { mutableStateOf<String?>(null) }
+    var showSqlSchemaDialog by remember { mutableStateOf(false) }
+    var showCloudRestoreConfirmDialog by remember { mutableStateOf(false) }
+
 
     Scaffold(
         topBar = {
@@ -418,7 +430,7 @@ fun SettingsScreen(
                 }
             }
 
-            // Section 5: Realtime Auto-Backup & Remote Features
+            // Section 5: Customer Online Cloud Sync (Supabase Setup)
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -437,52 +449,176 @@ fun SettingsScreen(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    imageVector = Icons.Default.CloudDone,
+                                    imageVector = if (isCustomerCloudConfigured) Icons.Default.CloudDone else Icons.Default.CloudQueue,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
+                                    tint = if (isCustomerCloudConfigured) StatusSuccess else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(22.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("রিয়েলটাইম অটো-ব্যাকআপ ও ফিচার", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text("অনলাইন ক্লাউড সিঙ্ক (Supabase)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             }
 
                             Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSyncing) MaterialTheme.colorScheme.primaryContainer else StatusSuccess.copy(alpha = 0.15f)
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isCustomerCloudConfigured) StatusSuccess.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
                             ) {
                                 Text(
-                                    text = if (isSyncing) "হালনাগাদ হচ্ছে..." else "সক্রিয় ও সুরক্ষিত",
+                                    text = if (isCustomerCloudConfigured) "সংযুক্ত ✓" else "সেটআপ করা নেই",
                                     fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = if (isSyncing) MaterialTheme.colorScheme.primary else StatusSuccess,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (isCustomerCloudConfigured) StatusSuccess else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 )
                             }
                         }
 
                         Text(
-                            text = "অনলাইন ডাটাবেসে পণ্যের নাম, দাম, স্টক কিংবা কনফিগারেশন পরিবর্তন করলে অ্যাপ স্বয়ংক্রিয়ভাবে কয়েক সেকেন্ডের মধ্যে আপডেট গ্রহণ করে। অফলাইনে বিক্রি করলেও ইন্টারনেট ফিরে আসামাত্রই সব হিসাব সংরক্ষিত হয়ে যায়।",
+                            text = "আপনার নিজস্ব Supabase প্রজেক্টের URL এবং API Key এখানে সেভ করে অ্যাপের সমস্ত পণ্য, বিক্রি, বাকি ও খরচের হিসাব অনলাইনে নিরাপদে ব্যাকআপ ও যেকোনো ডিভাইসে রিস্টোর করতে পারেন।",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
-                        if (lastSyncTime != null) {
+                        OutlinedTextField(
+                            value = cloudUrlInput,
+                            onValueChange = {
+                                cloudUrlInput = it
+                                cloudTestMessage = null
+                            },
+                            label = { Text("Supabase Project URL") },
+                            placeholder = { Text("https://xxxx.supabase.co") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        OutlinedTextField(
+                            value = cloudKeyInput,
+                            onValueChange = {
+                                cloudKeyInput = it
+                                cloudTestMessage = null
+                            },
+                            label = { Text("Supabase Secret / Anon API Key") },
+                            placeholder = { Text("eyJhbGciOi...") },
+                            singleLine = true,
+                            visualTransformation = if (isCloudKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { isCloudKeyVisible = !isCloudKeyVisible }) {
+                                    Icon(
+                                        if (isCloudKeyVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                        contentDescription = null
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        if (cloudTestMessage != null) {
                             Text(
-                                text = "সর্বশেষ আপডেট: ${com.example.util.Formatters.formatBengaliTime(lastSyncTime!!)}",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.primary
+                                text = cloudTestMessage ?: "",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (cloudTestMessage?.contains("সফল") == true) StatusSuccess else StatusDanger
                             )
                         }
 
-                        Button(
-                            onClick = { viewModel.syncToSupabase(silent = false) },
-                            enabled = !isSyncing,
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(Icons.Default.Refresh, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(if (isSyncing) "হালনাগাদ হচ্ছে..." else "তথ্য রিফ্রেশ ও রিমোট আপডেট নিন")
+                            Button(
+                                onClick = {
+                                    viewModel.saveCustomerCloudConfig(cloudUrlInput, cloudKeyInput)
+                                },
+                                enabled = cloudUrlInput.isNotBlank() && cloudKeyInput.isNotBlank(),
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("সংরক্ষণ করুন", fontSize = 13.sp)
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    isTestingCloud = true
+                                    cloudTestMessage = "টেস্ট করা হচ্ছে..."
+                                    viewModel.testCustomerCloudConnection(cloudUrlInput, cloudKeyInput) { ok, msg ->
+                                        isTestingCloud = false
+                                        cloudTestMessage = msg
+                                    }
+                                },
+                                enabled = !isTestingCloud && cloudUrlInput.isNotBlank() && cloudKeyInput.isNotBlank(),
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.CheckCircleOutline, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(if (isTestingCloud) "পরীক্ষা..." else "কানেকশন টেস্ট", fontSize = 13.sp)
+                            }
+                        }
+
+                        if (isCustomerCloudConfigured) {
+                            Divider()
+
+                            if (lastSyncTime != null) {
+                                Text(
+                                    text = "সর্বশেষ ক্লাউড ব্যাকআপ: ${com.example.util.Formatters.formatBengaliTime(lastSyncTime!!)}",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = { viewModel.backupToCustomerCloud { _, _ -> } },
+                                    enabled = !isSyncing,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(if (isSyncing) "সেভ..." else "ক্লাউড ব্যাকআপ", fontSize = 12.sp)
+                                }
+
+                                OutlinedButton(
+                                    onClick = { showCloudRestoreConfirmDialog = true },
+                                    enabled = !isSyncing,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("ক্লাউড রিস্টোর", fontSize = 12.sp)
+                                }
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    viewModel.clearCustomerCloudConfig {
+                                        cloudUrlInput = ""
+                                        cloudKeyInput = ""
+                                        cloudTestMessage = null
+                                    }
+                                },
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = StatusDanger),
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.LinkOff, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("ক্লাউড ডিসকানেক্ট করুন", fontSize = 12.sp)
+                            }
+                        }
+
+                        TextButton(
+                            onClick = { showSqlSchemaDialog = true },
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        ) {
+                            Icon(Icons.Default.Code, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("সুপাবেস ডাটাবেস স্ক্রিপ্ট (SQL Setup)", fontSize = 12.sp)
                         }
                     }
                 }
@@ -897,6 +1033,100 @@ fun SettingsScreen(
             viewModel = viewModel,
             initialTab = initialManageTab,
             onDismiss = { showCategoryUnitManager = false }
+        )
+    }
+
+    if (showCloudRestoreConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showCloudRestoreConfirmDialog = false },
+            icon = { Icon(Icons.Default.CloudDownload, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("ক্লাউড থেকে রিস্টোর করতে চান?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "আপনার Supabase ক্লাউডে সংরক্ষিত পণ্য, বিক্রি, বাকি খাতা ও খরচের হিসাব বর্তমান ফোনে লোড ও সিঙ্ক হবে। আপনি কি রিস্টোর করতে চান?",
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showCloudRestoreConfirmDialog = false
+                        viewModel.restoreFromCustomerCloud { _, _ -> }
+                    }
+                ) {
+                    Text("হ্যাঁ, ক্লাউড থেকে রিস্টোর করুন")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCloudRestoreConfirmDialog = false }) {
+                    Text("বাতিল")
+                }
+            }
+        )
+    }
+
+    if (showSqlSchemaDialog) {
+        val schemaSql = """
+-- Dokan Pro Customer Database Tables
+CREATE TABLE IF NOT EXISTS public.categories (id BIGINT PRIMARY KEY, name_bn TEXT NOT NULL, name_en TEXT DEFAULT '', icon_name TEXT DEFAULT 'category', sort_order INT DEFAULT 0);
+CREATE TABLE IF NOT EXISTS public.products (id BIGINT PRIMARY KEY, name_bn TEXT NOT NULL, name_en TEXT DEFAULT '', category_id BIGINT, unit_name TEXT DEFAULT 'পিস', barcode TEXT DEFAULT '', purchase_price_poisha BIGINT DEFAULT 0, sale_price_poisha BIGINT DEFAULT 0, wholesale_price_poisha BIGINT DEFAULT 0, stock_qty NUMERIC DEFAULT 0, min_stock NUMERIC DEFAULT 5, expiry_date BIGINT, supplier_id BIGINT, is_active BOOLEAN DEFAULT TRUE, created_at BIGINT NOT NULL, updated_at BIGINT);
+CREATE TABLE IF NOT EXISTS public.customers (id BIGINT PRIMARY KEY, name TEXT NOT NULL, phone TEXT NOT NULL, address TEXT, credit_limit_poisha BIGINT DEFAULT 0, is_active BOOLEAN DEFAULT TRUE, created_at BIGINT NOT NULL);
+CREATE TABLE IF NOT EXISTS public.sales (id BIGINT PRIMARY KEY, invoice_no TEXT NOT NULL, customer_id BIGINT, customer_name TEXT, sale_date BIGINT NOT NULL, subtotal_poisha BIGINT NOT NULL, discount_poisha BIGINT DEFAULT 0, vat_poisha BIGINT DEFAULT 0, total_poisha BIGINT NOT NULL, paid_amount_poisha BIGINT NOT NULL, due_amount_poisha BIGINT DEFAULT 0, payment_method TEXT DEFAULT 'cash', user_id TEXT DEFAULT 'owner', note TEXT, is_returned BOOLEAN DEFAULT FALSE, created_at BIGINT NOT NULL);
+CREATE TABLE IF NOT EXISTS public.sale_items (id BIGINT PRIMARY KEY, sale_id BIGINT, product_id BIGINT, product_name TEXT NOT NULL, unit_name TEXT DEFAULT 'পিস', qty NUMERIC NOT NULL, unit_price_poisha BIGINT NOT NULL, purchase_price_at_sale_poisha BIGINT DEFAULT 0, discount_poisha BIGINT DEFAULT 0, line_total_poisha BIGINT NOT NULL);
+CREATE TABLE IF NOT EXISTS public.customer_ledger (id BIGINT PRIMARY KEY, customer_id BIGINT, ref_type TEXT NOT NULL, ref_id BIGINT, debit_poisha BIGINT DEFAULT 0, credit_poisha BIGINT DEFAULT 0, note TEXT, entry_date BIGINT NOT NULL, created_at BIGINT NOT NULL);
+CREATE TABLE IF NOT EXISTS public.expenses (id BIGINT PRIMARY KEY, category_id BIGINT DEFAULT 1, category_name TEXT NOT NULL, amount_poisha BIGINT NOT NULL, note TEXT, expense_date BIGINT NOT NULL, created_at BIGINT NOT NULL);
+CREATE TABLE IF NOT EXISTS public.suppliers (id BIGINT PRIMARY KEY, name TEXT NOT NULL, phone TEXT NOT NULL, company TEXT, address TEXT, is_active BOOLEAN DEFAULT TRUE, created_at BIGINT NOT NULL);
+CREATE TABLE IF NOT EXISTS public.purchases (id BIGINT PRIMARY KEY, invoice_no TEXT NOT NULL, supplier_id BIGINT, supplier_name TEXT, purchase_date BIGINT NOT NULL, total_poisha BIGINT NOT NULL, paid_amount_poisha BIGINT NOT NULL, due_amount_poisha BIGINT DEFAULT 0, note TEXT, created_at BIGINT NOT NULL);
+CREATE TABLE IF NOT EXISTS public.purchase_items (id BIGINT PRIMARY KEY, purchase_id BIGINT, product_id BIGINT, product_name TEXT NOT NULL, unit_name TEXT DEFAULT 'পিস', qty NUMERIC NOT NULL, unit_cost_poisha BIGINT NOT NULL, line_total_poisha BIGINT NOT NULL);
+CREATE TABLE IF NOT EXISTS public.stock_adjustments (id BIGINT PRIMARY KEY, product_id BIGINT, product_name TEXT NOT NULL, qty_change NUMERIC NOT NULL, reason TEXT NOT NULL, note TEXT, created_at BIGINT NOT NULL);
+CREATE TABLE IF NOT EXISTS public.app_config (config_key TEXT PRIMARY KEY, config_value TEXT NOT NULL, updated_at BIGINT);
+        """.trimIndent()
+
+        AlertDialog(
+            onDismissRequest = { showSqlSchemaDialog = false },
+            icon = { Icon(Icons.Default.Terminal, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("সুপাবেস ডাটাবেস স্ক্রিপ্ট", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "আপনার ব্যক্তিগত Supabase ড্যাশবোর্ডে (supabase.com) গিয়ে SQL Editor-এ নিচের স্ক্রিপ্টটি পেস্ট করে Run করুন। সম্পূর্ণ স্ক্রিপ্টটি প্রজেক্টের customer_supabase_schema.sql ফাইলে দেওয়া আছে।",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = schemaSql,
+                            fontSize = 10.sp,
+                            maxLines = 8,
+                            modifier = Modifier.padding(8.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Supabase Schema", schemaSql))
+                        viewModel.showToast("SQL স্ক্রিপ্ট কপি করা হয়েছে!")
+                        showSqlSchemaDialog = false
+                    }
+                ) {
+                    Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("স্ক্রিপ্ট কপি করুন")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSqlSchemaDialog = false }) {
+                    Text("বন্ধ করুন")
+                }
+            }
         )
     }
 }

@@ -53,8 +53,66 @@ class SupabaseSyncManager(private val dao: PaponDao) {
         .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    private val baseUrl: String get() = SupabaseConfig.url.trimEnd('/') + "/rest/v1"
-    private val apiKey: String get() = SupabaseConfig.anonKey
+    @Volatile
+    private var customerUrl: String = ""
+
+    @Volatile
+    private var customerApiKey: String = ""
+
+    val isCustomerConfigured: Boolean
+        get() = customerUrl.isNotBlank() && customerApiKey.isNotBlank()
+
+    val configuredUrl: String
+        get() = customerUrl
+
+    fun setCustomerCredentials(url: String, key: String) {
+        customerUrl = url.trim().trimEnd('/')
+        customerApiKey = key.trim()
+        invalidateTableCache()
+    }
+
+    private val baseUrl: String
+        get() = if (customerUrl.isNotBlank()) "$customerUrl/rest/v1" else "${SupabaseConfig.url.trimEnd('/')}/rest/v1"
+
+    private val apiKey: String
+        get() = if (customerApiKey.isNotBlank()) customerApiKey else SupabaseConfig.anonKey
+
+    val isSyncEnabled: Boolean
+        get() = isCustomerConfigured
+
+    suspend fun testConnection(url: String, key: String): Pair<Boolean, String> = withContext(Dispatchers.IO) {
+        val cleanUrl = url.trim().trimEnd('/')
+        val cleanKey = key.trim()
+        if (cleanUrl.isBlank() || cleanKey.isBlank()) {
+            return@withContext Pair(false, "URL এবং API Key উভয়ই প্রদান করুন")
+        }
+        try {
+            val req = Request.Builder()
+                .url("$cleanUrl/rest/v1/")
+                .get()
+                .addHeader("apikey", cleanKey)
+                .addHeader("Authorization", "Bearer $cleanKey")
+                .build()
+
+            val response = client.newCall(req).execute()
+            val code = response.code
+            val isOk = response.isSuccessful || code in 200..299
+            response.close()
+            if (isOk) {
+                Pair(true, "কানেকশন সফল! Supabase সার্ভার প্রস্তুত।")
+            } else if (code == 401 || code == 403) {
+                Pair(false, "API Key সঠিক নয় বা পারমিশন নেই (Error $code)")
+            } else if (code == 404) {
+                Pair(false, "প্রজেক্ট URL পাওয়া যায়নি (Error 404)")
+            } else {
+                Pair(false, "সার্ভার রেসপন্স কোড: $code")
+            }
+        } catch (e: java.net.UnknownHostException) {
+            Pair(false, "প্রজেক্ট ডোমেইন খুঁজে পাওয়া যায়নি। সঠিক URL দিন।")
+        } catch (e: Exception) {
+            Pair(false, "কানেকশন ব্যর্থ: ${e.localizedMessage ?: e.message}")
+        }
+    }
 
     private val lastTableHashes = java.util.concurrent.ConcurrentHashMap<String, Int>()
 
@@ -75,7 +133,7 @@ class SupabaseSyncManager(private val dao: PaponDao) {
     }
 
     suspend fun postOrUpsert(table: String, jsonPayload: String): Boolean = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.IS_SHOP_DATA_SYNC_ENABLED || jsonPayload == "[]") return@withContext true
+        if (!isSyncEnabled || jsonPayload == "[]") return@withContext true
         try {
             val requestBuilder = Request.Builder()
                 .url("$baseUrl/$table")
@@ -103,7 +161,7 @@ class SupabaseSyncManager(private val dao: PaponDao) {
     }
 
     suspend fun deleteFromSupabase(table: String, column: String, value: Any): Boolean = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.IS_SHOP_DATA_SYNC_ENABLED) return@withContext true
+        if (!isSyncEnabled) return@withContext true
         try {
             val url = "$baseUrl/$table?$column=eq.$value"
             val requestBuilder = Request.Builder()
@@ -132,7 +190,7 @@ class SupabaseSyncManager(private val dao: PaponDao) {
     }
 
     suspend fun deleteFromSupabaseFilter(table: String, filterQuery: String): Boolean = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.IS_SHOP_DATA_SYNC_ENABLED) return@withContext true
+        if (!isSyncEnabled) return@withContext true
         try {
             val url = "$baseUrl/$table?$filterQuery"
             val requestBuilder = Request.Builder()
@@ -165,7 +223,7 @@ class SupabaseSyncManager(private val dao: PaponDao) {
     }
 
     suspend fun clearAllDataInSupabase(): Boolean = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.IS_SHOP_DATA_SYNC_ENABLED) return@withContext true
+        if (!isSyncEnabled) return@withContext true
         try {
             clearTableInSupabase("sale_items")
             clearTableInSupabase("sales")
@@ -187,7 +245,7 @@ class SupabaseSyncManager(private val dao: PaponDao) {
     }
 
     suspend fun flushPendingDeletions() = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.IS_SHOP_DATA_SYNC_ENABLED) return@withContext
+        if (!isSyncEnabled) return@withContext
         try {
             val pending = dao.getAllDeletedRecords()
             for (rec in pending) {
@@ -203,7 +261,7 @@ class SupabaseSyncManager(private val dao: PaponDao) {
 
     @Throws(java.io.IOException::class)
     suspend fun getJsonArray(table: String, onlyIfChanged: Boolean = false): JSONArray? = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.IS_SHOP_DATA_SYNC_ENABLED) return@withContext null
+        if (!isSyncEnabled) return@withContext null
         val request = Request.Builder()
             .url("$baseUrl/$table?select=*")
             .get()
@@ -239,8 +297,8 @@ class SupabaseSyncManager(private val dao: PaponDao) {
      * If remote data is unchanged, skips writing to Room so the app remains silky smooth.
      */
     suspend fun pullFromSupabase(force: Boolean = false): SyncResult = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.IS_SHOP_DATA_SYNC_ENABLED) {
-            return@withContext SyncResult(success = true, message = "Supabase disconnected")
+        if (!isSyncEnabled) {
+            return@withContext SyncResult(success = false, message = "কাস্টমার ক্লাউড সিঙ্ক সেটআপ করা হয়নি")
         }
         try {
             var productCount = 0
@@ -646,7 +704,7 @@ class SupabaseSyncManager(private val dao: PaponDao) {
      * Publish a new version of the app from within the app.
      */
     suspend fun publishAppVersion(versionCode: Int, versionName: String, updateNotes: String, apkUrl: String): Boolean = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.IS_SHOP_DATA_SYNC_ENABLED) return@withContext true
+        if (!isSyncEnabled) return@withContext true
         val arr = JSONArray().apply {
             put(JSONObject().apply { put("key", "latest_version_code"); put("value", versionCode.toString()) })
             put(JSONObject().apply { put("key", "latest_version_name"); put("value", versionName) })
@@ -660,7 +718,7 @@ class SupabaseSyncManager(private val dao: PaponDao) {
      * Push all local Room tables to Supabase.
      */
     suspend fun syncAllLocalToSupabase(): Boolean = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.IS_SHOP_DATA_SYNC_ENABLED) return@withContext true
+        if (!isSyncEnabled) return@withContext false
         try {
             Log.d(tag, "Starting full push to Supabase...")
 
@@ -850,6 +908,25 @@ class SupabaseSyncManager(private val dao: PaponDao) {
                 postOrUpsert("purchases", jsonArr.toString())
             }
 
+            // 10. Purchase Items
+            val purchaseItems = dao.getAllPurchaseItemsSync()
+            if (purchaseItems.isNotEmpty()) {
+                val jsonArr = JSONArray()
+                purchaseItems.forEach {
+                    jsonArr.put(JSONObject().apply {
+                        put("id", it.id)
+                        put("purchase_id", it.purchaseId)
+                        put("product_id", it.productId)
+                        put("product_name", it.productName)
+                        put("unit_name", it.unitName)
+                        put("qty", it.qty)
+                        put("unit_cost_poisha", it.unitCostPoisha)
+                        put("line_total_poisha", it.lineTotalPoisha)
+                    })
+                }
+                postOrUpsert("purchase_items", jsonArr.toString())
+            }
+
             true
         } catch (e: Exception) {
             Log.w(tag, "Error during Supabase push: ${e.message}")
@@ -861,8 +938,8 @@ class SupabaseSyncManager(private val dao: PaponDao) {
      * Complete Two-Way Sync (Flush pending deletions first, pull cloud updates respecting app deletions, then push local mutations).
      */
     suspend fun syncTwoWay(): SyncResult = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.IS_SHOP_DATA_SYNC_ENABLED) {
-            return@withContext SyncResult(success = true, message = "Supabase disconnected")
+        if (!isSyncEnabled) {
+            return@withContext SyncResult(success = false, message = "কাস্টমার ক্লাউড সিঙ্ক সেটআপ করা হয়নি")
         }
         flushPendingDeletions()
         val pullResult = pullFromSupabase()
