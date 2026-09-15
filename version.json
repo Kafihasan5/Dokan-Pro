@@ -1,6 +1,6 @@
 {
-  "versionCode": 12,
-  "versionName": "1.0.12",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v12/app-debug.apk",
-  "releaseNotes": "Enhance in-app update check with semantic version comparison, live progress state and direct dialog pop-up"
+  "versionCode": 13,
+  "versionName": "1.0.13",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v13/app-debug.apk",
+  "releaseNotes": "Redesign Dashboard UI with executive financial hero card, modern quick actions, capital matrix and streamlined invoices"
 }
