@@ -1,31 +1,40 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.PaponViewModel
 import com.example.ui.ShopConfig
-import com.example.ui.theme.StatusDanger
-import com.example.ui.theme.StatusSuccess
-import com.example.ui.theme.StatusWarning
+import com.example.ui.components.EmptyState
+import com.example.ui.components.FilterChipRow
+import com.example.ui.components.SectionHeader
+import com.example.ui.components.StatCard
+import com.example.ui.components.StatTone
+import com.example.ui.theme.*
 import com.example.util.Formatters
 import java.util.Calendar
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportsScreen(
     viewModel: PaponViewModel,
@@ -36,13 +45,11 @@ fun ReportsScreen(
     val saleItems by viewModel.allSaleItems.collectAsState()
     val expenses by viewModel.expenses.collectAsState()
     val products by viewModel.products.collectAsState()
-    val totalDue by viewModel.totalDue.collectAsState()
 
-    var selectedPeriod by remember { mutableStateOf("আজ") } // আজ, এই সপ্তাহ, এই মাস, সব সময়
+    var selectedPeriod by remember { mutableStateOf("আজ") }
     val periods = listOf("আজ", "এই সপ্তাহ", "এই মাস", "সব সময়")
 
     // Filter range calculation
-    val now = System.currentTimeMillis()
     val calendar = Calendar.getInstance()
 
     val filterStartTime = remember(selectedPeriod) {
@@ -90,8 +97,14 @@ fun ReportsScreen(
     val totalStockSaleValuePoisha = products.sumOf { (it.stockQty * it.salePricePoisha).toLong() }
     val expectedFutureProfitPoisha = (totalStockSaleValuePoisha - totalStockCostPoisha).coerceAtLeast(0)
 
+    // Daily Cash Register Closing simulation
+    val cashSalesPoisha = periodSales.filter { it.paymentMethod == "cash" }.sumOf { it.paidAmountPoisha }
+    val mfsSalesPoisha = periodSales.filter { it.paymentMethod == "mfs" }.sumOf { it.paidAmountPoisha }
+    val dueSalesPoisha = periodSales.sumOf { it.dueAmountPoisha }
+    val netDrawerCashPoisha = (cashSalesPoisha - periodExpenseTotalPoisha).coerceAtLeast(0)
+
     // Top Products ranking by Qty
-    val productSalesMap = mutableMapOf<String, Pair<Double, Long>>() // name -> (qty, revenue)
+    val productSalesMap = mutableMapOf<String, Pair<Double, Long>>()
     for (item in periodSoldItems) {
         val cur = productSalesMap.getOrDefault(item.productName, Pair(0.0, 0L))
         productSalesMap[item.productName] = Pair(cur.first + item.qty, cur.second + item.lineTotalPoisha)
@@ -101,220 +114,516 @@ fun ReportsScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .statusBarsPadding()
             .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 140.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        contentPadding = PaddingValues(
+            start = Spacing.lg,
+            end = Spacing.lg,
+            top = Spacing.md,
+            bottom = 120.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(Spacing.lg)
     ) {
+        // Screen Header & Period Selector
         item {
-            Text(
-                text = "দোকানের হিসাব ও রিপোর্ট",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Text(
+                    text = "দোকানের হিসাব ও রিপোর্ট",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                // 1) Period selector at the top using FilterChipRow
+                FilterChipRow(
+                    options = periods,
+                    selected = selectedPeriod,
+                    onSelect = { selectedPeriod = it }
+                )
+            }
+        }
+
+        // 2) PROFIT & LOSS WATERFALL
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                SectionHeader(title = "লাভ ও ক্ষতি বিবরণী ($selectedPeriod)")
+
+                ProfitLossWaterfallCard(
+                    salesTotal = periodSalesTotalPoisha,
+                    costTotal = periodCostPoisha,
+                    grossProfit = periodGrossProfitPoisha,
+                    expensesTotal = periodExpenseTotalPoisha,
+                    netProfit = periodNetProfitPoisha,
+                    config = config
+                )
+            }
+        }
+
+        // 3) CASH DRAWER RECONCILIATION CARD
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                SectionHeader(title = "দৈনিক ক্যাশ ড্রয়ার মিলকরণ (ক্যাশ ক্লোজিং)")
+
+                CashDrawerReconciliationCard(
+                    cashSales = cashSalesPoisha,
+                    mfsSales = mfsSalesPoisha,
+                    expenses = periodExpenseTotalPoisha,
+                    dueSales = dueSalesPoisha,
+                    netDrawerCash = netDrawerCashPoisha,
+                    config = config
+                )
+            }
+        }
+
+        // 4) STOCK VALUATION
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                SectionHeader(title = "স্টক ভ্যালুয়েশন (দোকানের মোট ইনভেস্টমেন্ট)")
+
+                StockValuationCard(
+                    totalCost = totalStockCostPoisha,
+                    totalSaleValue = totalStockSaleValuePoisha,
+                    expectedProfit = expectedFutureProfitPoisha,
+                    productCount = products.size,
+                    config = config
+                )
+            }
+        }
+
+        // 5) TOP PRODUCTS RANKED LIST
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                SectionHeader(title = "সর্বাধিক বিক্রিত পণ্য ($selectedPeriod)")
+
+                TopProductsCard(
+                    topProducts = topProducts,
+                    config = config
+                )
+            }
+        }
+    }
+}
+
+// ==============================================================================
+// 2. PROFIT & LOSS WATERFALL CARD
+// ==============================================================================
+@Composable
+private fun ProfitLossWaterfallCard(
+    salesTotal: Long,
+    costTotal: Long,
+    grossProfit: Long,
+    expensesTotal: Long,
+    netProfit: Long,
+    config: ShopConfig
+) {
+    var animateStart by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        animateStart = true
+    }
+
+    val maxVal = maxOf(salesTotal, costTotal, grossProfit, expensesTotal, kotlin.math.abs(netProfit), 1L).toFloat()
+
+    Surface(
+        shape = RoundedCornerShape(Radius.lg),
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier
+            .fillMaxWidth()
+            .softShadow(1, RoundedCornerShape(Radius.lg))
+    ) {
+        Column(
+            modifier = Modifier.padding(Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            // Waterfall item 1: মোট বিক্রয় (Income -> Success)
+            WaterfallRow(
+                label = "মোট বিক্রয়",
+                amountText = Formatters.formatMoney(salesTotal, config.useBengaliNumerals, config.currencySymbol),
+                fraction = salesTotal / maxVal,
+                barColor = MaterialTheme.dokanColors.success,
+                shouldAnimate = animateStart
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            // Waterfall item 2: বিক্রিত পণ্যের ক্রয়মূল্য (Deduction -> Danger)
+            WaterfallRow(
+                label = "বিক্রিত পণ্যের ক্রয়মূল্য",
+                amountText = "-${Formatters.formatMoney(costTotal, config.useBengaliNumerals, config.currencySymbol)}",
+                fraction = costTotal / maxVal,
+                barColor = MaterialTheme.dokanColors.danger,
+                shouldAnimate = animateStart
+            )
 
-            // Time Period Filter Chips
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(periods) { p ->
-                    FilterChip(
-                        selected = selectedPeriod == p,
-                        onClick = { selectedPeriod = p },
-                        label = { Text(p, fontSize = 13.sp) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                        )
+            // Waterfall item 3: মোট গ্রস লাভ (Income -> Success)
+            WaterfallRow(
+                label = "মোট গ্রস লাভ",
+                amountText = Formatters.formatMoney(grossProfit, config.useBengaliNumerals, config.currencySymbol),
+                fraction = grossProfit / maxVal,
+                barColor = MaterialTheme.dokanColors.success,
+                shouldAnimate = animateStart
+            )
+
+            // Waterfall item 4: দোকানের অন্যান্য খরচ (Deduction -> Danger)
+            WaterfallRow(
+                label = "দোকানের অন্যান্য খরচ",
+                amountText = "-${Formatters.formatMoney(expensesTotal, config.useBengaliNumerals, config.currencySymbol)}",
+                fraction = expensesTotal / maxVal,
+                barColor = MaterialTheme.dokanColors.danger,
+                shouldAnimate = animateStart
+            )
+
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.dokanColors.border
+            )
+
+            // Final Row: প্রকৃত নিট লাভ on a primaryContainer band
+            val isNetPositive = netProfit >= 0
+            val bandContainerColor = if (isNetPositive) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.dokanColors.dangerContainer
+            }
+            val netTextColor = if (isNetPositive) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.dokanColors.danger
+            }
+
+            Surface(
+                shape = RoundedCornerShape(Radius.md),
+                color = bandContainerColor,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.md, vertical = Spacing.md),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "প্রকৃত নিট লাভ",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Text(
+                        text = (if (netProfit < 0) "-" else "") + Formatters.formatMoney(
+                            kotlin.math.abs(netProfit),
+                            config.useBengaliNumerals,
+                            config.currencySymbol
+                        ),
+                        style = amountTextStyle(30.sp),
+                        color = netTextColor
                     )
                 }
             }
         }
+    }
+}
 
-        // Section 1: Profit & Loss Statement (P&L)
-        item {
-            Card(
+@Composable
+private fun WaterfallRow(
+    label: String,
+    amountText: String,
+    fraction: Float,
+    barColor: Color,
+    shouldAnimate: Boolean
+) {
+    val animatedFraction by animateFloatAsState(
+        targetValue = if (shouldAnimate) fraction.coerceIn(0.04f, 1f) else 0f,
+        animationSpec = tween(durationMillis = 700, easing = FastOutSlowInEasing),
+        label = "waterfall_bar"
+    )
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = amountText,
+                style = amountTextStyle(15.sp),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+
+        Spacer(modifier = Modifier.height(Spacing.xs))
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(Radius.pill))
+                .background(MaterialTheme.dokanColors.surfaceAlt)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(animatedFraction)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(Radius.pill))
+                    .background(barColor)
+            )
+        }
+    }
+}
+
+// ==============================================================================
+// 3. CASH DRAWER RECONCILIATION CARD
+// ==============================================================================
+@Composable
+private fun CashDrawerReconciliationCard(
+    cashSales: Long,
+    mfsSales: Long,
+    expenses: Long,
+    dueSales: Long,
+    netDrawerCash: Long,
+    config: ShopConfig
+) {
+    Surface(
+        shape = RoundedCornerShape(Radius.lg),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.dokanColors.border),
+        modifier = Modifier
+            .fillMaxWidth()
+            .softShadow(1, RoundedCornerShape(Radius.lg))
+    ) {
+        Column(
+            modifier = Modifier.padding(Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            // Header with small calculator icon
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("লাভ ও ক্ষতি বিবরণী ($selectedPeriod)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Icon(Icons.Default.Assessment, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    }
+                Icon(
+                    imageVector = Icons.Default.Calculate,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(Spacing.sm))
+                Text(
+                    text = "দৈনিক ক্যাশ ড্রয়ার মিলকরণ",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.dokanColors.border
+            )
 
-                    ReportDetailRow("মোট বিক্রয়", Formatters.formatMoney(periodSalesTotalPoisha, config.useBengaliNumerals, config.currencySymbol), isPositive = null)
-                    ReportDetailRow("বিক্রিত পণ্যের ক্রয়মূল্য", "-${Formatters.formatMoney(periodCostPoisha, config.useBengaliNumerals, config.currencySymbol)}", isPositive = false)
-                    ReportDetailRow("মোট গ্রস লাভ", Formatters.formatMoney(periodGrossProfitPoisha, config.useBengaliNumerals, config.currencySymbol), isPositive = true)
-                    ReportDetailRow("দোকানের অন্যান্য খরচ", "-${Formatters.formatMoney(periodExpenseTotalPoisha, config.useBengaliNumerals, config.currencySymbol)}", isPositive = false)
+            // Signed rows: +, +, −, −
+            SignedRow(
+                sign = "+",
+                signColor = MaterialTheme.dokanColors.success,
+                label = "নগদ বিক্রয় জমা",
+                amount = Formatters.formatMoney(cashSales, config.useBengaliNumerals, config.currencySymbol)
+            )
 
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+            SignedRow(
+                sign = "+",
+                signColor = MaterialTheme.dokanColors.success,
+                label = "বিকাশ/নগদ ডিজিটাল জমা",
+                amount = Formatters.formatMoney(mfsSales, config.useBengaliNumerals, config.currencySymbol)
+            )
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("প্রকৃত নিট লাভ:", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text(
-                            text = Formatters.formatMoney(periodNetProfitPoisha, config.useBengaliNumerals, config.currencySymbol),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp,
-                            color = if (periodNetProfitPoisha >= 0) StatusSuccess else StatusDanger
+            SignedRow(
+                sign = "−",
+                signColor = MaterialTheme.dokanColors.danger,
+                label = "নগদ খরচ কর্তন",
+                amount = Formatters.formatMoney(expenses, config.useBengaliNumerals, config.currencySymbol)
+            )
+
+            SignedRow(
+                sign = "−",
+                signColor = MaterialTheme.dokanColors.warning,
+                label = "বাকিতে বিক্রি",
+                amount = Formatters.formatMoney(dueSales, config.useBengaliNumerals, config.currencySymbol)
+            )
+
+            // Double Rule
+            Column(modifier = Modifier.padding(vertical = Spacing.xs)) {
+                HorizontalDivider(thickness = 1.dp, color = MaterialTheme.dokanColors.border)
+                Spacer(modifier = Modifier.height(2.dp))
+                HorizontalDivider(thickness = 1.dp, color = MaterialTheme.dokanColors.border)
+            }
+
+            // Final: ক্যাশ বাক্সে থাকার কথা
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "ক্যাশ বাক্সে থাকার কথা",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Text(
+                    text = Formatters.formatMoney(netDrawerCash, config.useBengaliNumerals, config.currencySymbol),
+                    style = amountTextStyle(28.sp),
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SignedRow(
+    sign: String,
+    signColor: Color,
+    label: String,
+    amount: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = sign,
+            style = TextStyle(
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = signColor
+            ),
+            modifier = Modifier.width(22.dp)
+        )
+
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f)
+        )
+
+        Text(
+            text = amount,
+            style = amountTextStyle(15.sp),
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+// ==============================================================================
+// 4. STOCK VALUATION CARD
+// ==============================================================================
+@Composable
+private fun StockValuationCard(
+    totalCost: Long,
+    totalSaleValue: Long,
+    expectedProfit: Long,
+    productCount: Int,
+    config: ShopConfig
+) {
+    Surface(
+        shape = RoundedCornerShape(Radius.lg),
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier
+            .fillMaxWidth()
+            .softShadow(1, RoundedCornerShape(Radius.lg))
+    ) {
+        Column(
+            modifier = Modifier.padding(Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            // Two StatCards side by side
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    StatCard(
+                        label = "স্টকের মোট ক্রয়মূল্য (ইনভেস্ট)",
+                        value = Formatters.formatMoney(totalCost, config.useBengaliNumerals, config.currencySymbol),
+                        tone = StatTone.Neutral
+                    )
+                }
+
+                Box(modifier = Modifier.weight(1f)) {
+                    StatCard(
+                        label = "স্টকের আনুমানিক বিক্রয়মূল্য",
+                        value = Formatters.formatMoney(totalSaleValue, config.useBengaliNumerals, config.currencySymbol),
+                        tone = StatTone.Gold
+                    )
+                }
+            }
+
+            // Slim stacked bar showing cost against potential profit
+            val total = (totalCost + expectedProfit).coerceAtLeast(1L).toFloat()
+            val costFrac = (totalCost / total).coerceIn(0.05f, 0.95f)
+
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(Radius.pill))
+                        .background(MaterialTheme.dokanColors.surfaceAlt)
+                ) {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        // Cost portion
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(costFrac)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
+                        )
+                        // Profit portion
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .weight(1f)
+                                .background(MaterialTheme.dokanColors.success)
                         )
                     }
                 }
-            }
-        }
 
-        // Section 2: Stock Valuation
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("স্টক ভ্যালুয়েশন (দোকানের মোট ইনভেস্টমেন্ট)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Icon(Icons.Default.Inventory, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    ReportDetailRow("মোট সক্রিয় পণ্য সংখ্যা", "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(products.size.toString()) else products.size} টি আইটেম", isPositive = null)
-                    ReportDetailRow("স্টকের মোট ক্রয়মূল্য (ইনভেস্টমেন্ট)", Formatters.formatMoney(totalStockCostPoisha, config.useBengaliNumerals, config.currencySymbol), isPositive = null)
-                    ReportDetailRow("স্টকের আনুমানিক বিক্রয়মূল্য", Formatters.formatMoney(totalStockSaleValuePoisha, config.useBengaliNumerals, config.currencySymbol), isPositive = null)
-
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("সম্ভাব্য মোট স্টক লাভ:", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                // Legend
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                        )
+                        Spacer(modifier = Modifier.width(Spacing.xs))
                         Text(
-                            text = Formatters.formatMoney(expectedFutureProfitPoisha, config.useBengaliNumerals, config.currencySymbol),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = StatusSuccess
+                            text = "ইনভেস্টমেন্ট",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
-            }
-        }
 
-        // Section 3: Top Selling Products
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("সর্বাধিক বিক্রিত পণ্য ($selectedPeriod)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    if (topProducts.isEmpty()) {
-                        Text("এই সময়ে কোনো বিক্রির রেকর্ড নেই", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    } else {
-                        for ((idx, entry) in topProducts.withIndex()) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = "#${idx + 1}",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.width(28.dp)
-                                    )
-                                    Column {
-                                        Text(entry.key, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                        Text(
-                                            "${Formatters.formatQty(entry.value.first, "", config.useBengaliNumerals)} বিক্রয়",
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-
-                                Text(
-                                    Formatters.formatMoney(entry.value.second, config.useBengaliNumerals, config.currencySymbol),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Section 4: Daily Cash Register Closing simulation
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("দৈনিক ক্যাশ ড্রয়ার মিলকরণ (ক্যাশ ক্লোজিং)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Icon(Icons.Default.AccountBalance, contentDescription = null, tint = StatusSuccess)
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    val cashSalesPoisha = periodSales.filter { it.paymentMethod == "cash" }.sumOf { it.paidAmountPoisha }
-                    val mfsSalesPoisha = periodSales.filter { it.paymentMethod == "mfs" }.sumOf { it.paidAmountPoisha }
-                    val dueSalesPoisha = periodSales.sumOf { it.dueAmountPoisha }
-
-                    ReportDetailRow("নগদ বিক্রয় জমা (Cash in Drawer)", Formatters.formatMoney(cashSalesPoisha, config.useBengaliNumerals, config.currencySymbol), isPositive = true)
-                    ReportDetailRow("বিকাশ/নগদ ডিজিটাল জমা (MFS)", Formatters.formatMoney(mfsSalesPoisha, config.useBengaliNumerals, config.currencySymbol), isPositive = true)
-                    ReportDetailRow("বাকিতে বিক্রি (খাতা)", Formatters.formatMoney(dueSalesPoisha, config.useBengaliNumerals, config.currencySymbol), isPositive = null)
-                    ReportDetailRow("নগদ খরচ কর্তন", "-${Formatters.formatMoney(periodExpenseTotalPoisha, config.useBengaliNumerals, config.currencySymbol)}", isPositive = false)
-
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
-
-                    val netDrawerCashPoisha = (cashSalesPoisha - periodExpenseTotalPoisha).coerceAtLeast(0)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("ক্যাশ বাক্সে থাকার কথা:", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.dokanColors.success)
+                        )
+                        Spacer(modifier = Modifier.width(Spacing.xs))
                         Text(
-                            text = Formatters.formatMoney(netDrawerCashPoisha, config.useBengaliNumerals, config.currencySymbol),
+                            text = "সম্ভাব্য মোট লাভ: +${Formatters.formatMoney(expectedProfit, config.useBengaliNumerals, config.currencySymbol)}",
+                            style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.dokanColors.success
                         )
                     }
                 }
@@ -323,25 +632,112 @@ fun ReportsScreen(
     }
 }
 
+// ==============================================================================
+// 5. TOP PRODUCTS RANKED LIST CARD
+// ==============================================================================
 @Composable
-fun ReportDetailRow(label: String, value: String, isPositive: Boolean?) {
-    Row(
+private fun TopProductsCard(
+    topProducts: List<Map.Entry<String, Pair<Double, Long>>>,
+    config: ShopConfig
+) {
+    Surface(
+        shape = RoundedCornerShape(Radius.lg),
+        color = MaterialTheme.colorScheme.surface,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 3.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+            .softShadow(1, RoundedCornerShape(Radius.lg))
     ) {
-        Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(
-            value,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = when (isPositive) {
-                true -> StatusSuccess
-                false -> StatusDanger
-                null -> MaterialTheme.colorScheme.onSurface
+        Column(
+            modifier = Modifier.padding(Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            if (topProducts.isEmpty()) {
+                EmptyState(
+                    icon = Icons.Default.TrendingUp,
+                    title = "এই সময়ে কোনো বিক্রির রেকর্ড নেই",
+                    message = "পণ্য বিক্রি হলে এখানে সর্বাধিক বিক্রিত তালিকা দেখতে পাবেন।"
+                )
+            } else {
+                val maxQty = topProducts.firstOrNull()?.value?.first?.coerceAtLeast(1.0) ?: 1.0
+
+                topProducts.forEachIndexed { idx, entry ->
+                    val share = (entry.value.first / maxQty).toFloat().coerceIn(0.05f, 1f)
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // 28dp numbered badge
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (idx == 0) MaterialTheme.colorScheme.primaryContainer
+                                        else MaterialTheme.dokanColors.surfaceAlt
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "${idx + 1}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (idx == 0) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(Spacing.md))
+
+                            // Name and quantity sold
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = entry.key,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "${Formatters.formatQty(entry.value.first, "", config.useBengaliNumerals)} বিক্রয়",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            // Revenue
+                            Text(
+                                text = Formatters.formatMoney(entry.value.second, config.useBengaliNumerals, config.currencySymbol),
+                                style = amountTextStyle(15.sp),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        // Thin bar showing share of the top seller
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(Radius.pill))
+                                .background(MaterialTheme.dokanColors.surfaceAlt)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(share)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(Radius.pill))
+                                    .background(MaterialTheme.colorScheme.primary)
+                            )
+                        }
+
+                        if (idx < topProducts.size - 1) {
+                            Spacer(modifier = Modifier.height(Spacing.xs))
+                        }
+                    }
+                }
             }
-        )
+        }
     }
 }
