@@ -6,44 +6,47 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    primary = EmeraldPrimaryDark,
-    onPrimary = Color(0xFF003823),
-    primaryContainer = EmeraldPrimaryContainerDark,
-    onPrimaryContainer = EmeraldOnPrimaryContainerDark,
-    secondary = Color(0xFF34D399),
-    onSecondary = Color(0xFF003823),
-    background = BackgroundDark,
-    onBackground = TextPrimaryDark,
+    primary = Brand300,
+    onPrimary = Brand900,
+    primaryContainer = Brand900,
+    onPrimaryContainer = Brand100,
+    secondary = Brand500,
+    onSecondary = Brand900,
+    background = BgDark,
+    onBackground = InkDark,
     surface = SurfaceDark,
-    onSurface = TextPrimaryDark,
-    surfaceVariant = SurfaceVariantDark,
-    onSurfaceVariant = TextSecondaryDark,
+    onSurface = InkDark,
+    surfaceVariant = SurfaceAltDark,
+    onSurfaceVariant = Ink2Dark,
     outline = BorderDark,
-    error = StatusDanger,
+    outlineVariant = BorderDark,
+    error = Danger,
     onError = Color.White
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = EmeraldPrimaryLight,
-    onPrimary = EmeraldOnPrimary,
-    primaryContainer = EmeraldPrimaryContainerLight,
-    onPrimaryContainer = EmeraldOnPrimaryContainerLight,
-    secondary = Color(0xFF059669),
+    primary = Brand500,
+    onPrimary = Color.White,
+    primaryContainer = Brand100,
+    onPrimaryContainer = Brand900,
+    secondary = Brand700,
     onSecondary = Color.White,
-    background = BackgroundLight,
-    onBackground = TextPrimaryLight,
+    background = BgLight,
+    onBackground = InkLight,
     surface = SurfaceLight,
-    onSurface = TextPrimaryLight,
-    surfaceVariant = SurfaceVariantLight,
-    onSurfaceVariant = TextSecondaryLight,
+    onSurface = InkLight,
+    surfaceVariant = SurfaceAltLight,
+    onSurfaceVariant = Ink2Light,
     outline = BorderLight,
-    error = StatusDanger,
+    outlineVariant = BorderLight,
+    error = Danger,
     onError = Color.White
 )
 
@@ -53,6 +56,7 @@ fun DokanProTheme(
     content: @Composable () -> Unit,
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val dokanColors = if (darkTheme) DarkDokanColors else LightDokanColors
 
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -66,11 +70,13 @@ fun DokanProTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    CompositionLocalProvider(LocalDokanColors provides dokanColors) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }
 
 @Composable
@@ -89,4 +95,3 @@ fun MyApplicationTheme(
 ) {
     DokanProTheme(darkTheme = darkTheme, content = content)
 }
-
