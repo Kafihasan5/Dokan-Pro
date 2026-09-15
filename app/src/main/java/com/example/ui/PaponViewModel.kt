@@ -158,7 +158,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun startPeriodicSync() {
-        if (!com.example.data.supabase.SupabaseConfig.isConnected) return
+        if (!com.example.data.supabase.SupabaseConfig.IS_SHOP_DATA_SYNC_ENABLED) return
         viewModelScope.launch {
             while (isActive) {
                 kotlinx.coroutines.delay(20_000) // 20 seconds background poll
@@ -219,9 +219,9 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
     fun syncToSupabase(silent: Boolean = false) {
         viewModelScope.launch {
-            if (!com.example.data.supabase.SupabaseConfig.isConnected) {
+            if (!com.example.data.supabase.SupabaseConfig.IS_SHOP_DATA_SYNC_ENABLED) {
                 if (!silent) {
-                    showToast("ক্লাউড সংযোগ ডিসকানেক্ট করা আছে (লোকাল মোড)")
+                    showToast("দোকানের হিসাব সম্পূর্ণ লোকাল ও অফলাইনে সংরক্ষিত (ক্লাউড সিঙ্ক নিষ্ক্রিয়)")
                 }
                 return@launch
             }
