@@ -24,7 +24,7 @@ class GreetingScreenshotTest {
   fun greeting_screenshot() {
     composeTestRule.setContent {
       DokanProTheme {
-        Text("দোকান প্রো - ক্যাশ কাউন্টার")
+        Text("Dokan Pro - ক্যাশ কাউন্টার")
       }
     }
 

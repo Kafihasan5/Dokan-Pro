@@ -981,8 +981,7 @@ class PaponRepository(private val dao: PaponDao) {
     }
 
     suspend fun resetAllData() = withContext(Dispatchers.IO) {
-        clearAllDummyData()
-        seedInitialDataIfEmpty()
+        com.example.data.demo.DemoDataSeeder.seed7DaysDemoData(dao)
         syncWithSupabase()
     }
 }

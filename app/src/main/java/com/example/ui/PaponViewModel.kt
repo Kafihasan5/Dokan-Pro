@@ -31,7 +31,7 @@ data class CartItem(
 }
 
 data class ShopConfig(
-    val shopName: String = "দোকান প্রো",
+    val shopName: String = "Dokan Pro",
     val shopAddress: String = "বাজার রোড, ঢাকা",
     val shopPhone: String = "০১৭১১-০০০০০০",
     val tagline: String = "আপনার বিশ্বস্ত মুদি দোকান",
@@ -172,9 +172,18 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                     _isDemoExpired.value = false
                     _remainingDemoMillis.value = res.remainingMillis
                     _isAppActivated.value = true
+                    // Auto-complete onboarding so demo enters dashboard directly with all 20 products
+                    if (!_shopConfig.value.isOnboardingCompleted) {
+                        val current = _shopConfig.value
+                        val updated = current.copy(
+                            shopName = if (current.shopName.isBlank() || current.shopName == "দোকান প্রো") "Dokan Pro" else current.shopName,
+                            isOnboardingCompleted = true
+                        )
+                        updateShopConfig(updated)
+                    }
                     startDemoTimerTicker()
                     _isActivating.value = false
-                    showToast(res.message.ifBlank { "১ ঘণ্টার ফ্রি ডেমো মোড চালু হয়েছে! ৭ দিনের ডামি ডাটা লোড করা হয়েছে।" })
+                    showToast(res.message.ifBlank { "১ ঘণ্টার ফ্রি ডেমো মোড চালু হয়েছে! ২০টি পণ্য ও ৭ দিনের ডামি ডাটা লোড করা হয়েছে।" })
                 }
                 is com.example.data.license.DemoStartResult.Expired -> {
                     _isDemoMode.value = false
@@ -933,11 +942,12 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun resetAllData() {
+    fun resetAllData(onSuccess: (() -> Unit)? = null) {
         viewModelScope.launch {
             repository.resetAllData()
             clearCart()
-            showToast("সব ডেটা রিসেট ও স্যাম্পল পণ্য যোগ করা হয়েছে")
+            showToast("২০টি স্যাম্পল পণ্য ও ডামি ডেটা সফলভাবে লোড করা হয়েছে!")
+            onSuccess?.invoke()
         }
     }
 
@@ -1110,7 +1120,8 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun loadShopConfig() {
         try {
-            val shopName = prefs.getString("shop_name", "দোকান প্রো") ?: "দোকান প্রো"
+            val rawShopName = prefs.getString("shop_name", "Dokan Pro") ?: "Dokan Pro"
+            val shopName = if (rawShopName == "দোকান প্রো" || rawShopName.isBlank()) "Dokan Pro" else rawShopName
             val shopAddress = prefs.getString("shop_address", "বাজার রোড, ঢাকা") ?: "বাজার রোড, ঢাকা"
             val shopPhone = prefs.getString("shop_phone", "০১৭১১-০০০০০০") ?: "০১৭১১-০০০০০০"
             val tagline = prefs.getString("tagline", "আপনার বিশ্বস্ত মুদি দোকান") ?: "আপনার বিশ্বস্ত মুদি দোকান"

@@ -40,9 +40,10 @@ fun OnboardingScreen(
     modifier: Modifier = Modifier
 ) {
     var currentStep by remember { mutableIntStateOf(1) }
+    var isSeedingData by remember { mutableStateOf(false) }
 
     // Step 1 Form State
-    var shopName by remember { mutableStateOf(config.shopName.ifBlank { "দোকান প্রো" }) }
+    var shopName by remember { mutableStateOf(config.shopName.ifBlank { "Dokan Pro" }.let { if (it == "দোকান প্রো") "Dokan Pro" else it }) }
     var shopAddress by remember { mutableStateOf(config.shopAddress) }
     var shopPhone by remember { mutableStateOf(config.shopPhone) }
     var tagline by remember { mutableStateOf(config.tagline) }
@@ -89,7 +90,7 @@ fun OnboardingScreen(
                     Spacer(modifier = Modifier.width(Spacing.sm))
                     Column {
                         Text(
-                            text = "দোকান প্রো সেটআপ",
+                            text = "Dokan Pro সেটআপ",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -437,10 +438,12 @@ fun OnboardingScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(Radius.lg))
-                            .clickable {
+                            .clickable(enabled = !isSeedingData) {
+                                isSeedingData = true
                                 val parsedVat = vatPercentage.toDoubleOrNull() ?: 0.0
+                                val finalShopName = shopName.trim().ifBlank { "Dokan Pro" }
                                 val updated = config.copy(
-                                    shopName = shopName.trim(),
+                                    shopName = if (finalShopName == "দোকান প্রো") "Dokan Pro" else finalShopName,
                                     shopAddress = shopAddress.trim(),
                                     shopPhone = shopPhone.trim(),
                                     tagline = tagline.trim(),
@@ -452,8 +455,10 @@ fun OnboardingScreen(
                                     isOnboardingCompleted = true
                                 )
                                 viewModel.updateShopConfig(updated)
-                                viewModel.resetAllData()
-                                viewModel.navigateTo(AppScreen.DASHBOARD)
+                                viewModel.resetAllData {
+                                    isSeedingData = false
+                                    viewModel.navigateTo(AppScreen.DASHBOARD)
+                                }
                             },
                         shape = RoundedCornerShape(Radius.lg),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -470,34 +475,50 @@ fun OnboardingScreen(
                                     .background(Brand500.copy(alpha = 0.15f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.AutoAwesome,
-                                    contentDescription = null,
-                                    tint = Brand500,
-                                    modifier = Modifier.size(28.dp)
-                                )
+                                if (isSeedingData) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(24.dp),
+                                        color = Brand500,
+                                        strokeWidth = 2.5.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = null,
+                                        tint = Brand500,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
                             }
                             Spacer(modifier = Modifier.width(Spacing.md))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "২০টি ডেমো পণ্য দিয়ে দেখি",
+                                    text = if (isSeedingData) "২০টি ডেমো পণ্য লোড হচ্ছে..." else "২০টি ডেমো পণ্য দিয়ে দেখি",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "দোকানের হিসাব-নিকাশ সহজে বুঝতে ২০টি নমুনা পণ্য ও ক্যাটাগরি যোগ করে অ্যাপটি পরীক্ষা করুন।",
+                                    text = if (isSeedingData) "দয়া করে অপেক্ষা করুন, ডাটাবেসে ২০টি পণ্য ও হিসাব লোড করা হচ্ছে..." else "দোকানের হিসাব-নিকাশ সহজে বুঝতে ২০টি নমুনা পণ্য ও ক্যাটাগরি যোগ করে অ্যাপটি পরীক্ষা করুন।",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     lineHeight = 17.sp
                                 )
                             }
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = null,
-                                tint = Brand500
-                            )
+                            if (isSeedingData) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    color = Brand500,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = null,
+                                    tint = Brand500
+                                )
+                            }
                         }
                     }
 
@@ -506,10 +527,11 @@ fun OnboardingScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(Radius.lg))
-                            .clickable {
+                            .clickable(enabled = !isSeedingData) {
                                 val parsedVat = vatPercentage.toDoubleOrNull() ?: 0.0
+                                val finalShopName = shopName.trim().ifBlank { "Dokan Pro" }
                                 val updated = config.copy(
-                                    shopName = shopName.trim(),
+                                    shopName = if (finalShopName == "দোকান প্রো") "Dokan Pro" else finalShopName,
                                     shopAddress = shopAddress.trim(),
                                     shopPhone = shopPhone.trim(),
                                     tagline = tagline.trim(),
@@ -521,7 +543,9 @@ fun OnboardingScreen(
                                     isOnboardingCompleted = true
                                 )
                                 viewModel.updateShopConfig(updated)
-                                viewModel.navigateTo(AppScreen.PRODUCTS)
+                                viewModel.clearAllDummyData {
+                                    viewModel.navigateTo(AppScreen.PRODUCTS)
+                                }
                             },
                         shape = RoundedCornerShape(Radius.lg),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
