@@ -1,6 +1,6 @@
 {
-  "versionCode": 31,
-  "versionName": "1.0.31",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v31/app-debug.apk",
-  "releaseNotes": "fix: remove extra closing brace in PaponApp.kt"
+  "versionCode": 32,
+  "versionName": "1.0.32",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v32/app-debug.apk",
+  "releaseNotes": "fix: remove demo timer chip from TopHeader subtitle to preserve clean layout"
 }
