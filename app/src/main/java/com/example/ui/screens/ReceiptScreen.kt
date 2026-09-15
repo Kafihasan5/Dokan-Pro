@@ -255,187 +255,433 @@ fun ReceiptScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // 58mm Thermal Paper Card (Visual On-Screen Slip)
+        // DIGITAL INVOICE CARD (Modern Luxury POS Theme)
         item {
             Card(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
+                    .fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(12.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                shape = RoundedCornerShape(18.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = config.shopName,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+                    // Top Accent Strip
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .background(
+                                when {
+                                    currentSale.isReturned -> StatusDanger
+                                    currentSale.dueAmountPoisha > 0 -> Color(0xFFF59E0B)
+                                    else -> Color(0xFF0F766E)
+                                }
+                            )
                     )
-                    Text(
-                        text = config.shopAddress,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "মোবাইল: ${config.shopPhone}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (config.tagline.isNotBlank()) {
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Shop Initial Emblem
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    when {
+                                        currentSale.isReturned -> StatusDanger.copy(alpha = 0.15f)
+                                        currentSale.dueAmountPoisha > 0 -> Color(0xFFF59E0B).copy(alpha = 0.15f)
+                                        else -> Color(0xFF0F766E).copy(alpha = 0.15f)
+                                    }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = config.shopName.trim().take(1).ifEmpty { "D" },
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = when {
+                                    currentSale.isReturned -> StatusDanger
+                                    currentSale.dueAmountPoisha > 0 -> Color(0xFFD97706)
+                                    else -> Color(0xFF0F766E)
+                                }
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Shop Name
                         Text(
-                            text = config.tagline,
+                            text = config.shopName,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        if (config.tagline.isNotBlank()) {
+                            Text(
+                                text = config.tagline,
+                                fontSize = 12.sp,
+                                color = Color(0xFF059669),
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(top = 1.dp)
+                            )
+                        }
+
+                        // Address & Phone
+                        val addr = if (config.shopAddress.isNotBlank()) "${config.shopAddress}  •  " else ""
+                        Text(
+                            text = "${addr}মোবাইল: ${config.shopPhone}",
                             fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 2.dp)
                         )
-                    }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Divider(color = Color.LightGray)
-                    Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("ইনভয়েস: ${currentSale.invoiceNo}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                        Text(Formatters.formatDateTime(currentSale.saleDate, config.useBengaliNumerals), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-
-                    if (!currentSale.customerName.isNullOrBlank()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                        // Status Badge Pill
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = when {
+                                currentSale.isReturned -> StatusDanger.copy(alpha = 0.12f)
+                                currentSale.dueAmountPoisha > 0 -> Color(0xFFFFFBEB)
+                                else -> Color(0xFFECFDF5)
+                            },
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                when {
+                                    currentSale.isReturned -> StatusDanger.copy(alpha = 0.6f)
+                                    currentSale.dueAmountPoisha > 0 -> Color(0xFFFCD34D)
+                                    else -> Color(0xFF6EE7B7)
+                                }
+                            )
                         ) {
-                            Text("ক্রেতা: ${currentSale.customerName}", fontSize = 12.sp)
-                            val paymentTitle = when (currentSale.paymentMethod) {
-                                "due" -> "বাকি"
-                                "mfs" -> "বিকাশ/নগদ"
-                                "card" -> "কার্ড"
-                                else -> "নগদ"
-                            }
-                            Text("পেমেন্ট: $paymentTitle", fontSize = 12.sp)
+                            Text(
+                                text = when {
+                                    currentSale.isReturned -> "❌ ফেরতকৃত মেমো (RETURNED)"
+                                    currentSale.dueAmountPoisha > 0 -> "বাকি বিক্রয় মেমো (CREDIT INVOICE)"
+                                    else -> "ক্যাশ মেমো / বিক্রয় ইনভয়েস"
+                                },
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = when {
+                                    currentSale.isReturned -> StatusDanger
+                                    currentSale.dueAmountPoisha > 0 -> Color(0xFFB45309)
+                                    else -> Color(0xFF047857)
+                                },
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                            )
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Divider(color = Color.LightGray)
-                    Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
 
-                    // Items Table
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("পণ্য ও দর", fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(2f))
-                        Text("পরিমাণ", fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                        Text("মোট", fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    for (item in saleItems) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 3.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        // Metadata Card (Billed To & Invoice Info)
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
                         ) {
-                            Column(modifier = Modifier.weight(2f)) {
-                                Text(item.productName, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                // Left Column: Customer
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "ক্রেতার তথ্য",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = currentSale.customerName ?: "সাধারণ খরিদ্দার",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    if (customerPhone != null) {
+                                        Text(
+                                            text = customerPhone,
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                // Right Column: Invoice Info
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    horizontalAlignment = Alignment.End
+                                ) {
+                                    Text(
+                                        text = "ইনভয়েস বিবরণ",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "#${currentSale.invoiceNo}",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = Formatters.formatDateTime(currentSale.saleDate, config.useBengaliNumerals),
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    val pMethodName = when (currentSale.paymentMethod) {
+                                        "due" -> "বাকি"
+                                        "bkash" -> "বিকাশ"
+                                        "nagad" -> "নগদ"
+                                        "bank" -> "ব্যাংক"
+                                        else -> "নগদ"
+                                    }
+                                    Text(
+                                        text = "পেমেন্ট: $pMethodName",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (currentSale.paymentMethod == "due") StatusDanger else Color(0xFF047857)
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Table Header Row
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Text(
-                                    "${Formatters.formatMoney(item.unitPricePoisha, config.useBengaliNumerals, config.currencySymbol)}/${item.unitName}",
-                                    fontSize = 10.sp,
+                                    text = "পণ্য ও দর",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.weight(2f),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "পরিমাণ",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "মোট",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = TextAlign.End,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            Text(
-                                Formatters.formatQty(item.qty, "", config.useBengaliNumerals).trim(),
-                                fontSize = 12.sp,
-                                modifier = Modifier.weight(1f),
-                                textAlign = TextAlign.Center
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Item Rows
+                        for (item in saleItems) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(2f)) {
+                                    Text(
+                                        text = item.productName,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "@ ${Formatters.formatMoney(item.unitPricePoisha, config.useBengaliNumerals, config.currencySymbol)}/${item.unitName}",
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Text(
+                                    text = Formatters.formatQty(item.qty, item.unitName, config.useBengaliNumerals).trim(),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = Formatters.formatMoney(item.lineTotalPoisha, config.useBengaliNumerals, config.currencySymbol),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = TextAlign.End,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                thickness = 0.8.dp,
+                                modifier = Modifier.padding(horizontal = 6.dp)
                             )
-                            Text(
-                                Formatters.formatMoney(item.lineTotalPoisha, config.useBengaliNumerals, config.currencySymbol),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.weight(1f),
-                                textAlign = TextAlign.End
-                            )
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Divider(color = Color.LightGray)
-                    Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                    // Calculations
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("উপ-মোট:", fontSize = 13.sp)
-                        Text(Formatters.formatMoney(currentSale.subtotalPoisha, config.useBengaliNumerals, config.currencySymbol), fontSize = 13.sp)
-                    }
+                        // Calculations Card
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                // Subtotal
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("উপ-মোট (Subtotal):", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(Formatters.formatMoney(currentSale.subtotalPoisha, config.useBengaliNumerals, config.currencySymbol), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
 
-                    if (currentSale.discountPoisha > 0) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("ছাড়:", fontSize = 13.sp, color = StatusDanger)
-                            Text("-${Formatters.formatMoney(currentSale.discountPoisha, config.useBengaliNumerals, config.currencySymbol)}", fontSize = 13.sp, color = StatusDanger)
+                                if (currentSale.discountPoisha > 0) {
+                                    Spacer(modifier = Modifier.height(3.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("ছাড় / ডিসকাউন্ট (-):", fontSize = 12.sp, color = StatusDanger)
+                                        Text("-${Formatters.formatMoney(currentSale.discountPoisha, config.useBengaliNumerals, config.currencySymbol)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = StatusDanger)
+                                    }
+                                }
+
+                                if (currentSale.vatPoisha > 0) {
+                                    Spacer(modifier = Modifier.height(3.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("ভ্যাট / ট্যাক্স (+):", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("+${Formatters.formatMoney(currentSale.vatPoisha, config.useBengaliNumerals, config.currencySymbol)}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // Grand Total Box (High-Contrast Hero Row)
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color(0xFF0F172A)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "সর্বমোট বিল:",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                        Text(
+                                            text = Formatters.formatMoney(currentSale.totalPoisha, config.useBengaliNumerals, config.currencySymbol),
+                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF38BDF8)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // Paid
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("পরিশোধিত (Paid):", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF047857))
+                                    Text(Formatters.formatMoney(currentSale.paidAmountPoisha, config.useBengaliNumerals, config.currencySymbol), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF047857))
+                                }
+
+                                // Due
+                                if (currentSale.dueAmountPoisha > 0) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Surface(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = StatusDanger.copy(alpha = 0.1f),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, StatusDanger.copy(alpha = 0.4f))
+                                    ) {
+                                        Column(modifier = Modifier.padding(8.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text("আজকের বকেয়া বাকি:", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = StatusDanger)
+                                                Text(Formatters.formatMoney(currentSale.dueAmountPoisha, config.useBengaliNumerals, config.currencySymbol), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = StatusDanger)
+                                            }
+                                            if (previousDue > 0) {
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Text("পূর্বের বকেয়া:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                    Text(Formatters.formatMoney(previousDue, config.useBengaliNumerals, config.currencySymbol), fontSize = 11.sp)
+                                                }
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Text("সর্বমোট বকেয়া বাকি:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB91C1C))
+                                                    Text(Formatters.formatMoney(previousDue + currentSale.dueAmountPoisha, config.useBengaliNumerals, config.currencySymbol), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB91C1C))
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
-                    }
 
-                    if (currentSale.vatPoisha > 0) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("ভ্যাট:", fontSize = 13.sp)
-                            Text(Formatters.formatMoney(currentSale.vatPoisha, config.useBengaliNumerals, config.currencySymbol), fontSize = 13.sp)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("সর্বমোট প্রদেয়:", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(14.dp))
                         Text(
-                            Formatters.formatMoney(currentSale.totalPoisha, config.useBengaliNumerals, config.currencySymbol),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            text = "✨ ধন্যবাদ! আপনার কেনাকাটা শুভ হোক ✨",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Dokan Pro ডিজিটাল ইনভয়েস সিস্টেম",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.padding(top = 2.dp)
                         )
                     }
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("পরিশোধিত:", fontSize = 13.sp)
-                        Text(Formatters.formatMoney(currentSale.paidAmountPoisha, config.useBengaliNumerals, config.currencySymbol), fontSize = 13.sp)
-                    }
-
-                    if (currentSale.dueAmountPoisha > 0) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("আজকের বাকি:", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = StatusDanger)
-                            Text(Formatters.formatMoney(currentSale.dueAmountPoisha, config.useBengaliNumerals, config.currencySymbol), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = StatusDanger)
-                        }
-                        if (previousDue > 0) {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("পূর্বের বকেয়া বাকি:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(Formatters.formatMoney(previousDue, config.useBengaliNumerals, config.currencySymbol), fontSize = 12.sp)
-                            }
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("মোট বাকি:", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = StatusDanger)
-                                Text(Formatters.formatMoney(previousDue + currentSale.dueAmountPoisha, config.useBengaliNumerals, config.currencySymbol), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = StatusDanger)
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Text("--- ধন্যবাদ! আবার আসবেন ---", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("দোকান প্রো ডিজিটাল ইনভয়েস সিস্টেম", fontSize = 10.sp, color = Color.Gray, modifier = Modifier.padding(top = 2.dp))
                 }
             }
         }

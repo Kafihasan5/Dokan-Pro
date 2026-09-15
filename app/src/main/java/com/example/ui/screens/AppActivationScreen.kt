@@ -266,10 +266,10 @@ fun AppActivationScreen(
                     OutlinedButton(
                         onClick = {
                             try {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://webixsolution.com"))
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://webixsolution.store/product/dokan-pro"))
                                 context.startActivity(intent)
                             } catch (_: Exception) {
-                                Toast.makeText(context, "ওয়েবসাইট ব্রাউজারে খুলুন: webixsolution.com", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "ওয়েবসাইট ব্রাউজারে খুলুন: webixsolution.store/product/dokan-pro", Toast.LENGTH_LONG).show()
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -277,7 +277,7 @@ fun AppActivationScreen(
                     ) {
                         Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("webixsolution.com এ যান")
+                        Text("ওয়েবসাইট থেকে লাইসেন্স কিনুন (Dokan Pro)")
                     }
                 }
             }

@@ -7,6 +7,8 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.DashPathEffect
+import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.media.MediaScannerConnection
@@ -31,7 +33,8 @@ object InvoiceImageHelper {
     private fun c(hex: Long): Int = hex.toInt()
 
     /**
-     * Generate Sales Invoice Bitmap (Cash or Due sale)
+     * Generate Sales Invoice Bitmap (Cash, Due, or Returned sale)
+     * High-end, corporate, elegant design
      */
     fun generateSaleInvoiceBitmap(
         context: Context,
@@ -43,21 +46,26 @@ object InvoiceImageHelper {
         val isDue = sale.dueAmountPoisha > 0
         val hasCustomer = !sale.customerName.isNullOrBlank()
 
-        // Calculate dynamic height
-        val headerHeight = 250
-        val metaHeight = if (hasCustomer) 130 else 80
-        val tableHeaderHeight = 55
-        val itemsHeight = (items.size.coerceAtLeast(1) * 65)
-        val calcBoxHeight = if (isDue) {
-            if (customerPreviousDue > 0) 380 else 300
-        } else 240
-        val footerHeight = 120
-        val totalHeight = headerHeight + metaHeight + tableHeaderHeight + itemsHeight + calcBoxHeight + footerHeight
+        // Dynamic height calculation
+        val headerHeight = if (config.tagline.isNotBlank()) 220 else 190
+        val badgeHeight = 50
+        val metaHeight = if (hasCustomer) 135 else 105
+        val tableHeaderHeight = 48
+        val itemsHeight = items.size.coerceAtLeast(1) * 66
+        val calcBoxHeight = when {
+            sale.isReturned -> 190
+            isDue && customerPreviousDue > 0 -> 330
+            isDue -> 270
+            sale.discountPoisha > 0 || sale.vatPoisha > 0 -> 230
+            else -> 190
+        }
+        val footerHeight = 140
+        val totalHeight = headerHeight + badgeHeight + metaHeight + tableHeaderHeight + itemsHeight + calcBoxHeight + footerHeight + 50
 
         val bitmap = Bitmap.createBitmap(BITMAP_WIDTH, totalHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
-        // Background
+        // Background: Clean Pure White
         canvas.drawColor(Color.WHITE)
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -65,161 +73,252 @@ object InvoiceImageHelper {
             isFilterBitmap = true
         }
 
-        // Top Emerald Accent Bar
-        paint.color = c(0xFF059669) // Emerald 600
-        canvas.drawRect(0f, 0f, BITMAP_WIDTH.toFloat(), 16f, paint)
+        val brandPrimaryColor = when {
+            sale.isReturned -> c(0xFFDC2626) // Red 600
+            isDue -> c(0xFFD97706)          // Amber 600
+            else -> c(0xFF0F766E)           // Teal 700 / Emerald
+        }
 
-        // Outer Card Border
+        val brandAccentColor = when {
+            sale.isReturned -> c(0xFFEF4444)
+            isDue -> c(0xFFF59E0B)
+            else -> c(0xFF10B981)
+        }
+
+        // Top Decorative Gradient/Dual Accent Ribbon
+        paint.color = brandPrimaryColor
+        canvas.drawRect(0f, 0f, BITMAP_WIDTH.toFloat(), 14f, paint)
+        paint.color = brandAccentColor
+        canvas.drawRect(0f, 14f, BITMAP_WIDTH.toFloat(), 18f, paint)
+
+        // Outer Modern Card Border
         paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 3f
+        paint.strokeWidth = 2f
         paint.color = c(0xFFE2E8F0) // Slate 200
-        canvas.drawRoundRect(RectF(12f, 12f, (BITMAP_WIDTH - 12).toFloat(), (totalHeight - 12).toFloat()), 24f, 24f, paint)
+        canvas.drawRoundRect(RectF(14f, 14f, (BITMAP_WIDTH - 14).toFloat(), (totalHeight - 14).toFloat()), 22f, 22f, paint)
         paint.style = Paint.Style.FILL
 
-        var y = 55f
+        var y = 52f
+
+        // Brand Emblem (Rounded box with shop initial)
+        val initialLetter = config.shopName.trim().take(1).ifEmpty { "D" }
+        val emblemSize = 48f
+        val emblemRect = RectF((BITMAP_WIDTH - emblemSize) / 2f, y - 20f, (BITMAP_WIDTH + emblemSize) / 2f, y + emblemSize - 20f)
+        paint.color = brandPrimaryColor
+        canvas.drawRoundRect(emblemRect, 14f, 14f, paint)
+
+        paint.color = Color.WHITE
+        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        paint.textSize = 24f
+        paint.textAlign = Paint.Align.CENTER
+        canvas.drawText(initialLetter, BITMAP_WIDTH / 2f, y + 13f, paint)
 
         // Shop Name
-        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        paint.textSize = 38f
+        y += 62f
         paint.color = c(0xFF0F172A) // Slate 900
+        paint.textSize = 34f
+        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         paint.textAlign = Paint.Align.CENTER
         canvas.drawText(config.shopName, BITMAP_WIDTH / 2f, y, paint)
 
         // Tagline
         if (config.tagline.isNotBlank()) {
-            y += 30f
+            y += 28f
             paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            paint.textSize = 20f
+            paint.textSize = 18f
             paint.color = c(0xFF059669) // Emerald
             canvas.drawText(config.tagline, BITMAP_WIDTH / 2f, y, paint)
         }
 
-        // Address & Phone
+        // Address & Mobile
         y += 28f
-        paint.textSize = 19f
+        paint.textSize = 17f
         paint.color = c(0xFF64748B) // Slate 500
-        val addressLine = if (config.shopAddress.isNotBlank()) "${config.shopAddress} | " else ""
+        val addressLine = if (config.shopAddress.isNotBlank()) "${config.shopAddress}  •  " else ""
         canvas.drawText("${addressLine}মোবাইল: ${config.shopPhone}", BITMAP_WIDTH / 2f, y, paint)
 
-        // Memo Type Badge
-        y += 38f
-        val badgeText = if (sale.isReturned) {
-            "❌ ফেরতকৃত মেমো (RETURNED)"
-        } else if (isDue) {
-            "বাকি বিক্রয় মেমো (Due Invoice)"
-        } else {
-            "ক্যাশ মেমো / বিক্রয় ইনভয়েস"
+        // Status Badge Pill
+        y += 36f
+        val badgeText = when {
+            sale.isReturned -> "❌ ফেরতকৃত মেমো (RETURNED INVOICE)"
+            isDue -> "বাকি বিক্রয় মেমো (CREDIT INVOICE)"
+            else -> "ক্যাশ মেমো / বিক্রয় ইনভয়েস (CASH INVOICE)"
         }
-        val badgeColor = if (sale.isReturned || isDue) c(0xFFDC2626) else c(0xFF059669)
-        val badgeBg = if (sale.isReturned || isDue) c(0xFFFEF2F2) else c(0xFFECFDF5)
+        val badgeBg = when {
+            sale.isReturned -> c(0xFFFEF2F2)
+            isDue -> c(0xFFFFFBEB)
+            else -> c(0xFFECFDF5)
+        }
+        val badgeBorder = when {
+            sale.isReturned -> c(0xFFF87171)
+            isDue -> c(0xFFFCD34D)
+            else -> c(0xFF6EE7B7)
+        }
+        val badgeTextColor = when {
+            sale.isReturned -> c(0xFFDC2626)
+            isDue -> c(0xFFB45309)
+            else -> c(0xFF047857)
+        }
 
-        paint.textSize = 19f
-        val badgeWidth = paint.measureText(badgeText) + 40f
-        val badgeRect = RectF((BITMAP_WIDTH - badgeWidth) / 2f, y - 22f, (BITMAP_WIDTH + badgeWidth) / 2f, y + 12f)
+        paint.textSize = 17f
+        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        val badgeWidth = paint.measureText(badgeText) + 44f
+        val badgeRect = RectF((BITMAP_WIDTH - badgeWidth) / 2f, y - 20f, (BITMAP_WIDTH + badgeWidth) / 2f, y + 14f)
+
         paint.color = badgeBg
-        canvas.drawRoundRect(badgeRect, 16f, 16f, paint)
+        canvas.drawRoundRect(badgeRect, 18f, 18f, paint)
 
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 1.5f
-        paint.color = badgeColor
-        canvas.drawRoundRect(badgeRect, 16f, 16f, paint)
+        paint.color = badgeBorder
+        canvas.drawRoundRect(badgeRect, 18f, 18f, paint)
         paint.style = Paint.Style.FILL
 
-        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        paint.color = badgeColor
-        canvas.drawText(badgeText, BITMAP_WIDTH / 2f, y, paint)
+        paint.color = badgeTextColor
+        canvas.drawText(badgeText, BITMAP_WIDTH / 2f, y + 4f, paint)
 
-        // Horizontal Divider
-        y += 28f
+        // Subtle Section Divider
+        y += 26f
         drawDivider(canvas, y)
 
-        // Meta Info (Invoice No, Date, Customer)
-        y += 32f
-        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-        paint.textSize = 19f
-        paint.color = c(0xFF334155) // Slate 700
+        // Metadata Card (Customer & Invoice Details)
+        y += 20f
+        val metaRect = RectF(35f, y, (BITMAP_WIDTH - 35).toFloat(), y + metaHeight.toFloat())
+        paint.color = c(0xFFF8FAFC) // Slate 50
+        canvas.drawRoundRect(metaRect, 14f, 14f, paint)
 
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 1.2f
+        paint.color = c(0xFFE2E8F0) // Slate 200
+        canvas.drawRoundRect(metaRect, 14f, 14f, paint)
+        paint.style = Paint.Style.FILL
+
+        // Metadata Left: Customer Details
+        val metaY = y + 26f
+        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        paint.textSize = 13f
+        paint.color = c(0xFF94A3B8) // Slate 400
         paint.textAlign = Paint.Align.LEFT
-        canvas.drawText("ইনভয়েস: ${sale.invoiceNo}", 40f, y, paint)
+        canvas.drawText("ক্রেতার বিবরণ / BILLED TO", 55f, metaY, paint)
 
-        paint.textAlign = Paint.Align.RIGHT
-        canvas.drawText("তারিখ: ${Formatters.formatDateTime(sale.saleDate, config.useBengaliNumerals)}", (BITMAP_WIDTH - 40).toFloat(), y, paint)
+        paint.textSize = 19f
+        paint.color = c(0xFF0F172A) // Slate 900
+        val custName = sale.customerName?.ifBlank { "সাধারণ খরিদ্দার" } ?: "সাধারণ খরিদ্দার"
+        canvas.drawText(custName, 55f, metaY + 28f, paint)
 
-        if (hasCustomer) {
-            y += 30f
-            paint.textAlign = Paint.Align.LEFT
-            canvas.drawText("ক্রেতা: ${sale.customerName}", 40f, y, paint)
+        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+        paint.textSize = 15f
+        paint.color = c(0xFF64748B) // Slate 500
+        val phoneText = if (hasCustomer) "নিয়মিত গ্রাহক" else "নগদ কাউন্টার খরিদ্দার"
+        canvas.drawText(phoneText, 55f, metaY + 54f, paint)
 
-            paint.textAlign = Paint.Align.RIGHT
-            val paymentTitle = when (sale.paymentMethod) {
-                "due" -> "বাকি"
-                "mfs" -> "বিকাশ/নগদ"
-                "card" -> "কার্ড"
-                else -> "নগদ"
-            }
-            canvas.drawText("পেমেন্ট: $paymentTitle", (BITMAP_WIDTH - 40).toFloat(), y, paint)
+        // Divider in Middle of Meta Card
+        paint.color = c(0xFFE2E8F0)
+        paint.strokeWidth = 1.2f
+        canvas.drawLine(410f, y + 14f, 410f, y + metaHeight - 14f, paint)
+
+        // Metadata Right: Invoice Info
+        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        paint.textSize = 13f
+        paint.color = c(0xFF94A3B8)
+        paint.textAlign = Paint.Align.LEFT
+        canvas.drawText("ইনভয়েস বিবরণ / INVOICE INFO", 430f, metaY, paint)
+
+        paint.textSize = 18f
+        paint.color = c(0xFF0F172A)
+        canvas.drawText("নং: #${sale.invoiceNo}", 430f, metaY + 28f, paint)
+
+        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+        paint.textSize = 15f
+        paint.color = c(0xFF64748B)
+        canvas.drawText("তারিখ: ${Formatters.formatDateTime(sale.saleDate, config.useBengaliNumerals)}", 430f, metaY + 52f, paint)
+
+        val paymentTitle = when (sale.paymentMethod) {
+            "due" -> "বাকি (Credit)"
+            "bkash" -> "বিকাশ (bKash)"
+            "nagad" -> "নগদ (Nagad)"
+            "bank" -> "ব্যাংক (Bank)"
+            else -> "নগদ (Cash)"
         }
+        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        paint.textSize = 14f
+        paint.color = if (sale.paymentMethod == "due") c(0xFFDC2626) else c(0xFF047857)
+        canvas.drawText("পেমেন্ট মাধ্যম: $paymentTitle", 430f, metaY + 76f, paint)
 
         // Table Header
-        y += 30f
-        val tableHeaderRect = RectF(35f, y, (BITMAP_WIDTH - 35).toFloat(), y + 42f)
+        y += metaHeight + 20f
+        val tableHeaderRect = RectF(35f, y, (BITMAP_WIDTH - 35).toFloat(), y + tableHeaderHeight.toFloat())
         paint.color = c(0xFFF1F5F9) // Slate 100
         canvas.drawRoundRect(tableHeaderRect, 10f, 10f, paint)
 
-        y += 28f
-        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        paint.textSize = 19f
-        paint.color = c(0xFF1E293B)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 1f
+        paint.color = c(0xFFCBD5E1) // Slate 300
+        canvas.drawRoundRect(tableHeaderRect, 10f, 10f, paint)
+        paint.style = Paint.Style.FILL
 
+        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        paint.textSize = 16f
+        paint.color = c(0xFF334155) // Slate 700
+
+        val thY = y + 30f
         paint.textAlign = Paint.Align.LEFT
-        canvas.drawText("#", 50f, y, paint)
-        canvas.drawText("পণ্যের বিবরণ", 95f, y, paint)
+        canvas.drawText("#", 50f, thY, paint)
+        canvas.drawText("পণ্যের বিবরণ", 95f, thY, paint)
 
         paint.textAlign = Paint.Align.CENTER
-        canvas.drawText("দর", 490f, y, paint)
-        canvas.drawText("পরিমাণ", 610f, y, paint)
+        canvas.drawText("দর", 490f, thY, paint)
+        canvas.drawText("পরিমাণ", 605f, thY, paint)
 
         paint.textAlign = Paint.Align.RIGHT
-        canvas.drawText("মোট", (BITMAP_WIDTH - 55).toFloat(), y, paint)
+        canvas.drawText("মোট বিল", (BITMAP_WIDTH - 55).toFloat(), thY, paint)
 
-        // Item Rows
-        y += 20f
-        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+        // Table Rows
+        y += tableHeaderHeight + 12f
         for ((idx, item) in items.withIndex()) {
-            y += 36f
+            val rowY = y + 26f
 
             // Index
             paint.textAlign = Paint.Align.LEFT
-            paint.color = c(0xFF64748B)
-            paint.textSize = 17f
-            val idxStr = if (config.useBengaliNumerals) Formatters.toBengaliDigits((idx + 1).toString()) else "${idx + 1}"
-            canvas.drawText(idxStr, 50f, y, paint)
-
-            // Product Name (truncated if too long)
-            paint.color = c(0xFF0F172A)
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            paint.textSize = 20f
-            val displayName = if (item.productName.length > 25) item.productName.take(23) + "..." else item.productName
-            canvas.drawText(displayName, 95f, y, paint)
-
-            // Rate
+            paint.color = c(0xFF94A3B8)
             paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            paint.textSize = 18f
-            paint.color = c(0xFF475569)
-            paint.textAlign = Paint.Align.CENTER
-            canvas.drawText(Formatters.formatMoney(item.unitPricePoisha, config.useBengaliNumerals, config.currencySymbol), 490f, y, paint)
+            paint.textSize = 16f
+            val idxStr = if (config.useBengaliNumerals) Formatters.toBengaliDigits((idx + 1).toString()) else "${idx + 1}"
+            canvas.drawText(idxStr, 50f, rowY, paint)
 
-            // Quantity
-            canvas.drawText(Formatters.formatQty(item.qty, item.unitName, config.useBengaliNumerals), 610f, y, paint)
-
-            // Line Total
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            // Product Name
             paint.color = c(0xFF0F172A)
-            paint.textAlign = Paint.Align.RIGHT
-            canvas.drawText(Formatters.formatMoney(item.lineTotalPoisha, config.useBengaliNumerals, config.currencySymbol), (BITMAP_WIDTH - 55).toFloat(), y, paint)
+            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            paint.textSize = 19f
+            val displayName = if (item.productName.length > 25) item.productName.take(23) + "..." else item.productName
+            canvas.drawText(displayName, 95f, rowY, paint)
 
-            // Subline separator
-            y += 18f
+            // Subtitle under product name
+            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            paint.textSize = 14f
+            paint.color = c(0xFF64748B)
+            canvas.drawText("@ ${Formatters.formatMoney(item.unitPricePoisha, config.useBengaliNumerals, config.currencySymbol)} প্রতি ${item.unitName}", 95f, rowY + 22f, paint)
+
+            // Rate Column
+            paint.textSize = 17f
+            paint.color = c(0xFF334155)
+            paint.textAlign = Paint.Align.CENTER
+            canvas.drawText(Formatters.formatMoney(item.unitPricePoisha, config.useBengaliNumerals, config.currencySymbol), 490f, rowY + 8f, paint)
+
+            // Quantity Column
+            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            paint.textSize = 17f
+            paint.color = c(0xFF0F172A)
+            canvas.drawText(Formatters.formatQty(item.qty, item.unitName, config.useBengaliNumerals), 605f, rowY + 8f, paint)
+
+            // Line Total Column
+            paint.textAlign = Paint.Align.RIGHT
+            paint.textSize = 19f
+            paint.color = c(0xFF0F172A)
+            canvas.drawText(Formatters.formatMoney(item.lineTotalPoisha, config.useBengaliNumerals, config.currencySymbol), (BITMAP_WIDTH - 55).toFloat(), rowY + 8f, paint)
+
+            // Hairline separator
+            y += 64f
             paint.color = c(0xFFF1F5F9)
             paint.strokeWidth = 1f
             paint.style = Paint.Style.STROKE
@@ -227,22 +326,22 @@ object InvoiceImageHelper {
             paint.style = Paint.Style.FILL
         }
 
-        // Summary Calculations Box
-        y += 24f
-        val calcBoxStart = y
-        val calcBoxRect = RectF(35f, calcBoxStart, (BITMAP_WIDTH - 35).toFloat(), calcBoxStart + calcBoxHeight - 20f)
+        // Summary Calculations Card
+        y += 18f
+        val calcBoxRect = RectF(35f, y, (BITMAP_WIDTH - 35).toFloat(), y + calcBoxHeight.toFloat())
         paint.color = c(0xFFF8FAFC)
         canvas.drawRoundRect(calcBoxRect, 16f, 16f, paint)
+
         paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 1.2f
         paint.color = c(0xFFE2E8F0)
-        paint.strokeWidth = 1.5f
         canvas.drawRoundRect(calcBoxRect, 16f, 16f, paint)
         paint.style = Paint.Style.FILL
 
         // Subtotal
-        y += 34f
+        y += 32f
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-        paint.textSize = 20f
+        paint.textSize = 18f
         paint.color = c(0xFF475569)
         paint.textAlign = Paint.Align.LEFT
         canvas.drawText("উপ-মোট (Subtotal):", 60f, y, paint)
@@ -259,93 +358,123 @@ object InvoiceImageHelper {
             canvas.drawText("-${Formatters.formatMoney(sale.discountPoisha, config.useBengaliNumerals, config.currencySymbol)}", (BITMAP_WIDTH - 60).toFloat(), y, paint)
         }
 
-        // Grand Total Row (Emerald Banner)
-        y += 32f
-        val grandTotalRect = RectF(50f, y - 24f, (BITMAP_WIDTH - 50).toFloat(), y + 36f)
-        paint.color = c(0xFF059669)
+        // VAT if any
+        if (sale.vatPoisha > 0) {
+            y += 28f
+            paint.textAlign = Paint.Align.LEFT
+            paint.color = c(0xFF475569)
+            canvas.drawText("ভ্যাট / ট্যাক্স (+):", 60f, y, paint)
+            paint.textAlign = Paint.Align.RIGHT
+            canvas.drawText("+${Formatters.formatMoney(sale.vatPoisha, config.useBengaliNumerals, config.currencySymbol)}", (BITMAP_WIDTH - 60).toFloat(), y, paint)
+        }
+
+        // Grand Total Row (Executive Dark Luxury Banner)
+        y += 34f
+        val grandTotalRect = RectF(50f, y - 22f, (BITMAP_WIDTH - 50).toFloat(), y + 38f)
+        paint.color = c(0xFF0F172A) // Deep Slate-900
         canvas.drawRoundRect(grandTotalRect, 12f, 12f, paint)
 
         y += 16f
         paint.color = Color.WHITE
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        paint.textSize = 25f
+        paint.textSize = 21f
         paint.textAlign = Paint.Align.LEFT
-        canvas.drawText("সর্বমোট প্রদেয় বিল:", 70f, y, paint)
+        canvas.drawText("সর্বমোট প্রদেয় বিল (Grand Total):", 70f, y, paint)
 
-        paint.textSize = 30f
+        paint.textSize = 28f
+        paint.color = c(0xFF38BDF8) // Glowing Sky Blue Accent
         paint.textAlign = Paint.Align.RIGHT
         canvas.drawText(Formatters.formatMoney(sale.totalPoisha, config.useBengaliNumerals, config.currencySymbol), (BITMAP_WIDTH - 70).toFloat(), y, paint)
 
         // Paid
         y += 50f
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        paint.textSize = 20f
+        paint.textSize = 19f
         paint.color = c(0xFF047857) // Dark Emerald
         paint.textAlign = Paint.Align.LEFT
-        canvas.drawText("নগদ পরিশোধ:", 60f, y, paint)
+        canvas.drawText("পরিশোধিত (Paid Amount):", 60f, y, paint)
         paint.textAlign = Paint.Align.RIGHT
         canvas.drawText(Formatters.formatMoney(sale.paidAmountPoisha, config.useBengaliNumerals, config.currencySymbol), (BITMAP_WIDTH - 60).toFloat(), y, paint)
 
         // Due
         if (isDue) {
-            y += 36f
-            val dueRect = RectF(50f, y - 24f, (BITMAP_WIDTH - 50).toFloat(), y + 26f)
+            y += 34f
+            val dueCardHeight = if (customerPreviousDue > 0) 100f else 46f
+            val dueRect = RectF(50f, y - 20f, (BITMAP_WIDTH - 50).toFloat(), y - 20f + dueCardHeight)
             paint.color = c(0xFFFEF2F2)
             canvas.drawRoundRect(dueRect, 10f, 10f, paint)
+
             paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 1.5f
+            paint.strokeWidth = 1.2f
             paint.color = c(0xFFFCA5A5)
             canvas.drawRoundRect(dueRect, 10f, 10f, paint)
             paint.style = Paint.Style.FILL
 
-            y += 8f
+            y += 10f
             paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            paint.textSize = 22f
+            paint.textSize = 20f
             paint.color = c(0xFFDC2626)
             paint.textAlign = Paint.Align.LEFT
-            canvas.drawText("আজকের বাকি:", 70f, y, paint)
+            canvas.drawText("আজকের বকেয়া বাকি:", 68f, y, paint)
             paint.textAlign = Paint.Align.RIGHT
-            canvas.drawText(Formatters.formatMoney(sale.dueAmountPoisha, config.useBengaliNumerals, config.currencySymbol), (BITMAP_WIDTH - 70).toFloat(), y, paint)
+            canvas.drawText(Formatters.formatMoney(sale.dueAmountPoisha, config.useBengaliNumerals, config.currencySymbol), (BITMAP_WIDTH - 68).toFloat(), y, paint)
 
             if (customerPreviousDue > 0) {
-                y += 32f
+                y += 28f
                 paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-                paint.textSize = 19f
+                paint.textSize = 17f
                 paint.color = c(0xFF64748B)
                 paint.textAlign = Paint.Align.LEFT
-                canvas.drawText("পূর্বের বকেয়া বাকি: ${Formatters.formatMoney(customerPreviousDue, config.useBengaliNumerals, config.currencySymbol)}", 60f, y, paint)
+                canvas.drawText("পূর্বের বকেয়া বাকি: ${Formatters.formatMoney(customerPreviousDue, config.useBengaliNumerals, config.currencySymbol)}", 68f, y, paint)
 
-                y += 26f
+                y += 24f
                 paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                paint.textSize = 21f
+                paint.textSize = 19f
                 paint.color = c(0xFFB91C1C)
                 val totalRemaining = customerPreviousDue + sale.dueAmountPoisha
-                canvas.drawText("বর্তমানে সর্বমোট বাকি: ${Formatters.formatMoney(totalRemaining, config.useBengaliNumerals, config.currencySymbol)}", 60f, y, paint)
+                canvas.drawText("বর্তমানে সর্বমোট বাকি: ${Formatters.formatMoney(totalRemaining, config.useBengaliNumerals, config.currencySymbol)}", 68f, y, paint)
             }
         }
 
-        // Footer
-        y = (totalHeight - 75).toFloat()
+        // Footer Section
+        y = (totalHeight - 110).toFloat()
+
+        // Decorative Dashed Line
+        paint.color = c(0xFFCBD5E1)
+        paint.strokeWidth = 1.5f
+        paint.style = Paint.Style.STROKE
+        paint.pathEffect = DashPathEffect(floatArrayOf(10f, 8f), 0f)
+        val tearPath = Path().apply {
+            moveTo(40f, y - 20f)
+            lineTo((BITMAP_WIDTH - 40).toFloat(), y - 20f)
+        }
+        canvas.drawPath(tearPath, paint)
+        paint.pathEffect = null
+        paint.style = Paint.Style.FILL
+
         if (sale.isReturned) {
             paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             paint.textSize = 18f
             paint.color = c(0xFFDC2626)
             paint.textAlign = Paint.Align.CENTER
-            canvas.drawText("⚠️ এই বিক্রয়টি সম্পূর্ণ ফেরত (Returned) নেওয়া হয়েছে", BITMAP_WIDTH / 2f, y - 25f, paint)
+            canvas.drawText("⚠️ এই বিক্রয়টি সম্পূর্ণ ফেরত (Returned) নেওয়া হয়েছে", BITMAP_WIDTH / 2f, y - 2f, paint)
+            y += 26f
         }
-        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-        paint.textSize = 20f
-        paint.color = c(0xFF475569)
+
+        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        paint.textSize = 19f
+        paint.color = c(0xFF334155)
         paint.textAlign = Paint.Align.CENTER
-        canvas.drawText("--- ধন্যবাদ! আবার আসবেন ---", BITMAP_WIDTH / 2f, y, paint)
+        canvas.drawText("✨ ধন্যবাদ! আপনার কেনাকাটা শুভ হোক ✨", BITMAP_WIDTH / 2f, y + 10f, paint)
 
-        y += 30f
-        paint.textSize = 15f
+        y += 28f
+        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+        paint.textSize = 14f
         paint.color = c(0xFF94A3B8)
-        canvas.drawText("দোকান প্রো ডিজিটাল ইনভয়েস সিস্টেম দ্বারা প্রস্তুতকৃত", BITMAP_WIDTH / 2f, y, paint)
+        canvas.drawText("Dokan Pro • স্মার্ট দোকান ব্যবস্থাপনা ও ডিজিটাল ইনভয়েস সিস্টেম", BITMAP_WIDTH / 2f, y + 8f, paint)
 
-        // Bottom Accent
-        paint.color = if (sale.isReturned) c(0xFFDC2626) else c(0xFF059669)
+        // Bottom Accent Ribbon
+        paint.color = brandPrimaryColor
         canvas.drawRect(0f, (totalHeight - 12).toFloat(), BITMAP_WIDTH.toFloat(), totalHeight.toFloat(), paint)
 
         return bitmap
