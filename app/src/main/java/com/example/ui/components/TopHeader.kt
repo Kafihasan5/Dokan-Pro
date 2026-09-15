@@ -33,14 +33,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.WorkspacePremium
-import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.TextButton
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -84,7 +77,6 @@ fun TopHeader(
     onBuyLicenseClick: () -> Unit = {}
 ) {
     var showMenu by remember { mutableStateOf(false) }
-    var showDemoDialog by remember { mutableStateOf(false) }
     val systemDark = isSystemInDarkTheme()
     val isDark = when (config.themeMode) {
         "dark" -> true
@@ -178,41 +170,6 @@ fun TopHeader(
                                 )
                             }
 
-                            // IF DEMO MODE: Sleek compact clickable chip
-                            if (isDemoMode) {
-                                val totalSeconds = (remainingDemoMillis / 1000).coerceAtLeast(0)
-                                val minutes = totalSeconds / 60
-                                val seconds = totalSeconds % 60
-                                val timeFormatted = String.format(java.util.Locale.ENGLISH, "%02d:%02d", minutes, seconds)
-                                val bengaliTime = Formatters.toBengaliDigits(timeFormatted)
-
-                                Surface(
-                                    onClick = { showDemoDialog = true },
-                                    shape = RoundedCornerShape(Radius.pill),
-                                    color = Color(0xFFFEF3C7),
-                                    modifier = Modifier.height(20.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(horizontal = 7.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Timer,
-                                            contentDescription = null,
-                                            tint = Color(0xFFD97706),
-                                            modifier = Modifier.size(11.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(3.dp))
-                                        Text(
-                                            text = "ডেমো: $bengaliTime",
-                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFB45309)
-                                        )
-                                    }
-                                }
-                            }
-
                             // Live sync indicator if syncing
                             if (isSyncing) {
                                 Row(
@@ -241,11 +198,13 @@ fun TopHeader(
                                 }
                             }
 
-                            // Date in labelSmall
+                            // Date in labelSmall (single line, no wrapping)
                             Text(
                                 text = "• " + Formatters.formatBengaliDate(System.currentTimeMillis()),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -319,14 +278,27 @@ fun TopHeader(
                                 .padding(vertical = 4.dp)
                         ) {
                             if (isDemoMode) {
+                                val totalSeconds = (remainingDemoMillis / 1000).coerceAtLeast(0)
+                                val minutes = totalSeconds / 60
+                                val seconds = totalSeconds % 60
+                                val timeFormatted = String.format(java.util.Locale.ENGLISH, "%02d:%02d", minutes, seconds)
+                                val bengaliTime = Formatters.toBengaliDigits(timeFormatted)
+
                                 DropdownMenuItem(
                                     text = {
-                                        Text(
-                                            text = "লাইসেন্স কিনুন (৳৪৯০)",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF16A34A)
-                                        )
+                                        Column {
+                                            Text(
+                                                text = "লাইসেন্স কিনুন (৳৪৯০)",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF16A34A)
+                                            )
+                                            Text(
+                                                text = "ফ্রি ডেমো বাকি: $bengaliTime মিনিট",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Color(0xFFD97706)
+                                            )
+                                        }
                                     },
                                     leadingIcon = {
                                         Icon(
@@ -471,94 +443,5 @@ fun TopHeader(
                 }
             }
         }
-    }
-
-    if (showDemoDialog) {
-        val totalSeconds = (remainingDemoMillis / 1000).coerceAtLeast(0)
-        val minutes = totalSeconds / 60
-        val seconds = totalSeconds % 60
-        val timeFormatted = String.format(java.util.Locale.ENGLISH, "%02d:%02d", minutes, seconds)
-        val bengaliTime = Formatters.toBengaliDigits(timeFormatted)
-
-        AlertDialog(
-            onDismissRequest = { showDemoDialog = false },
-            icon = {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFFEF3C7)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.WorkspacePremium,
-                        contentDescription = null,
-                        tint = Color(0xFFD97706),
-                        modifier = Modifier.size(26.dp)
-                    )
-                }
-            },
-            title = {
-                Text(
-                    text = "১ ঘণ্টার ফ্রি ডেমো মোড",
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(Radius.sm))
-                            .background(Color(0xFFFEF3C7).copy(alpha = 0.6f))
-                            .padding(horizontal = Spacing.md, vertical = Spacing.xs),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "⏱️ বাকি সময়: $bengaliTime মিনিট",
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFB45309),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                    Text(
-                        text = "• ২০টি স্যাম্পল পণ্য ও ক্যাটাগরি সংযুক্ত\n• ৭ দিনের বাস্তবসম্মত বেচাকেনা ও বাকির খাতা\n• অ্যাপের সমস্ত ফিচারের পূর্ণ অ্যাক্সেস",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 18.sp
-                    )
-                    Text(
-                        text = "ডেমো মেয়াদ শেষ হওয়ার আগে মাত্র ৳৪৯০ টাকায় আজীবন লাইসেন্স সংগ্রহ করে নিয়মিত ব্যবহার করুন।",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showDemoDialog = false
-                        onBuyLicenseClick()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
-                    shape = RoundedCornerShape(Radius.sm)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ShoppingCart,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(Spacing.xs))
-                    Text("লাইসেন্স কিনুন (৳৪৯০)", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDemoDialog = false }) {
-                    Text("বন্ধ করুন")
-                }
-            }
-        )
     }
 }
