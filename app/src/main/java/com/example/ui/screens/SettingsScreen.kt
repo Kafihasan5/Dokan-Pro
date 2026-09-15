@@ -23,6 +23,7 @@ import com.example.ui.PaponViewModel
 import com.example.ui.ShopConfig
 import com.example.ui.components.UpdateDialog
 import com.example.ui.components.CategoryUnitManagerDialog
+import androidx.compose.ui.graphics.Color
 import com.example.ui.theme.StatusDanger
 import com.example.ui.theme.StatusSuccess
 
@@ -607,10 +608,10 @@ fun SettingsScreen(
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Text("স্ট্যাটাস: সক্রিয় (Active & Verified)", fontSize = 12.sp, color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
+                            Text("স্ট্যাটাস: সক্রিয় (Active & Verified)", fontSize = 12.sp, color = StatusSuccess, fontWeight = FontWeight.Bold)
                         } else {
                             Text("ডিভাইস আইডি: ${viewModel.getDeviceId()}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("স্ট্যাটাস: সক্রিয় (অফলাইন লোকাল মোড)", fontSize = 12.sp, color = Color(0xFF10B981))
+                            Text("স্ট্যাটাস: সক্রিয় (অফলাইন লোকাল মোড)", fontSize = 12.sp, color = StatusSuccess)
                         }
                     }
                 }
