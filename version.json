@@ -1,6 +1,6 @@
 {
-  "versionCode": 22,
-  "versionName": "1.0.22",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v22/app-debug.apk",
-  "releaseNotes": "feat: Add hardware Device ID Supabase anti-abuse protection to prevent Clear Data demo exploit"
+  "versionCode": 24,
+  "versionName": "1.0.24",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v24/app-debug.apk",
+  "releaseNotes": "fix: resolve compose theme border token, animation specs and compiler issues"
 }
