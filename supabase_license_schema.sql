@@ -155,6 +155,61 @@ $$;
 -- 5. Grant execute permission to anon users so Android App can call the RPC
 GRANT EXECUTE ON FUNCTION public.activate_app_license(TEXT, TEXT, TEXT) TO anon, authenticated;
 
+-- 6. Issue License RPC Function (Callable by Laravel backend with anon or service_role key)
+CREATE OR REPLACE FUNCTION public.issue_app_license(
+    p_email TEXT,
+    p_customer_name TEXT DEFAULT '',
+    p_customer_phone TEXT DEFAULT '',
+    p_order_id TEXT DEFAULT '',
+    p_max_devices INT DEFAULT 1,
+    p_expires_at TIMESTAMPTZ DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_clean_email TEXT;
+BEGIN
+    v_clean_email := lower(trim(p_email));
+    
+    IF v_clean_email IS NULL OR v_clean_email = '' THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Email is required');
+    END IF;
+
+    INSERT INTO public.app_licenses (
+        email,
+        customer_name,
+        customer_phone,
+        order_id,
+        status,
+        max_devices,
+        expires_at
+    )
+    VALUES (
+        v_clean_email,
+        p_customer_name,
+        p_customer_phone,
+        p_order_id,
+        'active',
+        p_max_devices,
+        p_expires_at
+    )
+    ON CONFLICT (email) DO UPDATE SET
+        customer_name = EXCLUDED.customer_name,
+        customer_phone = EXCLUDED.customer_phone,
+        order_id = EXCLUDED.order_id,
+        status = 'active',
+        max_devices = EXCLUDED.max_devices,
+        expires_at = EXCLUDED.expires_at;
+
+    RETURN jsonb_build_object('success', true, 'message', 'License issued successfully', 'email', v_clean_email);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.issue_app_license(TEXT, TEXT, TEXT, TEXT, INT, TIMESTAMPTZ) TO anon, authenticated, service_role;
+
 -- ==============================================================================
 -- Optional Test Data (Uncomment to test)
 -- ==============================================================================
