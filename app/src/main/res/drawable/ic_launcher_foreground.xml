@@ -3,42 +3,33 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Store Awning / Roof -->
+    <!-- Simplified Shopfront with Half-Rolled Shutter (All inside 66dp adaptive safe zone) -->
+    
+    <!-- Top Fascia / Roof Lintel -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M27,40 L81,40 L77,31 L31,31 Z" />
-    <path
-        android:fillColor="#A7F3D0"
-        android:pathData="M37,40 L47,40 L45,31 L35,31 Z" />
-    <path
-        android:fillColor="#A7F3D0"
-        android:pathData="M61,40 L71,40 L69,31 L59,31 Z" />
+        android:pathData="M29,30 L79,30 A2,2 0 0,1 81,32 L81,38 A2,2 0 0,1 79,40 L29,40 A2,2 0 0,1 27,38 L27,32 A2,2 0 0,1 29,30 Z" />
 
-    <!-- Shopfront / Cash Register Body -->
+    <!-- Left & Right Pillars -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M30,43 L78,43 A3,3 0 0,1 81,46 L81,74 A3,3 0 0,1 78,77 L30,77 A3,3 0 0,1 27,74 L27,46 A3,3 0 0,1 30,43 Z" />
+        android:pathData="M29,40 L35,40 L35,74 L29,74 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M73,40 L79,40 L79,74 L73,74 Z" />
 
-    <!-- POS Register Screen -->
+    <!-- Bottom Plinth -->
     <path
-        android:fillColor="#046C4E"
-        android:pathData="M33,48 L75,48 A2,2 0 0,1 77,50 L77,64 A2,2 0 0,1 75,66 L33,66 A2,2 0 0,1 31,50 L31,50 A2,2 0 0,1 33,48 Z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M27,74 L81,74 L81,77 A1,1 0 0,1 80,78 L28,78 A1,1 0 0,1 27,77 Z" />
 
-    <!-- Screen Content: Taka / Currency Symbol and Barcode Lines -->
+    <!-- Half-Rolled Shutter Slats in White -->
     <path
-        android:fillColor="#34D399"
-        android:pathData="M36,52 L44,52 L44,54 L36,54 Z M36,56 L48,56 L48,58 L36,58 Z M36,60 L42,60 L42,62 L36,62 Z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M37,42 L71,42 L71,44 L37,44 Z M37,46 L71,46 L71,48 L37,48 Z M37,50 L71,50 L71,52 L37,52 Z M37,54 L71,54 L71,56 L37,56 Z" />
 
+    <!-- Shutter Opening Forming Upward Arrow in Gold Accent #E0A106 -->
     <path
-        android:fillColor="#FBBF24"
-        android:pathData="M60,52 L72,52 L72,62 L60,62 Z" />
-    <path
-        android:fillColor="#046C4E"
-        android:pathData="M63,55 L69,55 L69,59 L63,59 Z" />
-
-    <!-- Cash Drawer Slot / Buttons -->
-    <path
-        android:fillColor="#0E9F6E"
-        android:pathData="M34,70 L54,70 L54,73 L34,73 Z M60,70 L64,70 L64,73 L60,73 Z M68,70 L74,70 L74,73 L68,73 Z" />
+        android:fillColor="#E0A106"
+        android:pathData="M54,58 L67,68 L60,68 L60,74 L48,74 L48,68 L41,68 Z" />
 </vector>
-

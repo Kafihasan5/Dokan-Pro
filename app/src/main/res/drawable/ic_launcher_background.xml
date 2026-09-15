@@ -5,24 +5,23 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Solid #076B4C brand fill -->
+    <path
+        android:pathData="M0,0h108v108h-108z"
+        android:fillColor="#076B4C" />
+    <!-- Subtle darker radial from bottom-right -->
     <path
         android:pathData="M0,0h108v108h-108z">
         <aapt:attr name="android:fillColor">
             <gradient
-                android:startX="0"
-                android:startY="0"
-                android:endX="108"
-                android:endY="108"
-                android:type="linear">
-                <item android:offset="0.0" android:color="#10B981" />
-                <item android:offset="0.5" android:color="#0E9F6E" />
-                <item android:offset="1.0" android:color="#046C4E" />
+                android:centerX="98"
+                android:centerY="98"
+                android:gradientRadius="72"
+                android:type="radial">
+                <item android:offset="0.0" android:color="#4004231A" />
+                <item android:offset="0.6" android:color="#2004231A" />
+                <item android:offset="1.0" android:color="#0004231A" />
             </gradient>
         </aapt:attr>
     </path>
-    <!-- Subtle circular glow accent -->
-    <path
-        android:fillColor="#15FFFFFF"
-        android:pathData="M54,18 A36,36 0 1,0 54,90 A36,36 0 1,0 54,18 Z" />
 </vector>
-
