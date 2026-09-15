@@ -1,6 +1,6 @@
 {
-  "versionCode": 10,
-  "versionName": "1.0.10",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v10/app-debug.apk",
-  "releaseNotes": "Implement complete full and partial product return feature with auto restock and customer due adjustment"
+  "versionCode": 11,
+  "versionName": "1.0.11",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v11/app-debug.apk",
+  "releaseNotes": "Update license purchase link to webixsolution.store/product/dokan-pro and redesign modern professional invoice layout"
 }
