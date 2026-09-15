@@ -1,6 +1,6 @@
 {
-  "versionCode": 6,
-  "versionName": "1.0.6",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v6/app-debug.apk",
-  "releaseNotes": "Fix Color import in SettingsScreen.kt"
+  "versionCode": 8,
+  "versionName": "1.0.8",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v8/app-debug.apk",
+  "releaseNotes": "Fix PurchaseItem field references in repository, sync manager and schema"
 }
