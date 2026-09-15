@@ -60,6 +60,8 @@ fun DokanProApp(
 
     if (!isAppActivated) {
         AppActivationScreen(viewModel = viewModel)
+    } else if (!shopConfig.isOnboardingCompleted) {
+        OnboardingScreen(viewModel = viewModel, config = shopConfig)
     } else if (shopConfig.pinEnabled && !isPinUnlocked) {
         PinLockScreen(viewModel = viewModel, config = shopConfig)
     } else {

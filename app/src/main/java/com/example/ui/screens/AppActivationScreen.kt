@@ -4,6 +4,8 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -19,12 +21,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -32,6 +37,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.PaponViewModel
+import com.example.ui.components.DokanPrimaryButton
+import com.example.ui.components.DokanSecondaryButton
+import com.example.ui.components.DokanTextField
+import com.example.ui.theme.*
 
 @Composable
 fun AppActivationScreen(
@@ -47,13 +56,26 @@ fun AppActivationScreen(
     val isDemoUsed by viewModel.isDemoUsed.collectAsState()
     val isDemoExpired by viewModel.isDemoExpired.collectAsState()
     val deviceId = remember { viewModel.getDeviceId() }
+    var copiedRecently by remember { mutableStateOf(false) }
 
     val scrollState = rememberScrollState()
 
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Brand900)
     ) {
+        // Subtle radial glow drawn in Canvas at the top center
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawRect(
+                brush = Brush.radialGradient(
+                    colors = listOf(Brand500.copy(alpha = 0.32f), Color.Transparent),
+                    center = Offset(size.width / 2f, size.height * 0.18f),
+                    radius = size.width * 0.85f
+                )
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -61,86 +83,86 @@ fun AppActivationScreen(
                 .navigationBarsPadding()
                 .imePadding()
                 .verticalScroll(scrollState)
-                .padding(24.dp),
+                .padding(horizontal = Spacing.lg, vertical = Spacing.md),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(Spacing.sm))
 
-            // Premium Logo / Security Badge
+            // Centered 96dp app mark
             Box(
                 modifier = Modifier
-                    .size(80.dp)
-                    .clip(CircleShape)
+                    .size(96.dp)
+                    .clip(RoundedCornerShape(26.dp))
                     .background(
                         Brush.linearGradient(
                             listOf(
-                                MaterialTheme.colorScheme.primary,
-                                MaterialTheme.colorScheme.tertiary
+                                Brand700,
+                                Brand500
                             )
                         )
-                    ),
+                    )
+                    .border(1.5.dp, Brand500.copy(alpha = 0.6f), RoundedCornerShape(26.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.VerifiedUser,
                     contentDescription = null,
                     tint = Color.White,
-                    modifier = Modifier.size(44.dp)
+                    modifier = Modifier.size(52.dp)
                 )
             }
 
             // Title & Subtitle
             Text(
                 text = "Dokan-Pro অ্যাক্টিভেশন",
-                fontSize = 24.sp,
+                style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.onBackground
+                color = Color.White
             )
 
             Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                shape = RoundedCornerShape(Radius.pill),
+                color = Brand500.copy(alpha = 0.22f),
+                border = BorderStroke(1.dp, Brand500.copy(alpha = 0.45f))
             ) {
                 Text(
                     text = "Webix Solution Official Software",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    color = Brand500,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                 )
             }
 
             Text(
                 text = "অ্যাপটি চালাতে ক্রয়কৃত ইমেইল দিয়ে অ্যাক্টিভ করুন অথবা ১ ঘণ্টার ফ্রি ডেমো টেস্ট করে দেখুন। সক্রিয় হওয়ার পর সম্পূর্ণ অ্যাপটি অফলাইনে চালানো যাবে।",
                 fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Color.White.copy(alpha = 0.82f),
                 textAlign = TextAlign.Center,
                 lineHeight = 19.sp,
-                modifier = Modifier.padding(horizontal = 8.dp)
+                modifier = Modifier.padding(horizontal = Spacing.sm)
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // 1-Hour Free Demo Card (Option 1)
+            // 1-Hour Free Demo Card
             if (!isDemoUsed || !isDemoExpired) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(Radius.lg),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                        containerColor = Brand700.copy(alpha = 0.35f)
                     ),
-                    border = androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                    border = BorderStroke(1.5.dp, Brand500.copy(alpha = 0.5f))
                 ) {
                     Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        modifier = Modifier.padding(Spacing.md),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 imageVector = Icons.Default.Timer,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = Brand500,
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -148,12 +170,12 @@ fun AppActivationScreen(
                                 text = "১ ঘণ্টার ফ্রি ডেমো টেস্ট করুন",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = Color.White
                             )
                             Spacer(modifier = Modifier.weight(1f))
                             Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.primary
+                                shape = RoundedCornerShape(Radius.xs),
+                                color = Brand500
                             ) {
                                 Text(
                                     text = "ফ্রি ট্রায়াল",
@@ -168,67 +190,50 @@ fun AppActivationScreen(
                         Text(
                             text = "লাইসেন্স কেনার আগে Dokan-Pro এর সকল ফিচার সরাসরি পরীক্ষা করুন! এতে ৭ দিনের বাস্তবসম্মত পণ্য, বেচাকেনা ও বাকির খাতার ডামি ডাটা সংযুক্ত থাকবে।",
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = Color.White.copy(alpha = 0.78f),
                             lineHeight = 17.sp
                         )
 
-                        Button(
-                            onClick = { viewModel.startOneHourDemo() },
+                        DokanPrimaryButton(
+                            text = if (isActivating) "যাচাই করা হচ্ছে..." else "১ ঘণ্টার ফ্রি ডেমো শুরু করুন (৭ দিনের ডাটা সহ)",
+                            isLoading = isActivating,
                             enabled = !isActivating,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary
-                            )
-                        ) {
-                            if (isActivating) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("যাচাই করা হচ্ছে...", fontSize = 13.sp)
-                            } else {
-                                Icon(Icons.Default.PlayArrow, contentDescription = null)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("১ ঘণ্টার ফ্রি ডেমো শুরু করুন (৭ দিনের ডাটা সহ)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            }
-                        }
+                            onClick = { viewModel.startOneHourDemo() }
+                        )
                     }
                 }
             } else {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(Radius.md),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
-                    )
+                        containerColor = StatusDanger.copy(alpha = 0.15f)
+                    ),
+                    border = BorderStroke(1.dp, StatusDanger.copy(alpha = 0.4f))
                 ) {
                     Row(
-                        modifier = Modifier.padding(14.dp),
+                        modifier = Modifier.padding(Spacing.md),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = Icons.Default.Schedule,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error,
+                            tint = StatusDanger,
                             modifier = Modifier.size(24.dp)
                         )
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(Spacing.sm))
                         Column {
                             Text(
                                 text = "১ ঘণ্টার ফ্রি ডেমো মেয়াদ সমাপ্ত",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.error
+                                color = StatusDanger
                             )
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = "আপনার ডিভাইসে ফ্রি ডেমো সেশনটি শেষ হয়েছে। Dokan-Pro নিয়মিত ব্যবহার করতে মাত্র ৳৪৯০ টাকায় আজীবন লাইসেন্স সংগ্রহ করুন।",
                                 fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                color = Color.White.copy(alpha = 0.85f),
                                 lineHeight = 15.sp
                             )
                         }
@@ -236,16 +241,18 @@ fun AppActivationScreen(
                 }
             }
 
-            // Email Input Box
+            // Email Input Box Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(Radius.lg),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    modifier = Modifier.padding(Spacing.md),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
                     Text(
                         text = "নিবন্ধিত ইমেইল এড্রেস দিয়ে অ্যাক্টিভ করুন",
@@ -254,62 +261,52 @@ fun AppActivationScreen(
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
-                    OutlinedTextField(
+                    DokanTextField(
                         value = emailInput,
                         onValueChange = {
                             emailInput = it
                             if (activationError != null) viewModel.clearActivationError()
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("যেমন: customer@gmail.com") },
-                        leadingIcon = {
-                            Icon(Icons.Default.Email, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        },
+                        label = "ইমেইল এড্রেস",
+                        placeholder = "যেমন: customer@gmail.com",
+                        keyboardType = KeyboardType.Email,
+                        leadingIcon = Icons.Default.Email,
                         trailingIcon = {
                             if (emailInput.isNotEmpty()) {
                                 IconButton(onClick = { emailInput = "" }) {
-                                    Icon(Icons.Default.Clear, contentDescription = "Clear")
+                                    Icon(
+                                        Icons.Default.Clear,
+                                        contentDescription = "Clear",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
                             }
-                        },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Email,
-                            imeAction = ImeAction.Done
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onDone = {
-                                keyboardController?.hide()
-                                if (emailInput.isNotBlank() && !isActivating) {
-                                    viewModel.activateApp(emailInput.trim())
-                                }
-                            }
-                        )
+                        }
                     )
 
-                    // Error Message Display
+                    // Danger-toned inline banner above button (no toast)
                     AnimatedVisibility(visible = activationError != null) {
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.errorContainer
+                            shape = RoundedCornerShape(Radius.sm),
+                            color = StatusDanger.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, StatusDanger.copy(alpha = 0.35f))
                         ) {
                             Row(
-                                modifier = Modifier.padding(12.dp),
+                                modifier = Modifier.padding(Spacing.sm),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.ErrorOutline,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error,
+                                    tint = StatusDanger,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = activationError ?: "",
                                     fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    color = StatusDanger,
                                     lineHeight = 17.sp
                                 )
                             }
@@ -317,62 +314,47 @@ fun AppActivationScreen(
                     }
 
                     // Activate Button
-                    Button(
+                    DokanPrimaryButton(
+                        text = "অ্যাপ সক্রিয় করুন",
+                        isLoading = isActivating,
+                        enabled = emailInput.isNotBlank() && !isActivating,
                         onClick = {
                             keyboardController?.hide()
                             viewModel.activateApp(emailInput.trim())
-                        },
-                        enabled = emailInput.isNotBlank() && !isActivating,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        if (isActivating) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(22.dp),
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text("যাচাই করা হচ্ছে...")
-                        } else {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("অ্যাপ সক্রিয় করুন", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
-                    }
+                    )
                 }
             }
 
             // Purchase Card (Webix Solution Link with 490 Tk price)
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(Radius.lg),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
                 )
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    modifier = Modifier.padding(Spacing.md),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Default.ShoppingCart,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = Brand500,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "লাইসেন্স ক্রয় করুন (আজীবন মেয়াদ)",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.weight(1f))
                         Surface(
-                            shape = RoundedCornerShape(6.dp),
+                            shape = RoundedCornerShape(Radius.xs),
                             color = Color(0xFF2E7D32)
                         ) {
                             Text(
@@ -392,53 +374,62 @@ fun AppActivationScreen(
                         lineHeight = 17.sp
                     )
 
-                    OutlinedButton(
+                    DokanSecondaryButton(
+                        text = "ওয়েবসাইট থেকে লাইসেন্স কিনুন (৳৪৯০)",
                         onClick = {
                             try {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://webixsolution.store/product/dokan-pro"))
+                                val intent = Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse("https://webixsolution.store/product/dokan-pro")
+                                )
                                 context.startActivity(intent)
                             } catch (_: Exception) {
-                                Toast.makeText(context, "ওয়েবসাইট ব্রাউজারে খুলুন: webixsolution.store/product/dokan-pro", Toast.LENGTH_LONG).show()
+                                Toast.makeText(
+                                    context,
+                                    "ওয়েবসাইট ব্রাউজারে খুলুন: webixsolution.store/product/dokan-pro",
+                                    Toast.LENGTH_LONG
+                                ).show()
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("ওয়েবসাইট থেকে লাইসেন্স কিনুন (৳৪৯০)")
-                    }
+                        }
+                    )
                 }
             }
 
-            // Device Identification & Support Info
+            // Monospace pill for device ID & Support Info
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                Surface(
+                    shape = RoundedCornerShape(Radius.pill),
+                    color = Color.White.copy(alpha = 0.08f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f)),
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(deviceId))
+                        copiedRecently = true
+                        Toast.makeText(context, "ডিভাইস আইডি কপি হয়েছে", Toast.LENGTH_SHORT).show()
+                    }
                 ) {
-                    Text(
-                        text = "ডিভাইস আইডি: $deviceId",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    IconButton(
-                        onClick = {
-                            clipboardManager.setText(AnnotatedString(deviceId))
-                            Toast.makeText(context, "ডিভাইস আইডি কপি হয়েছে", Toast.LENGTH_SHORT).show()
-                        },
-                        modifier = Modifier.size(24.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                     ) {
+                        Text(
+                            text = if (copiedRecently) "কপি হয়েছে! ✓ $deviceId" else "ডিভাইস আইডি: $deviceId",
+                            style = TextStyle(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                color = if (copiedRecently) Gold500 else Color.White.copy(alpha = 0.85f),
+                                fontWeight = FontWeight.Medium
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Icon(
-                            Icons.Default.ContentCopy,
+                            imageVector = if (copiedRecently) Icons.Default.Check else Icons.Default.ContentCopy,
                             contentDescription = "Copy Device ID",
                             modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.outline
+                            tint = if (copiedRecently) Gold500 else Color.White.copy(alpha = 0.7f)
                         )
                     }
                 }
@@ -446,11 +437,11 @@ fun AppActivationScreen(
                 Text(
                     text = "সহায়তার জন্য Webix Solution সাপোর্টে যোগাযোগ করুন",
                     fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.outline
+                    color = Color.White.copy(alpha = 0.5f)
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.lg))
         }
     }
 }

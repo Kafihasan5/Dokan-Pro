@@ -44,7 +44,7 @@ data class ShopConfig(
     val pinCode: String = "1234",
     val userRole: String = "owner", // "owner" or "staff"
     val allowNegativeStock: Boolean = true,
-    val isOnboardingCompleted: Boolean = true,
+    val isOnboardingCompleted: Boolean = false,
     val noticeMessage: String = ""
 )
 
@@ -1123,6 +1123,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
             val pinCode = prefs.getString("pin_code", "1234") ?: "1234"
             val userRole = prefs.getString("user_role", "owner") ?: "owner"
             val allowNegativeStock = prefs.getBoolean("allow_negative_stock", true)
+            val isOnboardingCompleted = prefs.getBoolean("is_onboarding_completed", false)
             val noticeMessage = prefs.getString("notice_message", "") ?: ""
 
             _shopConfig.value = ShopConfig(
@@ -1139,7 +1140,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 pinCode = pinCode,
                 userRole = userRole,
                 allowNegativeStock = allowNegativeStock,
-                isOnboardingCompleted = true,
+                isOnboardingCompleted = isOnboardingCompleted,
                 noticeMessage = noticeMessage
             )
         } catch (_: Exception) {}
@@ -1161,6 +1162,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 putString("pin_code", config.pinCode)
                 putString("user_role", config.userRole)
                 putBoolean("allow_negative_stock", config.allowNegativeStock)
+                putBoolean("is_onboarding_completed", config.isOnboardingCompleted)
                 putString("notice_message", config.noticeMessage)
                 apply()
             }
