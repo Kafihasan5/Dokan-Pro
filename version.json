@@ -1,6 +1,6 @@
 {
-  "versionCode": 8,
-  "versionName": "1.0.8",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v8/app-debug.apk",
-  "releaseNotes": "Fix PurchaseItem field references in repository, sync manager and schema"
+  "versionCode": 9,
+  "versionName": "1.0.9",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v9/app-debug.apk",
+  "releaseNotes": "Add issue_app_license RPC function to supabase license schema"
 }
