@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.data.dao.PaponDao
 import com.example.data.entity.*
 
@@ -25,7 +27,7 @@ import com.example.data.entity.*
         BackupLog::class,
         DeletedRecord::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class PaponDatabase : RoomDatabase() {
@@ -35,6 +37,12 @@ abstract class PaponDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: PaponDatabase? = null
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE products ADD COLUMN localImagePath TEXT DEFAULT NULL")
+            }
+        }
+
         fun getInstance(context: Context): PaponDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -42,6 +50,7 @@ abstract class PaponDatabase : RoomDatabase() {
                     PaponDatabase::class.java,
                     "papon_shop_database.db"
                 )
+                    .addMigrations(MIGRATION_2_3)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

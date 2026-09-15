@@ -351,6 +351,7 @@ class SupabaseSyncManager(private val dao: PaponDao) {
             // 2. Products
             val productsArr = fetchSafely("products")
             if (productsArr != null && productsArr.length() > 0) {
+                val existingProductsMap = dao.getAllProductsSync().associateBy { it.id }
                 val list = mutableListOf<Product>()
                 val ghostDeletes = mutableListOf<Long>()
                 for (i in 0 until productsArr.length()) {
@@ -361,6 +362,7 @@ class SupabaseSyncManager(private val dao: PaponDao) {
                         ghostDeletes.add(id)
                         continue
                     }
+                    val existingLocalImage = existingProductsMap[id]?.localImagePath
                     list.add(
                         Product(
                             id = id,
@@ -377,6 +379,7 @@ class SupabaseSyncManager(private val dao: PaponDao) {
                             expiryDate = if (obj.isNull("expiry_date")) null else obj.optString("expiry_date"),
                             supplierId = if (obj.isNull("supplier_id")) null else obj.optLong("supplier_id"),
                             isActive = true,
+                            localImagePath = existingLocalImage,
                             createdAt = obj.optLong("created_at", System.currentTimeMillis()),
                             updatedAt = obj.optLong("updated_at", System.currentTimeMillis())
                         )

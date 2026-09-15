@@ -23,11 +23,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import java.io.File
 import com.example.data.entity.Customer
 import com.example.data.entity.Product
 import com.example.ui.CartItem
@@ -382,6 +385,13 @@ fun ProductPosCard(
     onTap: () -> Unit,
     onLongTap: () -> Unit
 ) {
+    val localFile = remember(product.localImagePath) {
+        if (!product.localImagePath.isNullOrBlank()) {
+            val f = File(product.localImagePath)
+            if (f.exists()) f else null
+        } else null
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -399,15 +409,29 @@ fun ProductPosCard(
         border = if (inCartQty > 0) androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Box(modifier = Modifier.padding(12.dp)) {
-            Column {
-                Text(
-                    text = product.nameBn,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2
+        Column {
+            if (localFile != null) {
+                AsyncImage(
+                    model = localFile,
+                    contentDescription = product.nameBn,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(84.dp)
+                        .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 )
+            }
+
+            Box(modifier = Modifier.padding(10.dp)) {
+                Column {
+                    Text(
+                        text = product.nameBn,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2
+                    )
 
                 Spacer(modifier = Modifier.height(4.dp))
 

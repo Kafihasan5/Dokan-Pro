@@ -19,6 +19,7 @@ data class Product(
     val expiryDate: String? = null,
     val supplierId: Long? = null,
     val isActive: Boolean = true,
+    val localImagePath: String? = null, // LOCAL ONLY: Phone storage path, never synced to cloud/Supabase
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )

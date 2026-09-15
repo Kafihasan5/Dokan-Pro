@@ -1,5 +1,9 @@
 package com.example.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -18,19 +22,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.data.entity.Category
 import com.example.data.entity.Product
 import com.example.ui.PaponViewModel
 import com.example.ui.ShopConfig
 import com.example.ui.components.CategoryUnitManagerDialog
+import com.example.ui.components.ProductThumbnail
 import com.example.ui.theme.StatusDanger
 import com.example.ui.theme.StatusSuccess
 import com.example.ui.theme.StatusWarning
 import com.example.util.Formatters
+import com.example.util.ImageStorageHelper
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -408,20 +419,31 @@ fun ProductManagementCard(
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                ProductThumbnail(
+                    imagePath = product.localImagePath,
+                    size = 52.dp,
+                    shape = RoundedCornerShape(10.dp)
+                )
+
+                Spacer(modifier = Modifier.width(12.dp))
+
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = product.nameBn,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     if (product.nameEn.isNotBlank()) {
                         Text(
                             text = product.nameEn,
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                     if (product.barcode.isNotBlank()) {
@@ -432,6 +454,8 @@ fun ProductManagementCard(
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.width(8.dp))
 
                 // Stock Badge
                 Box(
@@ -505,6 +529,20 @@ fun ProductFormDialog(
     onManageCategories: () -> Unit,
     onManageUnits: () -> Unit
 ) {
+    val context = LocalContext.current
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var currentImagePath by remember { mutableStateOf(initialProduct?.localImagePath) }
+    var isImageRemoved by remember { mutableStateOf(false) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            selectedImageUri = uri
+            isImageRemoved = false
+        }
+    }
+
     var nameBn by remember { mutableStateOf(initialProduct?.nameBn ?: "") }
     var nameEn by remember { mutableStateOf(initialProduct?.nameEn ?: "") }
     var selectedCatId by remember { mutableStateOf(initialProduct?.categoryId ?: (categories.firstOrNull { it.id != 1L }?.id ?: 2L)) }
@@ -523,6 +561,128 @@ fun ProductFormDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // --- PRODUCT IMAGE PICKER ---
+                item {
+                    val hasImage = (selectedImageUri != null) || (!isImageRemoved && !currentImagePath.isNullOrBlank() && File(currentImagePath!!).exists())
+
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            if (hasImage) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        val modelToLoad: Any? = selectedImageUri ?: currentImagePath?.let { File(it) }
+                                        AsyncImage(
+                                            model = modelToLoad,
+                                            contentDescription = "পণ্যের ছবি",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .size(60.dp)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(MaterialTheme.colorScheme.surface)
+                                        )
+
+                                        Spacer(modifier = Modifier.width(12.dp))
+
+                                        Column {
+                                            Text(
+                                                text = "পণ্যের ছবি যুক্ত আছে",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = "শুধুমাত্র ফোনে থাকবে (অফলাইন)",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+
+                                    Row {
+                                        IconButton(
+                                            onClick = { photoPickerLauncher.launch("image/*") },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Edit,
+                                                contentDescription = "ছবি পরিবর্তন",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                selectedImageUri = null
+                                                isImageRemoved = true
+                                            },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.DeleteOutline,
+                                                contentDescription = "ছবি মুছুন",
+                                                tint = StatusDanger,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            } else {
+                                Surface(
+                                    onClick = { photoPickerLauncher.launch("image/*") },
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = MaterialTheme.colorScheme.surface,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 14.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.AddPhotoAlternate,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Text(
+                                                text = "পণ্যের ছবি যোগ করুন (গ্যালারি)",
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                text = "ছবিটি শুধুমাত্র আপনার ফোনে থাকবে (অফলাইন)",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 item {
                     OutlinedTextField(
                         value = nameBn,
@@ -657,6 +817,18 @@ fun ProductFormDialog(
                         val stock = stockQty.toDoubleOrNull() ?: 0.0
                         val minStk = minStock.toDoubleOrNull() ?: 5.0
 
+                        val finalImagePath = when {
+                            selectedImageUri != null -> {
+                                ImageStorageHelper.deleteProductImage(currentImagePath)
+                                ImageStorageHelper.saveProductImage(context, selectedImageUri!!)
+                            }
+                            isImageRemoved -> {
+                                ImageStorageHelper.deleteProductImage(currentImagePath)
+                                null
+                            }
+                            else -> currentImagePath
+                        }
+
                         val updated = (initialProduct ?: Product(nameBn = nameBn)).copy(
                             nameBn = nameBn.trim(),
                             nameEn = nameEn.trim(),
@@ -666,7 +838,9 @@ fun ProductFormDialog(
                             salePricePoisha = sPricePoisha,
                             stockQty = stock,
                             minStock = minStk,
-                            barcode = barcode.trim()
+                            barcode = barcode.trim(),
+                            localImagePath = finalImagePath,
+                            updatedAt = System.currentTimeMillis()
                         )
                         onSave(updated)
                     }

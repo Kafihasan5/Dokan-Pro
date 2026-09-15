@@ -4,6 +4,7 @@ import com.example.data.dao.PaponDao
 import com.example.data.entity.*
 import com.example.data.supabase.SupabaseSyncManager
 import com.example.util.Formatters
+import com.example.util.ImageStorageHelper
 import com.example.util.SampleData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -60,6 +61,8 @@ class PaponRepository(private val dao: PaponDao) {
         scope.launch { supabaseSync.syncProduct(product) }
     }
     suspend fun deleteProduct(productId: Long) = withContext(Dispatchers.IO) {
+        val prod = dao.getProductById(productId)
+        prod?.localImagePath?.let { ImageStorageHelper.deleteProductImage(it) }
         dao.deleteProductById(productId)
         dao.recordDeletedItem(DeletedRecord("products", productId))
         scope.launch {
