@@ -1,6 +1,6 @@
 {
-  "versionCode": 15,
-  "versionName": "1.0.15",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v15/app-debug.apk",
-  "releaseNotes": "Replace dashboard time filter chips with clean dropdown selector menu"
+  "versionCode": 17,
+  "versionName": "1.0.17",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v17/app-debug.apk",
+  "releaseNotes": "Fix closing brace in ProductPosCard"
 }
