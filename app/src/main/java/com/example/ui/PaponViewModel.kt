@@ -286,6 +286,11 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             repository.seedInitialDataIfEmpty()
+            if (licenseManager.isDemoMode()) {
+                if (repository.getAllProductsSync().isEmpty()) {
+                    repository.seedDemoData()
+                }
+            }
             // Initial sync (pull remote changes and push any local data if customer cloud configured)
             if (_isCustomerCloudConfigured.value) {
                 syncToSupabase(silent = true)

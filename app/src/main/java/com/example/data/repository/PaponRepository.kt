@@ -823,6 +823,10 @@ class PaponRepository(private val dao: PaponDao) {
         com.example.data.demo.DemoDataSeeder.seed7DaysDemoData(dao)
     }
 
+    suspend fun getAllProductsSync(): List<Product> = withContext(Dispatchers.IO) {
+        dao.getAllProductsSync()
+    }
+
     suspend fun wipeAllDataCloudAndLocal(): Boolean = withContext(Dispatchers.IO) {
         dao.clearProducts()
         dao.clearSales()

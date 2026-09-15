@@ -56,6 +56,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Today
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -151,8 +153,23 @@ fun DashboardScreen(
     val totalStockSaleValue by viewModel.totalStockSaleValuePoisha.collectAsState()
     val totalStockPurchaseValue by viewModel.totalStockPurchaseValuePoisha.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
+    val isDemoMode by viewModel.isDemoMode.collectAsState()
+    val remainingDemoMillis by viewModel.remainingDemoMillis.collectAsState()
+    var isDemoBannerDismissed by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
+
+    fun openBuyLicense() {
+        try {
+            val intent = android.content.Intent(
+                android.content.Intent.ACTION_VIEW,
+                android.net.Uri.parse("https://webixsolution.store/product/dokan-pro")
+            )
+            context.startActivity(intent)
+        } catch (_: Exception) {
+            android.widget.Toast.makeText(context, "ওয়েবসাইট: webixsolution.store/product/dokan-pro", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
 
     // Date calculations for Today & Yesterday
     val calendar = Calendar.getInstance().apply {
@@ -286,7 +303,10 @@ fun DashboardScreen(
                 onOpenMoreMenu = onNavigate,
                 isSyncing = isSyncing,
                 onSyncNow = { viewModel.syncToSupabase(silent = false) },
-                onToggleTheme = { viewModel.toggleThemeMode() }
+                onToggleTheme = { viewModel.toggleThemeMode() },
+                isDemoMode = isDemoMode,
+                remainingDemoMillis = remainingDemoMillis,
+                onBuyLicenseClick = { openBuyLicense() }
             )
 
             Column(
@@ -297,6 +317,104 @@ fun DashboardScreen(
                 verticalArrangement = Arrangement.spacedBy(Spacing.lg)
             ) {
                 Spacer(modifier = Modifier.height(Spacing.xs))
+
+                // Optional Free Demo Session card (scrolls with dashboard, dismissable)
+                if (isDemoMode && !isDemoBannerDismissed) {
+                    val totalSeconds = (remainingDemoMillis / 1000).coerceAtLeast(0)
+                    val minutes = totalSeconds / 60
+                    val seconds = totalSeconds % 60
+                    val timeFormatted = String.format(Locale.ENGLISH, "%02d:%02d", minutes, seconds)
+                    val bengaliTime = Formatters.toBengaliDigits(timeFormatted)
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(Radius.lg),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ),
+                        border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.4f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFFEF3C7)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Timer,
+                                        contentDescription = null,
+                                        tint = Color(0xFFD97706),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(Spacing.sm))
+                                Column {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "ফ্রি ডেমো সেশন",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "• বাকি $bengaliTime মি",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFD97706)
+                                        )
+                                    }
+                                    Text(
+                                        text = "২০টি ডেমো পণ্য ও ৭ দিনের হিসাব সংযুক্ত",
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Button(
+                                    onClick = { openBuyLicense() },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                                    shape = RoundedCornerShape(Radius.sm),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Text(
+                                        text = "কিনুন ৳৪৯০",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                                IconButton(
+                                    onClick = { isDemoBannerDismissed = true },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "লুকান",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
 
                 // 1) HERO SUMMARY
                 DashboardHeroSummary(
