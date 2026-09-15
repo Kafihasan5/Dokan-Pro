@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.entity.Product
@@ -208,116 +210,294 @@ fun DashboardScreen(
                 )
             }
 
-            // --- DASHBOARD TIME FILTER BAR (আজ / কাল / নির্দিষ্ট তারিখ / সব) ---
+            // --- DASHBOARD TIME FILTER BAR (Clean Dropdown System) ---
             item {
+                var isFilterMenuExpanded by remember { mutableStateOf(false) }
+
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 6.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    )
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f, fill = false)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                        shape = CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.FilterAlt,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "সময়কাল ফিল্টার:",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
-
-                            if (dashboardFilterMode == "custom" && customSelectedDate != null) {
-                                val fullDateStr = SimpleDateFormat("dd MMMM, yyyy", Locale("bn", "BD")).format(Date(customSelectedDate!!))
-                                Surface(
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                    shape = RoundedCornerShape(6.dp)
-                                ) {
-                                    Text(
-                                        text = fullDateStr,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                    )
-                                }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "হিসাবের সময়কাল",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = when (dashboardFilterMode) {
+                                        "today" -> "আজকের হিসাব"
+                                        "yesterday" -> "গতকালের হিসাব"
+                                        "custom" -> {
+                                            if (customSelectedDate != null) {
+                                                SimpleDateFormat("dd MMMM, yyyy", Locale("bn", "BD")).format(Date(customSelectedDate!!))
+                                            } else "নির্দিষ্ট তারিখ"
+                                        }
+                                        else -> "সর্বমোট হিসাব"
+                                    },
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            FilterChip(
-                                selected = dashboardFilterMode == "today",
-                                onClick = {
-                                    dashboardFilterMode = "today"
-                                    currentSalesPage = 1
-                                },
-                                label = { Text("আজ (${todaySalesCount})", fontSize = 11.sp) },
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            FilterChip(
-                                selected = dashboardFilterMode == "yesterday",
-                                onClick = {
-                                    dashboardFilterMode = "yesterday"
-                                    currentSalesPage = 1
-                                },
-                                label = { Text("গতকাল (${yesterdaySalesCount})", fontSize = 11.sp) },
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            FilterChip(
-                                selected = dashboardFilterMode == "custom",
-                                onClick = {
-                                    datePickerDialog.show()
-                                },
-                                leadingIcon = {
+                        // Dropdown Selector Button
+                        Box {
+                            Surface(
+                                onClick = { isFilterMenuExpanded = true },
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Icon(
-                                        imageVector = Icons.Default.DateRange,
-                                        contentDescription = "তারিখ বাছুন",
-                                        modifier = Modifier.size(13.dp)
+                                        imageVector = Icons.Default.CalendarMonth,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(15.dp)
                                     )
-                                },
-                                label = {
-                                    val chipLabel = if (dashboardFilterMode == "custom" && customSelectedDate != null) {
-                                        SimpleDateFormat("dd MMM", Locale("bn", "BD")).format(Date(customSelectedDate!!))
-                                    } else {
-                                        "তারিখ"
-                                    }
-                                    Text(chipLabel, fontSize = 11.sp)
-                                },
-                                modifier = Modifier.weight(1.15f)
-                            )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = when (dashboardFilterMode) {
+                                            "today" -> "আজ (${if (config.useBengaliNumerals) Formatters.toBengaliDigits(todaySalesCount.toString()) else todaySalesCount})"
+                                            "yesterday" -> "গতকাল (${if (config.useBengaliNumerals) Formatters.toBengaliDigits(yesterdaySalesCount.toString()) else yesterdaySalesCount})"
+                                            "custom" -> if (customSelectedDate != null) {
+                                                SimpleDateFormat("dd MMM", Locale("bn", "BD")).format(Date(customSelectedDate!!))
+                                            } else "তারিখ"
+                                            else -> "সব (${if (config.useBengaliNumerals) Formatters.toBengaliDigits(sales.size.toString()) else sales.size})"
+                                        },
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowDropDown,
+                                        contentDescription = "ফিল্টার ড্রপডাউন",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
 
-                            FilterChip(
-                                selected = dashboardFilterMode == "all",
-                                onClick = {
-                                    dashboardFilterMode = "all"
-                                    currentSalesPage = 1
-                                },
-                                label = { Text("সব (${sales.size})", fontSize = 11.sp) },
-                                modifier = Modifier.weight(0.9f)
-                            )
+                            DropdownMenu(
+                                expanded = isFilterMenuExpanded,
+                                onDismissRequest = { isFilterMenuExpanded = false },
+                                modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                            ) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text(
+                                                text = "আজকের হিসাব",
+                                                fontSize = 13.sp,
+                                                fontWeight = if (dashboardFilterMode == "today") FontWeight.Bold else FontWeight.Normal,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(todaySalesCount.toString()) else todaySalesCount} টি বিক্রয় সম্পন্ন",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Today,
+                                            contentDescription = null,
+                                            tint = if (dashboardFilterMode == "today") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    },
+                                    trailingIcon = if (dashboardFilterMode == "today") {
+                                        {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    } else null,
+                                    onClick = {
+                                        dashboardFilterMode = "today"
+                                        currentSalesPage = 1
+                                        isFilterMenuExpanded = false
+                                    }
+                                )
+
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text(
+                                                text = "গতকালের হিসাব",
+                                                fontSize = 13.sp,
+                                                fontWeight = if (dashboardFilterMode == "yesterday") FontWeight.Bold else FontWeight.Normal,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(yesterdaySalesCount.toString()) else yesterdaySalesCount} টি বিক্রয়",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.History,
+                                            contentDescription = null,
+                                            tint = if (dashboardFilterMode == "yesterday") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    },
+                                    trailingIcon = if (dashboardFilterMode == "yesterday") {
+                                        {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    } else null,
+                                    onClick = {
+                                        dashboardFilterMode = "yesterday"
+                                        currentSalesPage = 1
+                                        isFilterMenuExpanded = false
+                                    }
+                                )
+
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text(
+                                                text = "নির্দিষ্ট তারিখ",
+                                                fontSize = 13.sp,
+                                                fontWeight = if (dashboardFilterMode == "custom") FontWeight.Bold else FontWeight.Normal,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = if (dashboardFilterMode == "custom" && customSelectedDate != null) {
+                                                    SimpleDateFormat("dd MMMM, yyyy", Locale("bn", "BD")).format(Date(customSelectedDate!!))
+                                                } else {
+                                                    "ক্যালেন্ডার থেকে তারিখ নির্বাচন করুন"
+                                                },
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.CalendarMonth,
+                                            contentDescription = null,
+                                            tint = if (dashboardFilterMode == "custom") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    },
+                                    trailingIcon = if (dashboardFilterMode == "custom") {
+                                        {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    } else null,
+                                    onClick = {
+                                        isFilterMenuExpanded = false
+                                        datePickerDialog.show()
+                                    }
+                                )
+
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(vertical = 4.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                )
+
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text(
+                                                text = "সর্বমোট (সব সময়)",
+                                                fontSize = 13.sp,
+                                                fontWeight = if (dashboardFilterMode == "all") FontWeight.Bold else FontWeight.Normal,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(sales.size.toString()) else sales.size} টি বিক্রয় মোট",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.AllInclusive,
+                                            contentDescription = null,
+                                            tint = if (dashboardFilterMode == "all") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    },
+                                    trailingIcon = if (dashboardFilterMode == "all") {
+                                        {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    } else null,
+                                    onClick = {
+                                        dashboardFilterMode = "all"
+                                        currentSalesPage = 1
+                                        isFilterMenuExpanded = false
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -646,6 +826,8 @@ fun DashboardScreen(
 
         // --- SALES HISTORY & INVOICES WITH PAGINATION (10 per page, 1, 2, 3 page system) ---
         item {
+            var isSalesFilterMenuExpanded by remember { mutableStateOf(false) }
+
             Spacer(modifier = Modifier.height(16.dp))
             Row(
                 modifier = Modifier
@@ -654,7 +836,7 @@ fun DashboardScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f, fill = false)) {
                     Text(
                         text = "বিক্রয় হিস্ট্রি ও ইনভয়েস",
                         style = MaterialTheme.typography.titleMedium,
@@ -662,51 +844,228 @@ fun DashboardScreen(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "আজকের ও পূর্ববর্তী সকল বিক্রয়ের তালিকা",
+                        text = when (dashboardFilterMode) {
+                            "today" -> "আজকের বিক্রয়ের তালিকা"
+                            "yesterday" -> "গতকালের বিক্রয়ের তালিকা"
+                            "custom" -> if (customSelectedDate != null) {
+                                SimpleDateFormat("dd MMMM, yyyy", Locale("bn", "BD")).format(Date(customSelectedDate!!)) + " এর তালিকা"
+                            } else "নির্দিষ্ট তারিখের তালিকা"
+                            else -> "সকল বিক্রয়ের তালিকা"
+                        },
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    FilterChip(
-                        selected = dashboardFilterMode == "today",
-                        onClick = {
-                            dashboardFilterMode = "today"
-                            currentSalesPage = 1
-                        },
-                        label = { Text("আজ (${todaySalesCount})", fontSize = 11.sp) }
-                    )
-                    FilterChip(
-                        selected = dashboardFilterMode == "yesterday",
-                        onClick = {
-                            dashboardFilterMode = "yesterday"
-                            currentSalesPage = 1
-                        },
-                        label = { Text("গতকাল (${yesterdaySalesCount})", fontSize = 11.sp) }
-                    )
-                    FilterChip(
-                        selected = dashboardFilterMode == "custom",
-                        onClick = {
-                            datePickerDialog.show()
-                        },
-                        label = {
-                            val chipLabel = if (dashboardFilterMode == "custom" && customSelectedDate != null) {
-                                SimpleDateFormat("dd MMM", Locale("bn", "BD")).format(Date(customSelectedDate!!))
-                            } else {
-                                "তারিখ"
-                            }
-                            Text(chipLabel, fontSize = 11.sp)
+                Box {
+                    Surface(
+                        onClick = { isSalesFilterMenuExpanded = true },
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(sortedSales.size.toString()) else sortedSales.size} টি • ${when (dashboardFilterMode) {
+                                    "today" -> "আজ"
+                                    "yesterday" -> "গতকাল"
+                                    "custom" -> "তারিখ"
+                                    else -> "সব"
+                                }}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "ফিল্টার ড্রপডাউন",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
-                    )
-                    FilterChip(
-                        selected = dashboardFilterMode == "all",
-                        onClick = {
-                            dashboardFilterMode = "all"
-                            currentSalesPage = 1
-                        },
-                        label = { Text("সব (${sales.size})", fontSize = 11.sp) }
-                    )
+                    }
+
+                    DropdownMenu(
+                        expanded = isSalesFilterMenuExpanded,
+                        onDismissRequest = { isSalesFilterMenuExpanded = false },
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(
+                                        text = "আজকের বিক্রয়",
+                                        fontSize = 13.sp,
+                                        fontWeight = if (dashboardFilterMode == "today") FontWeight.Bold else FontWeight.Normal,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(todaySalesCount.toString()) else todaySalesCount} টি ইনভয়েস",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Today,
+                                    contentDescription = null,
+                                    tint = if (dashboardFilterMode == "today") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            trailingIcon = if (dashboardFilterMode == "today") {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            } else null,
+                            onClick = {
+                                dashboardFilterMode = "today"
+                                currentSalesPage = 1
+                                isSalesFilterMenuExpanded = false
+                            }
+                        )
+
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(
+                                        text = "গতকালের বিক্রয়",
+                                        fontSize = 13.sp,
+                                        fontWeight = if (dashboardFilterMode == "yesterday") FontWeight.Bold else FontWeight.Normal,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(yesterdaySalesCount.toString()) else yesterdaySalesCount} টি ইনভয়েস",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.History,
+                                    contentDescription = null,
+                                    tint = if (dashboardFilterMode == "yesterday") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            trailingIcon = if (dashboardFilterMode == "yesterday") {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            } else null,
+                            onClick = {
+                                dashboardFilterMode = "yesterday"
+                                currentSalesPage = 1
+                                isSalesFilterMenuExpanded = false
+                            }
+                        )
+
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(
+                                        text = "নির্দিষ্ট তারিখ",
+                                        fontSize = 13.sp,
+                                        fontWeight = if (dashboardFilterMode == "custom") FontWeight.Bold else FontWeight.Normal,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = if (dashboardFilterMode == "custom" && customSelectedDate != null) {
+                                            SimpleDateFormat("dd MMMM, yyyy", Locale("bn", "BD")).format(Date(customSelectedDate!!))
+                                        } else {
+                                            "তারিখ নির্বাচন করুন..."
+                                        },
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarMonth,
+                                    contentDescription = null,
+                                    tint = if (dashboardFilterMode == "custom") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            trailingIcon = if (dashboardFilterMode == "custom") {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            } else null,
+                            onClick = {
+                                isSalesFilterMenuExpanded = false
+                                datePickerDialog.show()
+                            }
+                        )
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
+
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(
+                                        text = "সর্বমোট (সব বিক্রয়)",
+                                        fontSize = 13.sp,
+                                        fontWeight = if (dashboardFilterMode == "all") FontWeight.Bold else FontWeight.Normal,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(sales.size.toString()) else sales.size} টি ইনভয়েস মোট",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.AllInclusive,
+                                    contentDescription = null,
+                                    tint = if (dashboardFilterMode == "all") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            trailingIcon = if (dashboardFilterMode == "all") {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            } else null,
+                            onClick = {
+                                dashboardFilterMode = "all"
+                                currentSalesPage = 1
+                                isSalesFilterMenuExpanded = false
+                            }
+                        )
+                    }
                 }
             }
         }
