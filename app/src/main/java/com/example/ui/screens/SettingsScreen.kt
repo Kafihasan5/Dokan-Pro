@@ -58,6 +58,7 @@ fun SettingsScreen(
     val appUpdateInfo by viewModel.appUpdateInfo.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val units by viewModel.units.collectAsState()
+    val licenseInfo by viewModel.licenseInfo.collectAsState()
 
 
     Scaffold(
@@ -554,6 +555,62 @@ fun SettingsScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("এখনই অ্যাপ লক করুন (Lock Now)")
                             }
+                        }
+                    }
+                }
+            }
+
+            // Section: Software License & Activation Information
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.VerifiedUser,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Text("সফটওয়্যার লাইসেন্স ও অ্যাক্টিভেশন", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                        ) {
+                            Text(
+                                text = "Webix Solution Verified License",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+
+                        val lic = licenseInfo
+                        if (lic != null) {
+                            Text("নিবন্ধিত ইমেইল: ${lic.email}", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Text("ডিভাইস আইডি: ${lic.deviceId}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                text = "লাইসেন্স মেয়াদ: ${if (lic.isLifetime) "আজীবন (Lifetime)" else lic.expiresAt ?: "অ্যাক্টিভ"}",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text("স্ট্যাটাস: সক্রিয় (Active & Verified)", fontSize = 12.sp, color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
+                        } else {
+                            Text("ডিভাইস আইডি: ${viewModel.getDeviceId()}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("স্ট্যাটাস: সক্রিয় (অফলাইন লোকাল মোড)", fontSize = 12.sp, color = Color(0xFF10B981))
                         }
                     }
                 }

@@ -94,6 +94,44 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     private val _units = MutableStateFlow<List<String>>(defaultUnits)
     val units: StateFlow<List<String>> = _units.asStateFlow()
 
+    val licenseManager = com.example.data.license.AppLicenseManager(application)
+    private val _isAppActivated = MutableStateFlow(licenseManager.isActivated())
+    val isAppActivated: StateFlow<Boolean> = _isAppActivated.asStateFlow()
+
+    private val _isActivating = MutableStateFlow(false)
+    val isActivating: StateFlow<Boolean> = _isActivating.asStateFlow()
+
+    private val _activationError = MutableStateFlow<String?>(null)
+    val activationError: StateFlow<String?> = _activationError.asStateFlow()
+
+    private val _licenseInfo = MutableStateFlow(licenseManager.getLicenseInfo())
+    val licenseInfo: StateFlow<com.example.data.license.LicenseInfo?> = _licenseInfo.asStateFlow()
+
+    fun getDeviceId(): String = licenseManager.getDeviceId()
+
+    fun clearActivationError() {
+        _activationError.value = null
+    }
+
+    fun activateApp(email: String) {
+        viewModelScope.launch {
+            _isActivating.value = true
+            _activationError.value = null
+            when (val res = licenseManager.activateWithEmail(email)) {
+                is com.example.data.license.ActivationResult.Success -> {
+                    _isAppActivated.value = true
+                    _licenseInfo.value = res.info
+                    _isActivating.value = false
+                    showToast(res.message.ifBlank { "অভিনন্দন! Dokan-Pro সফলভাবে সক্রিয় হয়েছে" })
+                }
+                is com.example.data.license.ActivationResult.Error -> {
+                    _activationError.value = res.message
+                    _isActivating.value = false
+                }
+            }
+        }
+    }
+
     init {
         loadShopConfig()
         loadUnits()

@@ -27,6 +27,8 @@ fun PaponApp(
     val appUpdateInfo by viewModel.appUpdateInfo.collectAsState()
     var showUpdateDialog by remember { mutableStateOf(false) }
 
+    val isAppActivated by viewModel.isAppActivated.collectAsState()
+
     LaunchedEffect(appUpdateInfo.isUpdateAvailable) {
         if (appUpdateInfo.isUpdateAvailable) {
             showUpdateDialog = true
@@ -42,7 +44,7 @@ fun PaponApp(
     }
 
     // Handle system back navigation
-    BackHandler(enabled = currentScreen != AppScreen.DASHBOARD) {
+    BackHandler(enabled = isAppActivated && currentScreen != AppScreen.DASHBOARD) {
         when (currentScreen) {
             AppScreen.RECEIPT -> viewModel.navigateTo(AppScreen.DASHBOARD)
             AppScreen.PURCHASES, AppScreen.EXPENSES, AppScreen.BACKUP, AppScreen.SETTINGS -> {
@@ -52,7 +54,9 @@ fun PaponApp(
         }
     }
 
-    if (shopConfig.pinEnabled && !isPinUnlocked) {
+    if (!isAppActivated) {
+        AppActivationScreen(viewModel = viewModel)
+    } else if (shopConfig.pinEnabled && !isPinUnlocked) {
         PinLockScreen(viewModel = viewModel, config = shopConfig)
     } else {
         Scaffold(
