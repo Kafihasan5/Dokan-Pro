@@ -30,7 +30,8 @@ fun ProductThumbnail(
     shape: Shape = RoundedCornerShape(10.dp),
     fallbackIcon: ImageVector = Icons.Default.Inventory2,
     contentDescription: String? = null,
-    contentScale: ContentScale = ContentScale.Fit
+    contentScale: ContentScale = ContentScale.Fit,
+    productName: String? = null
 ) {
     val localFile = remember(imagePath) {
         if (!imagePath.isNullOrBlank()) {
@@ -50,6 +51,31 @@ fun ProductThumbnail(
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
                 .padding(2.dp)
         )
+    } else if (!productName.isNullOrBlank()) {
+        val palette = listOf(
+            Color(0xFF0E9F6E), // Brand green
+            Color(0xFF2563EB), // Blue
+            Color(0xFFD97706), // Amber
+            Color(0xFF7C3AED), // Purple
+            Color(0xFFDB2777), // Pink
+            Color(0xFF0891B2)  // Cyan
+        )
+        val initialChar = productName.trim().firstOrNull()?.toString() ?: "প"
+        val tileColor = palette[kotlin.math.abs(productName.hashCode()) % palette.size]
+        Box(
+            modifier = modifier
+                .size(size)
+                .clip(shape)
+                .background(tileColor.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center
+        ) {
+            androidx.compose.material3.Text(
+                text = initialChar,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                color = tileColor
+            )
+        }
     } else {
         Box(
             modifier = modifier

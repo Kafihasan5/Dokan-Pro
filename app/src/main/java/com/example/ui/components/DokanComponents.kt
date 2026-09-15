@@ -485,6 +485,7 @@ fun DokanTextField(
     placeholder: String? = null,
     keyboardType: KeyboardType = KeyboardType.Text,
     leadingIcon: ImageVector? = null,
+    prefix: @Composable (() -> Unit)? = null,
     isError: Boolean = false,
     errorText: String? = null,
     enabled: Boolean = true,
@@ -512,6 +513,7 @@ fun DokanTextField(
             leadingIcon = if (leadingIcon != null) {
                 { Icon(imageVector = leadingIcon, contentDescription = null) }
             } else null,
+            prefix = prefix,
             trailingIcon = trailingIcon,
             isError = isError,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
