@@ -1,6 +1,6 @@
 {
-  "versionCode": 17,
-  "versionName": "1.0.17",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v17/app-debug.apk",
-  "releaseNotes": "Fix closing brace in ProductPosCard"
+  "versionCode": 18,
+  "versionName": "1.0.18",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v18/app-debug.apk",
+  "releaseNotes": "Fix product image cropping on POS screen and thumbnails using ContentScale.Fit"
 }
