@@ -1,49 +1,135 @@
 package com.example.ui.screens
 
+import android.app.DatePickerDialog
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.AddBox
+import androidx.compose.material.icons.filled.AllInclusive
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.AssignmentReturn
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.NoteAdd
+import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Today
+import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.runtime.*
-import kotlinx.coroutines.launch
-import android.app.DatePickerDialog
-import androidx.compose.ui.platform.LocalContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.entity.Product
 import com.example.data.entity.Sale
+import com.example.data.entity.SaleItem
 import com.example.ui.AppScreen
 import com.example.ui.PaponViewModel
 import com.example.ui.ShopConfig
-import com.example.ui.components.TopHeader
+import com.example.ui.components.DokanConfirmDialog
+import com.example.ui.components.DokanTextField
+import com.example.ui.components.EmptyState
 import com.example.ui.components.ProductReturnDialog
 import com.example.ui.components.ProductThumbnail
-import com.example.ui.theme.StatusDanger
-import com.example.ui.theme.StatusSuccess
-import com.example.ui.theme.StatusWarning
+import com.example.ui.components.SectionHeader
+import com.example.ui.components.StatCard
+import com.example.ui.components.StatTone
+import com.example.ui.components.TopHeader
+import com.example.ui.theme.Brand500
+import com.example.ui.theme.Brand700
+import com.example.ui.theme.Radius
+import com.example.ui.theme.Spacing
+import com.example.ui.theme.amountTextStyle
+import com.example.ui.theme.dokanColors
+import com.example.ui.theme.softShadow
 import com.example.util.Formatters
 import com.example.util.InvoiceImageHelper
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,7 +144,6 @@ fun DashboardScreen(
     val expenses by viewModel.expenses.collectAsState()
     val totalDue by viewModel.totalDue.collectAsState()
     val lowStockProducts by viewModel.lowStockProducts.collectAsState()
-    val customers by viewModel.customers.collectAsState()
     val products by viewModel.products.collectAsState()
     val totalStockSaleValue by viewModel.totalStockSaleValuePoisha.collectAsState()
     val totalStockPurchaseValue by viewModel.totalStockPurchaseValuePoisha.collectAsState()
@@ -66,7 +151,7 @@ fun DashboardScreen(
 
     val context = LocalContext.current
 
-    // Compute today's start and end timestamps
+    // Date calculations for Today & Yesterday
     val calendar = Calendar.getInstance().apply {
         set(Calendar.HOUR_OF_DAY, 0)
         set(Calendar.MINUTE, 0)
@@ -77,7 +162,6 @@ fun DashboardScreen(
     val endOfToday = startOfToday + 86400000L
     val startOfYesterday = startOfToday - 86400000L
 
-    // Dashboard Time Filter: "today", "yesterday", "custom", "all"
     var dashboardFilterMode by remember { mutableStateOf("today") }
     var customSelectedDate by remember { mutableStateOf<Long?>(null) }
 
@@ -106,7 +190,6 @@ fun DashboardScreen(
     val todaySalesCount = remember(sales) { sales.count { it.saleDate in startOfToday..endOfToday && !it.isReturned } }
     val yesterdaySalesCount = remember(sales) { sales.count { it.saleDate in startOfYesterday until startOfToday && !it.isReturned } }
 
-    // Filtered period sales & expenses based on selected filter
     val (periodSales, periodExpenses, periodLabel) = remember(sales, expenses, dashboardFilterMode, customSelectedDate) {
         when (dashboardFilterMode) {
             "today" -> {
@@ -136,20 +219,14 @@ fun DashboardScreen(
     }
 
     val periodSalesTotalPoisha = periodSales.sumOf { it.totalPoisha }
-    val allSalesTotalPoisha = sales.filter { !it.isReturned }.sumOf { it.totalPoisha }
-
     val periodSaleIds = periodSales.map { it.id }.toSet()
     val periodSoldItems = saleItems.filter { it.saleId in periodSaleIds }
     val periodCostPoisha = periodSoldItems.sumOf { (it.qty * it.purchasePriceAtSalePoisha).toLong() }
     val periodGrossProfitPoisha = (periodSalesTotalPoisha - periodCostPoisha).coerceAtLeast(0)
-
     val periodExpenseTotalPoisha = periodExpenses.sumOf { it.amountPoisha }
     val periodNetProfitPoisha = periodGrossProfitPoisha - periodExpenseTotalPoisha
 
-    // Quick add expense dialog state
     var showExpenseDialog by remember { mutableStateOf(false) }
-
-    // Sales Pagination State
     var salesSearchQuery by remember { mutableStateOf("") }
     var currentSalesPage by remember { mutableIntStateOf(1) }
     val salesPageSize = 10
@@ -182,6 +259,7 @@ fun DashboardScreen(
 
     var isManualRefreshing by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
 
     PullToRefreshBox(
         isRefreshing = isManualRefreshing,
@@ -189,7 +267,7 @@ fun DashboardScreen(
             isManualRefreshing = true
             coroutineScope.launch {
                 viewModel.syncToSupabase(silent = true)
-                kotlinx.coroutines.delay(600)
+                delay(600)
                 isManualRefreshing = false
             }
         },
@@ -197,981 +275,99 @@ fun DashboardScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 140.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 120.dp)
         ) {
-            item {
-                TopHeader(
-                    config = config,
-                    onOpenMoreMenu = onNavigate,
-                    isSyncing = isSyncing,
-                    onSyncNow = { viewModel.syncToSupabase(silent = false) },
-                    onToggleTheme = { viewModel.toggleThemeMode() }
-                )
-            }
+            TopHeader(
+                config = config,
+                onOpenMoreMenu = onNavigate,
+                isSyncing = isSyncing,
+                onSyncNow = { viewModel.syncToSupabase(silent = false) },
+                onToggleTheme = { viewModel.toggleThemeMode() }
+            )
 
-            // --- DASHBOARD TIME FILTER BAR (Clean Dropdown System) ---
-            item {
-                var isFilterMenuExpanded by remember { mutableStateOf(false) }
-
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f, fill = false)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .background(
-                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                        shape = CircleShape
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.FilterAlt,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(
-                                    text = "হিসাবের সময়কাল",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = when (dashboardFilterMode) {
-                                        "today" -> "আজকের হিসাব"
-                                        "yesterday" -> "গতকালের হিসাব"
-                                        "custom" -> {
-                                            if (customSelectedDate != null) {
-                                                SimpleDateFormat("dd MMMM, yyyy", Locale("bn", "BD")).format(Date(customSelectedDate!!))
-                                            } else "নির্দিষ্ট তারিখ"
-                                        }
-                                        else -> "সর্বমোট হিসাব"
-                                    },
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-
-                        // Dropdown Selector Button
-                        Box {
-                            Surface(
-                                onClick = { isFilterMenuExpanded = true },
-                                shape = RoundedCornerShape(20.dp),
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CalendarMonth,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = when (dashboardFilterMode) {
-                                            "today" -> "আজ (${if (config.useBengaliNumerals) Formatters.toBengaliDigits(todaySalesCount.toString()) else todaySalesCount})"
-                                            "yesterday" -> "গতকাল (${if (config.useBengaliNumerals) Formatters.toBengaliDigits(yesterdaySalesCount.toString()) else yesterdaySalesCount})"
-                                            "custom" -> if (customSelectedDate != null) {
-                                                SimpleDateFormat("dd MMM", Locale("bn", "BD")).format(Date(customSelectedDate!!))
-                                            } else "তারিখ"
-                                            else -> "সব (${if (config.useBengaliNumerals) Formatters.toBengaliDigits(sales.size.toString()) else sales.size})"
-                                        },
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Icon(
-                                        imageVector = Icons.Default.ArrowDropDown,
-                                        contentDescription = "ফিল্টার ড্রপডাউন",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-
-                            DropdownMenu(
-                                expanded = isFilterMenuExpanded,
-                                onDismissRequest = { isFilterMenuExpanded = false },
-                                modifier = Modifier.background(MaterialTheme.colorScheme.surface)
-                            ) {
-                                DropdownMenuItem(
-                                    text = {
-                                        Column {
-                                            Text(
-                                                text = "আজকের হিসাব",
-                                                fontSize = 13.sp,
-                                                fontWeight = if (dashboardFilterMode == "today") FontWeight.Bold else FontWeight.Normal,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Text(
-                                                text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(todaySalesCount.toString()) else todaySalesCount} টি বিক্রয় সম্পন্ন",
-                                                fontSize = 11.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Default.Today,
-                                            contentDescription = null,
-                                            tint = if (dashboardFilterMode == "today") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    },
-                                    trailingIcon = if (dashboardFilterMode == "today") {
-                                        {
-                                            Icon(
-                                                imageVector = Icons.Default.Check,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    } else null,
-                                    onClick = {
-                                        dashboardFilterMode = "today"
-                                        currentSalesPage = 1
-                                        isFilterMenuExpanded = false
-                                    }
-                                )
-
-                                DropdownMenuItem(
-                                    text = {
-                                        Column {
-                                            Text(
-                                                text = "গতকালের হিসাব",
-                                                fontSize = 13.sp,
-                                                fontWeight = if (dashboardFilterMode == "yesterday") FontWeight.Bold else FontWeight.Normal,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Text(
-                                                text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(yesterdaySalesCount.toString()) else yesterdaySalesCount} টি বিক্রয়",
-                                                fontSize = 11.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Default.History,
-                                            contentDescription = null,
-                                            tint = if (dashboardFilterMode == "yesterday") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    },
-                                    trailingIcon = if (dashboardFilterMode == "yesterday") {
-                                        {
-                                            Icon(
-                                                imageVector = Icons.Default.Check,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    } else null,
-                                    onClick = {
-                                        dashboardFilterMode = "yesterday"
-                                        currentSalesPage = 1
-                                        isFilterMenuExpanded = false
-                                    }
-                                )
-
-                                DropdownMenuItem(
-                                    text = {
-                                        Column {
-                                            Text(
-                                                text = "নির্দিষ্ট তারিখ",
-                                                fontSize = 13.sp,
-                                                fontWeight = if (dashboardFilterMode == "custom") FontWeight.Bold else FontWeight.Normal,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Text(
-                                                text = if (dashboardFilterMode == "custom" && customSelectedDate != null) {
-                                                    SimpleDateFormat("dd MMMM, yyyy", Locale("bn", "BD")).format(Date(customSelectedDate!!))
-                                                } else {
-                                                    "ক্যালেন্ডার থেকে তারিখ নির্বাচন করুন"
-                                                },
-                                                fontSize = 11.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Default.CalendarMonth,
-                                            contentDescription = null,
-                                            tint = if (dashboardFilterMode == "custom") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    },
-                                    trailingIcon = if (dashboardFilterMode == "custom") {
-                                        {
-                                            Icon(
-                                                imageVector = Icons.Default.Check,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    } else null,
-                                    onClick = {
-                                        isFilterMenuExpanded = false
-                                        datePickerDialog.show()
-                                    }
-                                )
-
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(vertical = 4.dp),
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                                )
-
-                                DropdownMenuItem(
-                                    text = {
-                                        Column {
-                                            Text(
-                                                text = "সর্বমোট (সব সময়)",
-                                                fontSize = 13.sp,
-                                                fontWeight = if (dashboardFilterMode == "all") FontWeight.Bold else FontWeight.Normal,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Text(
-                                                text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(sales.size.toString()) else sales.size} টি বিক্রয় মোট",
-                                                fontSize = 11.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Default.AllInclusive,
-                                            contentDescription = null,
-                                            tint = if (dashboardFilterMode == "all") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    },
-                                    trailingIcon = if (dashboardFilterMode == "all") {
-                                        {
-                                            Icon(
-                                                imageVector = Icons.Default.Check,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    } else null,
-                                    onClick = {
-                                        dashboardFilterMode = "all"
-                                        currentSalesPage = 1
-                                        isFilterMenuExpanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-        // Summary Cards Grid (2x2)
-        item {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .fillMaxSize()
+                    .padding(horizontal = Spacing.lg)
+                    .verticalScroll(scrollState),
+                verticalArrangement = Arrangement.spacedBy(Spacing.lg)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    SummaryCard(
-                        title = "$periodLabel বিক্রয়",
-                        amount = Formatters.formatMoney(periodSalesTotalPoisha, config.useBengaliNumerals, config.currencySymbol),
-                        subtitle = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(periodSales.size.toString()) else periodSales.size} টি • সর্বমোট: ${Formatters.formatMoney(allSalesTotalPoisha, config.useBengaliNumerals, config.currencySymbol)}",
-                        icon = Icons.Default.PointOfSale,
-                        iconColor = MaterialTheme.colorScheme.primary,
-                        bgColor = MaterialTheme.colorScheme.surface,
-                        modifier = Modifier.weight(1f)
-                    )
+                Spacer(modifier = Modifier.height(Spacing.xs))
 
-                    SummaryCard(
-                        title = "$periodLabel নিট লাভ",
-                        amount = Formatters.formatMoney(periodNetProfitPoisha, config.useBengaliNumerals, config.currencySymbol),
-                        subtitle = if (periodNetProfitPoisha >= 0) "মোট লাভ" else "ক্ষতি",
-                        icon = Icons.Default.TrendingUp,
-                        iconColor = if (periodNetProfitPoisha >= 0) StatusSuccess else StatusDanger,
-                        bgColor = MaterialTheme.colorScheme.surface,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    SummaryCard(
-                        title = "$periodLabel খরচ",
-                        amount = Formatters.formatMoney(periodExpenseTotalPoisha, config.useBengaliNumerals, config.currencySymbol),
-                        subtitle = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(periodExpenses.size.toString()) else periodExpenses.size} টি এন্ট্রি",
-                        icon = Icons.Default.ReceiptLong,
-                        iconColor = StatusWarning,
-                        bgColor = MaterialTheme.colorScheme.surface,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    SummaryCard(
-                        title = "মোট বাকি",
-                        amount = Formatters.formatMoney(totalDue, config.useBengaliNumerals, config.currencySymbol),
-                        subtitle = "খাতায় পাওনা",
-                        icon = Icons.Default.MenuBook,
-                        iconColor = StatusDanger,
-                        bgColor = MaterialTheme.colorScheme.surface,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-
-        // Total Store Stock Value Card (দোকানের মোট পণ্যের মূল্য / ইনভেস্টমেন্ট)
-        item {
-            Spacer(modifier = Modifier.height(12.dp))
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .clickable { onNavigate(AppScreen.PRODUCTS) },
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    Icons.Default.Inventory2,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(
-                                    text = "দোকানের মোট স্টক মূল্য",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(products.size.toString()) else products.size} টি পণ্য স্টকে বিদ্যমান",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.Bottom
-                        ) {
-                            Column {
-                                Text(
-                                    text = "বিক্রয়মূল্য অনুসারে:",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = Formatters.formatMoney(totalStockSaleValue, config.useBengaliNumerals, config.currencySymbol),
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(
-                                    text = "ক্রয়মূল্য (ইনভেস্ট):",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = Formatters.formatMoney(totalStockPurchaseValue, config.useBengaliNumerals, config.currencySymbol),
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-
-                        val potentialProfit = (totalStockSaleValue - totalStockPurchaseValue).coerceAtLeast(0)
-                        if (potentialProfit > 0) {
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "স্টক থেকে সম্ভাব্য মোট লাভ: +${Formatters.formatMoney(potentialProfit, config.useBengaliNumerals, config.currencySymbol)}",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = StatusSuccess
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Icon(
-                        Icons.Default.ChevronRight,
-                        contentDescription = "পণ্য তালিকায় যান",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-
-
-        // Quick Actions Row
-        item {
-            Text(
-                text = "কুইক অ্যাকশন",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(start = 16.dp, top = 20.dp, bottom = 10.dp)
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                DashboardActionBtn(
-                    title = "নতুন বিক্রয়",
-                    icon = Icons.Default.ShoppingCart,
-                    color = MaterialTheme.colorScheme.primary,
-                    onClick = { onNavigate(AppScreen.POS) }
-                )
-                DashboardActionBtn(
-                    title = "পণ্য যোগ",
-                    icon = Icons.Default.AddBox,
-                    color = Color(0xFF0284C7),
-                    onClick = { onNavigate(AppScreen.PRODUCTS) }
-                )
-                DashboardActionBtn(
-                    title = "বাকি খাতা",
-                    icon = Icons.Default.AccountBalanceWallet,
-                    color = StatusSuccess,
-                    onClick = { onNavigate(AppScreen.DUE_KHATA) }
-                )
-                DashboardActionBtn(
-                    title = "খরচ যোগ",
-                    icon = Icons.Default.NoteAdd,
-                    color = StatusWarning,
-                    onClick = { showExpenseDialog = true }
-                )
-            }
-        }
-
-        // 7-Day Sales Mini-Bar Chart
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "গত ৭ দিনের বিক্রয় চিত্র",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "সাপ্তাহিক রিপোর্ট",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.clickable { onNavigate(AppScreen.REPORTS) }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    WeeklySalesChart(sales = sales, config = config)
-                }
-            }
-        }
-
-        // Low Stock Alert Section
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.WarningAmber,
-                        contentDescription = null,
-                        tint = StatusWarning,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "স্টক সতর্কবার্তা (${if (config.useBengaliNumerals) Formatters.toBengaliDigits(lowStockProducts.size.toString()) else lowStockProducts.size})",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-
-                if (lowStockProducts.isNotEmpty()) {
-                    Text(
-                        text = "সব দেখুন",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.clickable { onNavigate(AppScreen.PRODUCTS) }
-                    )
-                }
-            }
-        }
-
-        if (lowStockProducts.isEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            tint = StatusSuccess,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = "সব পণ্যের স্টক পর্যাপ্ত রয়েছে!",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            }
-        } else {
-            items(lowStockProducts.take(4)) { prod ->
-                LowStockItemCard(product = prod, config = config, onRestock = { onNavigate(AppScreen.PURCHASES) })
-            }
-        }
-
-        // --- SALES HISTORY & INVOICES WITH PAGINATION (10 per page, 1, 2, 3 page system) ---
-        item {
-            var isSalesFilterMenuExpanded by remember { mutableStateOf(false) }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f, fill = false)) {
-                    Text(
-                        text = "বিক্রয় হিস্ট্রি ও ইনভয়েস",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = when (dashboardFilterMode) {
-                            "today" -> "আজকের বিক্রয়ের তালিকা"
-                            "yesterday" -> "গতকালের বিক্রয়ের তালিকা"
-                            "custom" -> if (customSelectedDate != null) {
-                                SimpleDateFormat("dd MMMM, yyyy", Locale("bn", "BD")).format(Date(customSelectedDate!!)) + " এর তালিকা"
-                            } else "নির্দিষ্ট তারিখের তালিকা"
-                            else -> "সকল বিক্রয়ের তালিকা"
-                        },
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Box {
-                    Surface(
-                        onClick = { isSalesFilterMenuExpanded = true },
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(sortedSales.size.toString()) else sortedSales.size} টি • ${when (dashboardFilterMode) {
-                                    "today" -> "আজ"
-                                    "yesterday" -> "গতকাল"
-                                    "custom" -> "তারিখ"
-                                    else -> "সব"
-                                }}",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Icon(
-                                imageVector = Icons.Default.ArrowDropDown,
-                                contentDescription = "ফিল্টার ড্রপডাউন",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-
-                    DropdownMenu(
-                        expanded = isSalesFilterMenuExpanded,
-                        onDismissRequest = { isSalesFilterMenuExpanded = false },
-                        modifier = Modifier.background(MaterialTheme.colorScheme.surface)
-                    ) {
-                        DropdownMenuItem(
-                            text = {
-                                Column {
-                                    Text(
-                                        text = "আজকের বিক্রয়",
-                                        fontSize = 13.sp,
-                                        fontWeight = if (dashboardFilterMode == "today") FontWeight.Bold else FontWeight.Normal,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(todaySalesCount.toString()) else todaySalesCount} টি ইনভয়েস",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Today,
-                                    contentDescription = null,
-                                    tint = if (dashboardFilterMode == "today") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            },
-                            trailingIcon = if (dashboardFilterMode == "today") {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            } else null,
-                            onClick = {
-                                dashboardFilterMode = "today"
-                                currentSalesPage = 1
-                                isSalesFilterMenuExpanded = false
-                            }
-                        )
-
-                        DropdownMenuItem(
-                            text = {
-                                Column {
-                                    Text(
-                                        text = "গতকালের বিক্রয়",
-                                        fontSize = 13.sp,
-                                        fontWeight = if (dashboardFilterMode == "yesterday") FontWeight.Bold else FontWeight.Normal,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(yesterdaySalesCount.toString()) else yesterdaySalesCount} টি ইনভয়েস",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.History,
-                                    contentDescription = null,
-                                    tint = if (dashboardFilterMode == "yesterday") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            },
-                            trailingIcon = if (dashboardFilterMode == "yesterday") {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            } else null,
-                            onClick = {
-                                dashboardFilterMode = "yesterday"
-                                currentSalesPage = 1
-                                isSalesFilterMenuExpanded = false
-                            }
-                        )
-
-                        DropdownMenuItem(
-                            text = {
-                                Column {
-                                    Text(
-                                        text = "নির্দিষ্ট তারিখ",
-                                        fontSize = 13.sp,
-                                        fontWeight = if (dashboardFilterMode == "custom") FontWeight.Bold else FontWeight.Normal,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = if (dashboardFilterMode == "custom" && customSelectedDate != null) {
-                                            SimpleDateFormat("dd MMMM, yyyy", Locale("bn", "BD")).format(Date(customSelectedDate!!))
-                                        } else {
-                                            "তারিখ নির্বাচন করুন..."
-                                        },
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.CalendarMonth,
-                                    contentDescription = null,
-                                    tint = if (dashboardFilterMode == "custom") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            },
-                            trailingIcon = if (dashboardFilterMode == "custom") {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            } else null,
-                            onClick = {
-                                isSalesFilterMenuExpanded = false
-                                datePickerDialog.show()
-                            }
-                        )
-
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 4.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                        )
-
-                        DropdownMenuItem(
-                            text = {
-                                Column {
-                                    Text(
-                                        text = "সর্বমোট (সব বিক্রয়)",
-                                        fontSize = 13.sp,
-                                        fontWeight = if (dashboardFilterMode == "all") FontWeight.Bold else FontWeight.Normal,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(sales.size.toString()) else sales.size} টি ইনভয়েস মোট",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.AllInclusive,
-                                    contentDescription = null,
-                                    tint = if (dashboardFilterMode == "all") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            },
-                            trailingIcon = if (dashboardFilterMode == "all") {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            } else null,
-                            onClick = {
-                                dashboardFilterMode = "all"
-                                currentSalesPage = 1
-                                isSalesFilterMenuExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
-        }
-
-        // Search Bar for Sales
-        item {
-            OutlinedTextField(
-                value = salesSearchQuery,
-                onValueChange = {
-                    salesSearchQuery = it
-                    currentSalesPage = 1
-                },
-                placeholder = { Text("ইনভয়েস নং বা কাস্টমার খুঁজুন...", fontSize = 12.sp) },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "খুঁজুন",
-                        modifier = Modifier.size(18.dp)
-                    )
-                },
-                trailingIcon = {
-                    if (salesSearchQuery.isNotEmpty()) {
-                        IconButton(onClick = { salesSearchQuery = "" }) {
-                            Icon(Icons.Default.Clear, contentDescription = "পরিষ্কার", modifier = Modifier.size(16.dp))
-                        }
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
-            )
-        }
-
-        // Empty state or Sales list
-        if (paginatedSales.isEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ReceiptLong,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.size(36.dp)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = if (salesSearchQuery.isNotBlank()) "খোঁজার সাথে কোনো বিক্রয় মেলেনি" else "এখনো কোনো বিক্রয় রেকর্ড নেই",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        } else {
-            items(paginatedSales, key = { it.id }) { sale ->
-                val itemsForSale = remember(sale.id, saleItems) {
-                    saleItems.filter { it.saleId == sale.id }
-                }
-                DashboardSaleItemCard(
-                    sale = sale,
-                    items = itemsForSale,
+                // 1) HERO SUMMARY
+                DashboardHeroSummary(
+                    periodLabel = periodLabel,
+                    salesTotalPoisha = periodSalesTotalPoisha,
+                    netProfitPoisha = periodNetProfitPoisha,
+                    salesCount = periodSales.size,
+                    todaySalesCount = todaySalesCount,
+                    yesterdaySalesCount = yesterdaySalesCount,
+                    totalSalesCount = sales.size,
+                    dashboardFilterMode = dashboardFilterMode,
+                    customSelectedDate = customSelectedDate,
                     config = config,
-                    onViewReceipt = { viewModel.viewSaleReceipt(sale) },
-                    onDeleteSale = { viewModel.deleteSale(sale.id) },
-                    onReturnSale = { returnedMap -> viewModel.returnSaleItems(sale.id, returnedMap) }
+                    onSelectFilter = { mode ->
+                        dashboardFilterMode = mode
+                        currentSalesPage = 1
+                    },
+                    onOpenDatePicker = { datePickerDialog.show() }
                 )
-            }
 
-            // Pagination Controls (1, 2, 3...)
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp, bottom = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "পৃষ্ঠা ${if (config.useBengaliNumerals) Formatters.toBengaliDigits(displayedPage.toString()) else displayedPage} এর ${if (config.useBengaliNumerals) Formatters.toBengaliDigits(totalSalesPages.toString()) else totalSalesPages} (মোট ${if (config.useBengaliNumerals) Formatters.toBengaliDigits(sortedSales.size.toString()) else sortedSales.size} টি ইনভয়েস)",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    PaginationBar(
-                        currentPage = displayedPage,
-                        totalPages = totalSalesPages,
-                        useBengali = config.useBengaliNumerals,
-                        onPageSelected = { currentSalesPage = it }
-                    )
-                }
+                // 2) SECONDARY STATS (2-Column Grid)
+                DashboardSecondaryStats(
+                    periodExpenseTotalPoisha = periodExpenseTotalPoisha,
+                    periodExpensesCount = periodExpenses.size,
+                    totalDue = totalDue,
+                    totalStockSaleValue = totalStockSaleValue,
+                    totalStockPurchaseValue = totalStockPurchaseValue,
+                    productsCount = products.size,
+                    config = config,
+                    onNavigateToDue = { onNavigate(AppScreen.DUE_KHATA) },
+                    onNavigateToProducts = { onNavigate(AppScreen.PRODUCTS) }
+                )
+
+                // 3) QUICK ACTIONS (4 Square Tiles)
+                DashboardQuickActions(
+                    onNavigate = onNavigate,
+                    onAddExpense = { showExpenseDialog = true }
+                )
+
+                // 4) WEEKLY CHART
+                DashboardWeeklyChart(sales = sales, config = config, onNavigateToReports = { onNavigate(AppScreen.REPORTS) })
+
+                // 5) LOW STOCK SECTION
+                DashboardLowStockSection(
+                    lowStockProducts = lowStockProducts,
+                    config = config,
+                    onNavigateToProducts = { onNavigate(AppScreen.PRODUCTS) },
+                    onNavigateToPurchases = { onNavigate(AppScreen.PURCHASES) }
+                )
+
+                // 6) SALES HISTORY SECTION
+                DashboardSalesHistorySection(
+                    sales = paginatedSales,
+                    saleItems = saleItems,
+                    totalSalesCount = sortedSales.size,
+                    displayedPage = displayedPage,
+                    totalSalesPages = totalSalesPages,
+                    searchQuery = salesSearchQuery,
+                    onSearchQueryChange = {
+                        salesSearchQuery = it
+                        currentSalesPage = 1
+                    },
+                    onPageSelected = { currentSalesPage = it },
+                    config = config,
+                    onViewReceipt = { sale -> viewModel.viewSaleReceipt(sale) },
+                    onDeleteSale = { id -> viewModel.deleteSale(id) },
+                    onReturnSale = { id, returnedMap -> viewModel.returnSaleItems(id, returnedMap) }
+                )
+
+                Spacer(modifier = Modifier.height(Spacing.xl))
             }
         }
-    }
     }
 
     if (showExpenseDialog) {
@@ -1187,238 +383,674 @@ fun DashboardScreen(
     }
 }
 
+// ==============================================================================
+// 1. HERO SUMMARY CARD
+// ==============================================================================
 @Composable
-fun SummaryCard(
-    title: String,
-    amount: String,
-    subtitle: String,
-    icon: ImageVector,
-    iconColor: Color,
-    bgColor: Color,
-    modifier: Modifier = Modifier
+private fun DashboardHeroSummary(
+    periodLabel: String,
+    salesTotalPoisha: Long,
+    netProfitPoisha: Long,
+    salesCount: Int,
+    todaySalesCount: Int,
+    yesterdaySalesCount: Int,
+    totalSalesCount: Int,
+    dashboardFilterMode: String,
+    customSelectedDate: Long?,
+    config: ShopConfig,
+    onSelectFilter: (String) -> Unit,
+    onOpenDatePicker: () -> Unit
 ) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = bgColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    var isFilterMenuExpanded by remember { mutableStateOf(false) }
+
+    val heroGradient = Brush.linearGradient(
+        colors = listOf(Brand700, Brand500),
+        start = Offset(0f, 0f),
+        end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
+    )
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .softShadow(2, RoundedCornerShape(Radius.lg)),
+        shape = RoundedCornerShape(Radius.lg)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(heroGradient)
+                .padding(Spacing.lg)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Top Row: Period Label + Filter Dropdown Chip
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "$periodLabel হিসাব",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.White.copy(alpha = 0.85f)
+                    )
+
+                    // Filter Chip Button
+                    Box {
+                        Surface(
+                            onClick = { isFilterMenuExpanded = true },
+                            shape = RoundedCornerShape(Radius.pill),
+                            color = Color.White.copy(alpha = 0.18f),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.35f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarMonth,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = when (dashboardFilterMode) {
+                                        "today" -> "আজ (${if (config.useBengaliNumerals) Formatters.toBengaliDigits(todaySalesCount.toString()) else todaySalesCount})"
+                                        "yesterday" -> "গতকাল (${if (config.useBengaliNumerals) Formatters.toBengaliDigits(yesterdaySalesCount.toString()) else yesterdaySalesCount})"
+                                        "custom" -> if (customSelectedDate != null) {
+                                            SimpleDateFormat("dd MMM", Locale("bn", "BD")).format(Date(customSelectedDate))
+                                        } else "তারিখ"
+                                        else -> "সব (${if (config.useBengaliNumerals) Formatters.toBengaliDigits(totalSalesCount.toString()) else totalSalesCount})"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = "ফিল্টার ড্রপডাউন",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = isFilterMenuExpanded,
+                            onDismissRequest = { isFilterMenuExpanded = false },
+                            shape = RoundedCornerShape(Radius.md),
+                            modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("আজকের হিসাব", style = MaterialTheme.typography.bodyMedium) },
+                                leadingIcon = { Icon(Icons.Default.Today, null, tint = MaterialTheme.colorScheme.primary) },
+                                trailingIcon = if (dashboardFilterMode == "today") {
+                                    { Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) }
+                                } else null,
+                                onClick = {
+                                    onSelectFilter("today")
+                                    isFilterMenuExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("গতকালের হিসাব", style = MaterialTheme.typography.bodyMedium) },
+                                leadingIcon = { Icon(Icons.Default.History, null, tint = MaterialTheme.colorScheme.primary) },
+                                trailingIcon = if (dashboardFilterMode == "yesterday") {
+                                    { Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) }
+                                } else null,
+                                onClick = {
+                                    onSelectFilter("yesterday")
+                                    isFilterMenuExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("নির্দিষ্ট তারিখ", style = MaterialTheme.typography.bodyMedium) },
+                                leadingIcon = { Icon(Icons.Default.CalendarMonth, null, tint = MaterialTheme.colorScheme.primary) },
+                                trailingIcon = if (dashboardFilterMode == "custom") {
+                                    { Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) }
+                                } else null,
+                                onClick = {
+                                    isFilterMenuExpanded = false
+                                    onOpenDatePicker()
+                                }
+                            )
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            DropdownMenuItem(
+                                text = { Text("সর্বমোট (সব সময়)", style = MaterialTheme.typography.bodyMedium) },
+                                leadingIcon = { Icon(Icons.Default.AllInclusive, null, tint = MaterialTheme.colorScheme.primary) },
+                                trailingIcon = if (dashboardFilterMode == "all") {
+                                    { Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) }
+                                } else null,
+                                onClick = {
+                                    onSelectFilter("all")
+                                    isFilterMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.sm))
+
+                // Sales Amount Figure at 34sp
                 Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = Formatters.formatMoney(salesTotalPoisha, config.useBengaliNumerals, config.currencySymbol),
+                    style = amountTextStyle(34.sp),
+                    color = Color.White
                 )
-                Box(
+
+                Text(
+                    text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(salesCount.toString()) else salesCount} টি বিক্রয় সম্পন্ন",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.80f)
+                )
+
+                Spacer(modifier = Modifier.height(Spacing.md))
+
+                // Net Profit Pill on White 18% background
+                val isProfit = netProfitPoisha >= 0
+                Row(
                     modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(iconColor.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center
+                        .clip(RoundedCornerShape(Radius.pill))
+                        .background(Color.White.copy(alpha = 0.18f))
+                        .padding(horizontal = Spacing.md, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = icon,
+                        imageVector = if (isProfit) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
                         contentDescription = null,
-                        tint = iconColor,
-                        modifier = Modifier.size(18.dp)
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "নিট লাভ: ${Formatters.formatMoney(netProfitPoisha, config.useBengaliNumerals, config.currencySymbol)}",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
                 }
             }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = amount,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+// ==============================================================================
+// 2. SECONDARY STATS (2-COLUMN GRID)
+// ==============================================================================
+@Composable
+private fun DashboardSecondaryStats(
+    periodExpenseTotalPoisha: Long,
+    periodExpensesCount: Int,
+    totalDue: Long,
+    totalStockSaleValue: Long,
+    totalStockPurchaseValue: Long,
+    productsCount: Int,
+    config: ShopConfig,
+    onNavigateToDue: () -> Unit,
+    onNavigateToProducts: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            // Card 1: খরচ
+            StatCard(
+                label = "খরচ",
+                value = Formatters.formatMoney(periodExpenseTotalPoisha, config.useBengaliNumerals, config.currencySymbol),
+                tone = StatTone.Neutral,
+                caption = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(periodExpensesCount.toString()) else periodExpensesCount} টি এন্ট্রি",
+                icon = Icons.Default.ReceiptLong,
+                modifier = Modifier.weight(1f)
             )
 
-            Spacer(modifier = Modifier.height(2.dp))
+            // Card 2: মোট বাকি
+            StatCard(
+                label = "মোট বাকি",
+                value = Formatters.formatMoney(totalDue, config.useBengaliNumerals, config.currencySymbol),
+                tone = StatTone.Negative,
+                caption = "খাতায় পাওনা",
+                icon = Icons.Default.AccountBalanceWallet,
+                onClick = onNavigateToDue,
+                modifier = Modifier.weight(1f)
+            )
+        }
 
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            // Card 3: দোকানের মোট স্টক মূল্য
+            StatCard(
+                label = "দোকানের মোট স্টক মূল্য",
+                value = Formatters.formatMoney(totalStockSaleValue, config.useBengaliNumerals, config.currencySymbol),
+                tone = StatTone.Gold,
+                caption = "ক্রয়: ${Formatters.formatMoney(totalStockPurchaseValue, config.useBengaliNumerals, config.currencySymbol)}",
+                icon = Icons.Default.ShoppingCart,
+                onClick = onNavigateToProducts,
+                modifier = Modifier.weight(1f)
+            )
+
+            // Card 4: আইটেম সংখ্যা
+            StatCard(
+                label = "আইটেম সংখ্যা",
+                value = if (config.useBengaliNumerals) Formatters.toBengaliDigits(productsCount.toString()) else productsCount.toString(),
+                tone = StatTone.Neutral,
+                caption = "স্টকে মোট আইটেম",
+                icon = Icons.Default.AddBox,
+                onClick = onNavigateToProducts,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+// ==============================================================================
+// 3. QUICK ACTIONS ROW (4 SQUARE TILES: 96x96dp)
+// ==============================================================================
+@Composable
+private fun DashboardQuickActions(
+    onNavigate: (AppScreen) -> Unit,
+    onAddExpense: () -> Unit
+) {
+    Column {
+        SectionHeader(title = "কুইক অ্যাকশন")
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(vertical = Spacing.xs),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            QuickActionTile(
+                title = "নতুন বিক্রয়",
+                icon = Icons.Default.ShoppingCart,
+                color = MaterialTheme.colorScheme.primary,
+                onClick = { onNavigate(AppScreen.POS) }
+            )
+            QuickActionTile(
+                title = "বাকি খাতা",
+                icon = Icons.Default.AccountBalanceWallet,
+                color = MaterialTheme.dokanColors.danger,
+                onClick = { onNavigate(AppScreen.DUE_KHATA) }
+            )
+            QuickActionTile(
+                title = "পণ্য যোগ",
+                icon = Icons.Default.AddBox,
+                color = MaterialTheme.dokanColors.info,
+                onClick = { onNavigate(AppScreen.PRODUCTS) }
+            )
+            QuickActionTile(
+                title = "খরচ যোগ",
+                icon = Icons.Default.NoteAdd,
+                color = MaterialTheme.dokanColors.warning,
+                onClick = onAddExpense
             )
         }
     }
 }
 
 @Composable
-fun DashboardActionBtn(
+private fun QuickActionTile(
     title: String,
     icon: ImageVector,
     color: Color,
     onClick: () -> Unit
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Surface(
+        onClick = onClick,
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable { onClick() }
-            .padding(8.dp)
+            .size(96.dp)
+            .softShadow(1, RoundedCornerShape(Radius.md))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(Radius.md)),
+        shape = RoundedCornerShape(Radius.md),
+        color = MaterialTheme.dokanColors.surfaceAlt
     ) {
-        Box(
+        Column(
             modifier = Modifier
-                .size(52.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(color.copy(alpha = 0.12f)),
-            contentAlignment = Alignment.Center
+                .fillMaxSize()
+                .padding(Spacing.sm),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = color,
-                modifier = Modifier.size(26.dp)
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = color,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1
             )
         }
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurface
-        )
     }
 }
 
+// ==============================================================================
+// 4. WEEKLY SALES CHART WITH CANVAS ANIMATION
+// ==============================================================================
 @Composable
-fun WeeklySalesChart(sales: List<Sale>, config: ShopConfig) {
-    // Generate 7 days bins
+private fun DashboardWeeklyChart(
+    sales: List<Sale>,
+    config: ShopConfig,
+    onNavigateToReports: () -> Unit
+) {
     val days = listOf("শনি", "রবি", "সোম", "মঙ্গল", "বুধ", "বৃহ", "শুক্র")
-    val cal = Calendar.getInstance()
-    val dailyTotals = LongArray(7) { 0L }
-
-    val now = System.currentTimeMillis()
-    for (i in 0..6) {
-        val start = now - (6 - i) * 86400000L
-        val end = start + 86400000L
-        dailyTotals[i] = sales.filter { it.saleDate in start..end && !it.isReturned }.sumOf { it.totalPoisha }
+    val dailyTotals = remember(sales) {
+        val totals = LongArray(7) { 0L }
+        val now = System.currentTimeMillis()
+        for (i in 0..6) {
+            val start = now - (6 - i) * 86400000L
+            val end = start + 86400000L
+            totals[i] = sales.filter { it.saleDate in start..end && !it.isReturned }.sumOf { it.totalPoisha }
+        }
+        totals
     }
 
     val maxTotal = dailyTotals.maxOrNull()?.coerceAtLeast(100000L) ?: 100000L
+    val tallestIndex = dailyTotals.indexOfFirst { it == dailyTotals.maxOrNull() }
 
-    Row(
+    val animProgress = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        animProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing)
+        )
+    }
+
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(110.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.Bottom
+            .softShadow(1, RoundedCornerShape(Radius.md)),
+        shape = RoundedCornerShape(Radius.md),
+        color = MaterialTheme.colorScheme.surface
     ) {
-        for (i in 0..6) {
-            val total = dailyTotals[i]
-            val heightFraction = (total.toFloat() / maxTotal.toFloat()).coerceIn(0.12f, 1f)
+        Column(modifier = Modifier.padding(Spacing.lg)) {
+            SectionHeader(
+                title = "গত ৭ দিনের বিক্রয় চিত্র",
+                actionLabel = "সাপ্তাহিক রিপোর্ট",
+                onAction = onNavigateToReports
+            )
 
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Bottom,
-                modifier = Modifier.weight(1f)
+            Spacer(modifier = Modifier.height(Spacing.sm))
+
+            val primaryColor = MaterialTheme.colorScheme.primary
+            val dimColor = primaryColor.copy(alpha = 0.22f)
+            val outlineColor = MaterialTheme.colorScheme.outline
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(130.dp)
             ) {
-                Text(
-                    text = if (total > 0) {
-                        val k = total / 100000L
-                        if (config.useBengaliNumerals) Formatters.toBengaliDigits("${k}k") else "${k}k"
-                    } else "",
-                    fontSize = 9.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Box(
-                    modifier = Modifier
-                        .width(22.dp)
-                        .fillMaxHeight(heightFraction)
-                        .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
-                        .background(
-                            if (i == 6) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.primaryContainer
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val width = size.width
+                    val height = size.height - 24.dp.toPx()
+                    val barWidth = 24.dp.toPx()
+                    val totalSlots = 7
+                    val spacing = (width - (barWidth * totalSlots)) / (totalSlots + 1)
+
+                    // Faint dashed baseline
+                    drawLine(
+                        color = outlineColor.copy(alpha = 0.6f),
+                        start = Offset(0f, height),
+                        end = Offset(width, height),
+                        strokeWidth = 1.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+                    )
+
+                    for (i in 0..6) {
+                        val total = dailyTotals[i]
+                        val fraction = ((total.toFloat() / maxTotal.toFloat()) * animProgress.value).coerceIn(0.06f, 1f)
+                        val barHeight = height * fraction
+                        val x = spacing + i * (barWidth + spacing)
+                        val y = height - barHeight
+
+                        val barColor = if (i == 6) primaryColor else dimColor
+
+                        drawRoundRect(
+                            color = barColor,
+                            topLeft = Offset(x, y),
+                            size = Size(barWidth, barHeight),
+                            cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
                         )
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = days[i],
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                    }
+                }
+
+                // Row for Day Labels & Tallest Bar Value Label
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    for (i in 0..6) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = days[i],
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (i == 6) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                // Highest bar value badge if non-zero
+                if (tallestIndex >= 0 && dailyTotals[tallestIndex] > 0) {
+                    val k = dailyTotals[tallestIndex] / 100000L
+                    val badgeText = if (config.useBengaliNumerals) Formatters.toBengaliDigits("${k}k") else "${k}k"
+                    Text(
+                        text = badgeText,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.align(Alignment.TopCenter)
+                    )
+                }
             }
         }
     }
 }
 
+// ==============================================================================
+// 5. LOW STOCK SECTION
+// ==============================================================================
 @Composable
-fun LowStockItemCard(product: Product, config: ShopConfig, onRestock: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                ProductThumbnail(
-                    imagePath = product.localImagePath,
-                    size = 42.dp,
-                    shape = RoundedCornerShape(8.dp)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Column {
-                    Text(
-                        text = product.nameBn,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+private fun DashboardLowStockSection(
+    lowStockProducts: List<Product>,
+    config: ShopConfig,
+    onNavigateToProducts: () -> Unit,
+    onNavigateToPurchases: () -> Unit
+) {
+    Column {
+        SectionHeader(
+            title = "স্টক সতর্কবার্তা (${if (config.useBengaliNumerals) Formatters.toBengaliDigits(lowStockProducts.size.toString()) else lowStockProducts.size})",
+            actionLabel = if (lowStockProducts.isNotEmpty()) "সব দেখুন" else null,
+            onAction = onNavigateToProducts
+        )
+
+        if (lowStockProducts.isEmpty()) {
+            EmptyState(
+                icon = Icons.Default.CheckCircle,
+                title = "সব পণ্যের স্টক পর্যাপ্ত রয়েছে!",
+                message = "কোনো পণ্যের স্টক সতর্কসীমার নিচে নেই।"
+            )
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                lowStockProducts.take(4).forEach { prod ->
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .softShadow(1, RoundedCornerShape(Radius.sm)),
+                        shape = RoundedCornerShape(Radius.sm),
+                        color = MaterialTheme.colorScheme.surface
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.md),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                ProductThumbnail(
+                                    imagePath = prod.localImagePath,
+                                    size = 40.dp,
+                                    shape = RoundedCornerShape(Radius.xs)
+                                )
+                                Spacer(modifier = Modifier.width(Spacing.md))
+                                Column {
+                                    Text(
+                                        text = prod.nameBn,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "বিক্রয়: ${Formatters.formatMoney(prod.salePricePoisha, config.useBengaliNumerals, config.currencySymbol)}/${prod.unitName}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(Radius.pill))
+                                        .background(MaterialTheme.dokanColors.warningContainer.copy(alpha = 0.2f))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        text = "স্টক: ${Formatters.formatQty(prod.stockQty, prod.unitName, config.useBengaliNumerals)}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.dokanColors.warning
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(Spacing.xs))
+
+                                IconButton(
+                                    onClick = onNavigateToPurchases,
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ChevronRight,
+                                        contentDescription = "মাল ক্রয়",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==============================================================================
+// 6. SALES HISTORY SECTION WITH RESTYLED ROWS
+// ==============================================================================
+@Composable
+private fun DashboardSalesHistorySection(
+    sales: List<Sale>,
+    saleItems: List<SaleItem>,
+    totalSalesCount: Int,
+    displayedPage: Int,
+    totalSalesPages: Int,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onPageSelected: (Int) -> Unit,
+    config: ShopConfig,
+    onViewReceipt: (Sale) -> Unit,
+    onDeleteSale: (Long) -> Unit,
+    onReturnSale: (Long, Map<Long, Double>) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+        SectionHeader(title = "বিক্রয় হিস্ট্রি ও ইনভয়েস")
+
+        // Search Field
+        DokanTextField(
+            value = searchQuery,
+            onValueChange = onSearchQueryChange,
+            label = "ইনভয়েস বা কাস্টমার খুঁজুন",
+            placeholder = "ইনভয়েস নং বা কাস্টমার খুঁজুন...",
+            leadingIcon = Icons.Default.Search,
+            trailingIcon = if (searchQuery.isNotEmpty()) {
+                {
+                    IconButton(onClick = { onSearchQueryChange("") }) {
+                        Icon(Icons.Default.Clear, contentDescription = "পরিষ্কার", modifier = Modifier.size(18.dp))
+                    }
+                }
+            } else null
+        )
+
+        if (sales.isEmpty()) {
+            EmptyState(
+                icon = Icons.Default.ReceiptLong,
+                title = if (searchQuery.isNotBlank()) "খোঁজার সাথে কোনো বিক্রয় মেলেনি" else "এখনো কোনো বিক্রয় রেকর্ড নেই",
+                message = "নতুন বিক্রয় সম্পন্ন হলে এখানে তালিকা দেখা যাবে।"
+            )
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                sales.forEach { sale ->
+                    val itemsForSale = remember(sale.id, saleItems) {
+                        saleItems.filter { it.saleId == sale.id }
+                    }
+                    SaleRowCard(
+                        sale = sale,
+                        items = itemsForSale,
+                        config = config,
+                        onViewReceipt = { onViewReceipt(sale) },
+                        onDeleteSale = { onDeleteSale(sale.id) },
+                        onReturnSale = { map -> onReturnSale(sale.id, map) }
                     )
+                }
+
+                // Pagination
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = Spacing.sm),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text(
-                        text = "বিক্রয় মূল্য: ${Formatters.formatMoney(product.salePricePoisha, config.useBengaliNumerals, config.currencySymbol)}/${product.unitName}",
-                        style = MaterialTheme.typography.bodySmall,
+                        text = "পৃষ্ঠা ${if (config.useBengaliNumerals) Formatters.toBengaliDigits(displayedPage.toString()) else displayedPage} এর ${if (config.useBengaliNumerals) Formatters.toBengaliDigits(totalSalesPages.toString()) else totalSalesPages} (মোট ${if (config.useBengaliNumerals) Formatters.toBengaliDigits(totalSalesCount.toString()) else totalSalesCount} টি ইনভয়েস)",
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                }
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(StatusDanger.copy(alpha = 0.12f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "স্টক: ${Formatters.formatQty(product.stockQty, product.unitName, config.useBengaliNumerals)}",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = StatusDanger
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                IconButton(
-                    onClick = onRestock,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AddShoppingCart,
-                        contentDescription = "মাল ক্রয়",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    PaginationBar(
+                        currentPage = displayedPage,
+                        totalPages = totalSalesPages,
+                        useBengali = config.useBengaliNumerals,
+                        onPageSelected = onPageSelected
                     )
                 }
             }
@@ -1426,196 +1058,119 @@ fun LowStockItemCard(product: Product, config: ShopConfig, onRestock: () -> Unit
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+// ==============================================================================
+// 7. RESTYLED SALE ROW CARD
+// ==============================================================================
 @Composable
-fun AddExpenseDialog(
-    categories: List<com.example.data.entity.ExpenseCategory>,
-    onDismiss: () -> Unit,
-    onConfirm: (Long, String, Long, String?) -> Unit
-) {
-    var amountText by remember { mutableStateOf("") }
-    var noteText by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf(categories.firstOrNull()) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("নতুন খরচ এন্ট্রি") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = amountText,
-                    onValueChange = { amountText = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text("টাকার পরিমাণ (৳)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Text("ক্যাটাগরি নির্বাচন করুন:", style = MaterialTheme.typography.bodySmall)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(categories) { cat ->
-                        FilterChip(
-                            selected = selectedCategory?.id == cat.id,
-                            onClick = { selectedCategory = cat },
-                            label = { Text(cat.nameBn) }
-                        )
-                    }
-                }
-
-                OutlinedTextField(
-                    value = noteText,
-                    onValueChange = { noteText = it },
-                    label = { Text("বিবরণ / নোট (ঐচ্ছিক)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val amtDouble = amountText.toDoubleOrNull() ?: 0.0
-                    val poisha = (amtDouble * 100).toLong()
-                    if (poisha > 0 && selectedCategory != null) {
-                        onConfirm(selectedCategory!!.id, selectedCategory!!.nameBn, poisha, noteText.ifBlank { null })
-                    }
-                },
-                enabled = (amountText.toDoubleOrNull() ?: 0.0) > 0
-            ) {
-                Text("সংরক্ষণ")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("বাতিল") }
-        }
-    )
-}
-
-@Composable
-fun DashboardSaleItemCard(
+private fun SaleRowCard(
     sale: Sale,
-    items: List<com.example.data.entity.SaleItem>,
+    items: List<SaleItem>,
     config: ShopConfig,
     onViewReceipt: () -> Unit,
-    onDeleteSale: () -> Unit = {},
-    onReturnSale: (Map<Long, Double>) -> Unit = {}
+    onDeleteSale: () -> Unit,
+    onReturnSale: (Map<Long, Double>) -> Unit
 ) {
     val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showReturnDialog by remember { mutableStateOf(false) }
 
-    Card(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 5.dp),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
+            .softShadow(1, RoundedCornerShape(Radius.sm)),
+        shape = RoundedCornerShape(Radius.sm),
+        color = MaterialTheme.colorScheme.surface
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            // Row 1: Invoice No + Date + Status
+        Column(modifier = Modifier.padding(Spacing.md)) {
+            // Line 1: Invoice No + Time on top in labelSmall, Payment Tone Chip on right
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(6.dp)
-                    ) {
-                        Text(
-                            text = sale.invoiceNo,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = Formatters.formatDateTime(sale.saleDate),
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(
+                    text = "${sale.invoiceNo} • ${Formatters.formatDateTime(sale.saleDate)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
                 if (sale.isReturned) {
                     Surface(
-                        color = StatusDanger.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(6.dp)
+                        color = MaterialTheme.dokanColors.dangerContainer.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(Radius.pill)
                     ) {
                         Text(
                             text = "❌ ফেরতকৃত",
-                            fontSize = 11.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = StatusDanger,
+                            color = MaterialTheme.dokanColors.danger,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                         )
                     }
                 } else {
-                    Surface(
-                        color = when (sale.paymentMethod) {
-                            "due" -> StatusDanger.copy(alpha = 0.12f)
-                            "bkash" -> Color(0xFFE2136E).copy(alpha = 0.12f)
-                            "nagad" -> Color(0xFFF7941D).copy(alpha = 0.12f)
-                            else -> StatusSuccess.copy(alpha = 0.12f)
-                        },
-                        shape = RoundedCornerShape(6.dp)
-                    ) {
+                    val (chipColor, textColor, label) = when (sale.paymentMethod) {
+                        "due" -> Triple(MaterialTheme.dokanColors.dangerContainer.copy(alpha = 0.2f), MaterialTheme.dokanColors.danger, "বাকি")
+                        "bkash" -> Triple(Color(0xFFE2136E).copy(alpha = 0.15f), Color(0xFFE2136E), "বিকাশ")
+                        "nagad" -> Triple(Color(0xFFF7941D).copy(alpha = 0.15f), Color(0xFFF7941D), "নগদ")
+                        "bank" -> Triple(MaterialTheme.dokanColors.infoContainer.copy(alpha = 0.2f), MaterialTheme.dokanColors.info, "ব্যাংক")
+                        else -> Triple(MaterialTheme.dokanColors.successContainer.copy(alpha = 0.2f), MaterialTheme.dokanColors.success, "নগদ")
+                    }
+                    Surface(color = chipColor, shape = RoundedCornerShape(Radius.pill)) {
                         Text(
-                            text = when (sale.paymentMethod) {
-                                "due" -> "বাকি"
-                                "bkash" -> "বিকাশ"
-                                "nagad" -> "নগদ"
-                                "bank" -> "ব্যাংক"
-                                else -> "নগদ"
-                            },
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = when (sale.paymentMethod) {
-                                "due" -> StatusDanger
-                                "bkash" -> Color(0xFFE2136E)
-                                "nagad" -> Color(0xFFF7941D)
-                                else -> StatusSuccess
-                            },
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = textColor,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.xs))
 
-            // Row 2: Customer Name
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
+            // Line 2: Customer Name in titleMedium, Total in amountTextStyle(18.sp) on right
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
                     text = sale.customerName ?: "সাধারণ খরিদ্দার",
-                    fontSize = 13.sp,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Text(
+                    text = Formatters.formatMoney(sale.totalPoisha, config.useBengaliNumerals, config.currencySymbol),
+                    style = amountTextStyle(18.sp),
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            if (sale.dueAmountPoisha > 0) {
+                Text(
+                    text = "বাকি: ${Formatters.formatMoney(sale.dueAmountPoisha, config.useBengaliNumerals, config.currencySymbol)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.dokanColors.danger
+                )
+            }
 
-            // Row 3: Products Purchased Summary
+            // Line 3: Items breakdown with expand/collapse
             if (items.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(Spacing.xs))
                 Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.dokanColors.surfaceAlt,
+                    shape = RoundedCornerShape(Radius.xs),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(8.dp)) {
+                    Column(modifier = Modifier.padding(Spacing.sm)) {
                         val displayItems = if (expanded) items else items.take(2)
                         displayItems.forEach { item ->
                             Row(
@@ -1626,13 +1181,13 @@ fun DashboardSaleItemCard(
                             ) {
                                 Text(
                                     text = "• ${item.productName} (${Formatters.formatQty(item.qty, item.unitName, config.useBengaliNumerals)})",
-                                    fontSize = 12.sp,
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.weight(1f)
                                 )
                                 Text(
                                     text = Formatters.formatMoney(item.lineTotalPoisha, config.useBengaliNumerals, config.currencySymbol),
-                                    fontSize = 12.sp,
+                                    style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -1642,7 +1197,7 @@ fun DashboardSaleItemCard(
                         if (items.size > 2) {
                             Text(
                                 text = if (expanded) "সংক্ষেপ করুন ▲" else "+ আরও ${items.size - 2} টি পণ্য দেখুন ▼",
-                                fontSize = 11.sp,
+                                style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier
@@ -1652,136 +1207,91 @@ fun DashboardSaleItemCard(
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
             }
 
-            // Row 4: Total, Paid, Due & Action
+            Spacer(modifier = Modifier.height(Spacing.sm))
+
+            // Action Buttons Row (WhatsApp, Return, Receipt, Delete)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        Text(
-                            text = "মোট: ",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = Formatters.formatMoney(sale.totalPoisha, config.useBengaliNumerals, config.currencySymbol),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    if (sale.dueAmountPoisha > 0) {
-                        Text(
-                            text = "বাকি: ${Formatters.formatMoney(sale.dueAmountPoisha, config.useBengaliNumerals, config.currencySymbol)}",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = StatusDanger
-                        )
-                    }
+                IconButton(
+                    onClick = {
+                        val bmp = InvoiceImageHelper.generateSaleInvoiceBitmap(context, config, sale, items)
+                        val uri = InvoiceImageHelper.saveBitmapToCache(context, bmp, "invoice_${sale.invoiceNo}")
+                        val caption = InvoiceImageHelper.buildSaleInvoiceCaption(config, sale)
+                        InvoiceImageHelper.shareToWhatsApp(context, uri, sale.customerName, caption)
+                    },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = "WhatsApp ইনভয়েস ছবি",
+                        tint = Color(0xFF25D366),
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Quick WhatsApp Invoice Image button
-                    IconButton(
-                        onClick = {
-                            val bmp = InvoiceImageHelper.generateSaleInvoiceBitmap(context, config, sale, items)
-                            val uri = InvoiceImageHelper.saveBitmapToCache(context, bmp, "invoice_${sale.invoiceNo}")
-                            val caption = InvoiceImageHelper.buildSaleInvoiceCaption(config, sale)
-                            InvoiceImageHelper.shareToWhatsApp(context, uri, sale.customerName, caption)
-                        },
-                        modifier = Modifier.size(34.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Share,
-                            contentDescription = "WhatsApp ইনভয়েস ছবি",
-                            tint = Color(0xFF25D366),
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+                Spacer(modifier = Modifier.width(Spacing.xs))
 
-                    Spacer(modifier = Modifier.width(4.dp))
-
-                    // Return Sale Button (if not already returned)
-                    if (!sale.isReturned) {
-                        OutlinedButton(
-                            onClick = { showReturnDialog = true },
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                            modifier = Modifier.height(34.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFD97706)),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD97706).copy(alpha = 0.7f))
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AssignmentReturn,
-                                contentDescription = "পণ্য ফেরত",
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("ফেরত", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                        }
-
-                        Spacer(modifier = Modifier.width(4.dp))
-                    }
-
+                if (!sale.isReturned) {
                     OutlinedButton(
-                        onClick = onViewReceipt,
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        modifier = Modifier.height(34.dp)
+                        onClick = { showReturnDialog = true },
+                        shape = RoundedCornerShape(Radius.xs),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        modifier = Modifier.height(30.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.dokanColors.warning),
+                        border = BorderStroke(1.dp, MaterialTheme.dokanColors.warning.copy(alpha = 0.5f))
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Receipt,
-                            contentDescription = "রসিদ",
-                            modifier = Modifier.size(16.dp)
-                        )
+                        Icon(Icons.Default.AssignmentReturn, contentDescription = "পণ্য ফেরত", modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("রসিদ দেখুন", fontSize = 12.sp)
+                        Text("ফেরত", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                     }
 
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                }
 
-                    IconButton(
-                        onClick = { showDeleteConfirm = true },
-                        modifier = Modifier.size(34.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DeleteOutline,
-                            contentDescription = "মুছুন",
-                            tint = StatusDanger.copy(alpha = 0.8f),
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+                OutlinedButton(
+                    onClick = onViewReceipt,
+                    shape = RoundedCornerShape(Radius.xs),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                    modifier = Modifier.height(30.dp)
+                ) {
+                    Icon(Icons.Default.Receipt, contentDescription = "রসিদ", modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("রসিদ", style = MaterialTheme.typography.labelSmall)
+                }
+
+                Spacer(modifier = Modifier.width(Spacing.xs))
+
+                IconButton(
+                    onClick = { showDeleteConfirm = true },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DeleteOutline,
+                        contentDescription = "মুছুন",
+                        tint = MaterialTheme.dokanColors.danger.copy(alpha = 0.8f),
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
         }
     }
 
     if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("বিক্রয় রেকর্ড মুছুন") },
-            text = { Text("ইনভয়েস নং ${sale.invoiceNo}-এর রেকর্ডটি মুছে ফেলতে চান?") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showDeleteConfirm = false
-                        onDeleteSale()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = StatusDanger)
-                ) {
-                    Text("মুছুন")
-                }
+        DokanConfirmDialog(
+            title = "বিক্রয় রেকর্ড মুছুন",
+            message = "ইনভয়েস নং ${sale.invoiceNo}-এর রেকর্ডটি মুছে ফেলতে চান?",
+            confirmLabel = "মুছুন",
+            onConfirm = {
+                showDeleteConfirm = false
+                onDeleteSale()
             },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("বাতিল")
-                }
-            }
+            onDismiss = { showDeleteConfirm = false },
+            isDestructive = true
         )
     }
 
@@ -1799,6 +1309,86 @@ fun DashboardSaleItemCard(
     }
 }
 
+// ==============================================================================
+// 8. ADD EXPENSE DIALOG
+// ==============================================================================
+@Composable
+fun AddExpenseDialog(
+    categories: List<com.example.data.entity.ExpenseCategory>,
+    onDismiss: () -> Unit,
+    onConfirm: (Long, String, Long, String?) -> Unit
+) {
+    var amountText by remember { mutableStateOf("") }
+    var noteText by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf(categories.firstOrNull()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(Radius.lg),
+        title = {
+            Text(
+                text = "নতুন খরচ এন্ট্রি",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                DokanTextField(
+                    value = amountText,
+                    onValueChange = { amountText = it.filter { c -> c.isDigit() || c == '.' } },
+                    label = "টাকার পরিমাণ (৳)",
+                    singleLine = true
+                )
+
+                Text("ক্যাটাগরি নির্বাচন করুন:", style = MaterialTheme.typography.labelSmall)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    items(categories) { cat ->
+                        val isSelected = selectedCategory?.id == cat.id
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { selectedCategory = cat },
+                            label = { Text(cat.nameBn) },
+                            shape = RoundedCornerShape(Radius.pill)
+                        )
+                    }
+                }
+
+                DokanTextField(
+                    value = noteText,
+                    onValueChange = { noteText = it },
+                    label = "বিবরণ / নোট (ঐচ্ছিক)",
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val amtDouble = amountText.toDoubleOrNull() ?: 0.0
+                    val poisha = (amtDouble * 100).toLong()
+                    if (poisha > 0 && selectedCategory != null) {
+                        onConfirm(selectedCategory!!.id, selectedCategory!!.nameBn, poisha, noteText.ifBlank { null })
+                    }
+                },
+                shape = RoundedCornerShape(Radius.sm),
+                enabled = (amountText.toDoubleOrNull() ?: 0.0) > 0,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Text("সংরক্ষণ", style = MaterialTheme.typography.labelLarge)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("বাতিল", style = MaterialTheme.typography.labelLarge)
+            }
+        }
+    )
+}
+
+// ==============================================================================
+// 9. PAGINATION BAR
+// ==============================================================================
 @Composable
 fun PaginationBar(
     currentPage: Int,
@@ -1809,26 +1399,20 @@ fun PaginationBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = Spacing.lg, vertical = Spacing.xs),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Prev button
         FilledTonalIconButton(
             onClick = { if (currentPage > 1) onPageSelected(currentPage - 1) },
             enabled = currentPage > 1,
             modifier = Modifier.size(36.dp)
         ) {
-            Icon(
-                Icons.Default.ChevronLeft,
-                contentDescription = "আগের পৃষ্ঠা",
-                modifier = Modifier.size(20.dp)
-            )
+            Icon(Icons.Default.ChevronLeft, contentDescription = "আগের পৃষ্ঠা", modifier = Modifier.size(20.dp))
         }
 
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(Spacing.sm))
 
-        // Page buttons (display up to 5 surrounding pages)
         val startPage = (currentPage - 2).coerceAtLeast(1)
         val endPage = (startPage + 4).coerceAtMost(totalPages)
 
@@ -1837,17 +1421,17 @@ fun PaginationBar(
             Box(
                 modifier = Modifier
                     .size(36.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(Radius.xs))
                     .background(
                         if (isSelected) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceVariant
+                        else MaterialTheme.dokanColors.surfaceAlt
                     )
                     .clickable { onPageSelected(p) },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = if (useBengali) Formatters.toBengaliDigits(p.toString()) else p.toString(),
-                    fontSize = 13.sp,
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                     color = if (isSelected) MaterialTheme.colorScheme.onPrimary
                     else MaterialTheme.colorScheme.onSurfaceVariant
@@ -1856,17 +1440,12 @@ fun PaginationBar(
             Spacer(modifier = Modifier.width(6.dp))
         }
 
-        // Next button
         FilledTonalIconButton(
             onClick = { if (currentPage < totalPages) onPageSelected(currentPage + 1) },
             enabled = currentPage < totalPages,
             modifier = Modifier.size(36.dp)
         ) {
-            Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = "পরের পৃষ্ঠা",
-                modifier = Modifier.size(20.dp)
-            )
+            Icon(Icons.Default.ChevronRight, contentDescription = "পরের পৃষ্ঠা", modifier = Modifier.size(20.dp))
         }
     }
 }
