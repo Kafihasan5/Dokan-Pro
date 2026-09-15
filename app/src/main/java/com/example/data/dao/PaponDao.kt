@@ -95,6 +95,15 @@ interface PaponDao {
     @Query("UPDATE sales SET isReturned = 1 WHERE id = :saleId")
     suspend fun markSaleAsReturned(saleId: Long)
 
+    @Update
+    suspend fun updateSale(sale: Sale)
+
+    @Update
+    suspend fun updateSaleItem(item: SaleItem)
+
+    @Query("DELETE FROM sale_items WHERE id = :itemId")
+    suspend fun deleteSaleItemById(itemId: Long)
+
     // --- CUSTOMERS & LEDGER ---
     @Query("SELECT * FROM customers WHERE isActive = 1 ORDER BY name ASC")
     fun getAllCustomers(): Flow<List<Customer>>

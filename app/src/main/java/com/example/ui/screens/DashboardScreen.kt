@@ -34,6 +34,7 @@ import com.example.ui.AppScreen
 import com.example.ui.PaponViewModel
 import com.example.ui.ShopConfig
 import com.example.ui.components.TopHeader
+import com.example.ui.components.ProductReturnDialog
 import com.example.ui.theme.StatusDanger
 import com.example.ui.theme.StatusSuccess
 import com.example.ui.theme.StatusWarning
@@ -782,7 +783,8 @@ fun DashboardScreen(
                     items = itemsForSale,
                     config = config,
                     onViewReceipt = { viewModel.viewSaleReceipt(sale) },
-                    onDeleteSale = { viewModel.deleteSale(sale.id) }
+                    onDeleteSale = { viewModel.deleteSale(sale.id) },
+                    onReturnSale = { returnedMap -> viewModel.returnSaleItems(sale.id, returnedMap) }
                 )
             }
 
@@ -1121,11 +1123,13 @@ fun DashboardSaleItemCard(
     items: List<com.example.data.entity.SaleItem>,
     config: ShopConfig,
     onViewReceipt: () -> Unit,
-    onDeleteSale: () -> Unit = {}
+    onDeleteSale: () -> Unit = {},
+    onReturnSale: (Map<Long, Double>) -> Unit = {}
 ) {
     val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showReturnDialog by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier
@@ -1165,33 +1169,48 @@ fun DashboardSaleItemCard(
                     )
                 }
 
-                Surface(
-                    color = when (sale.paymentMethod) {
-                        "due" -> StatusDanger.copy(alpha = 0.12f)
-                        "bkash" -> Color(0xFFE2136E).copy(alpha = 0.12f)
-                        "nagad" -> Color(0xFFF7941D).copy(alpha = 0.12f)
-                        else -> StatusSuccess.copy(alpha = 0.12f)
-                    },
-                    shape = RoundedCornerShape(6.dp)
-                ) {
-                    Text(
-                        text = when (sale.paymentMethod) {
-                            "due" -> "বাকি"
-                            "bkash" -> "বিকাশ"
-                            "nagad" -> "নগদ"
-                            "bank" -> "ব্যাংক"
-                            else -> "নগদ"
-                        },
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
+                if (sale.isReturned) {
+                    Surface(
+                        color = StatusDanger.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = "❌ ফেরতকৃত",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = StatusDanger,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                } else {
+                    Surface(
                         color = when (sale.paymentMethod) {
-                            "due" -> StatusDanger
-                            "bkash" -> Color(0xFFE2136E)
-                            "nagad" -> Color(0xFFF7941D)
-                            else -> StatusSuccess
+                            "due" -> StatusDanger.copy(alpha = 0.12f)
+                            "bkash" -> Color(0xFFE2136E).copy(alpha = 0.12f)
+                            "nagad" -> Color(0xFFF7941D).copy(alpha = 0.12f)
+                            else -> StatusSuccess.copy(alpha = 0.12f)
                         },
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                    )
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = when (sale.paymentMethod) {
+                                "due" -> "বাকি"
+                                "bkash" -> "বিকাশ"
+                                "nagad" -> "নগদ"
+                                "bank" -> "ব্যাংক"
+                                else -> "নগদ"
+                            },
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = when (sale.paymentMethod) {
+                                "due" -> StatusDanger
+                                "bkash" -> Color(0xFFE2136E)
+                                "nagad" -> Color(0xFFF7941D)
+                                else -> StatusSuccess
+                            },
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
                 }
             }
 
@@ -1314,6 +1333,28 @@ fun DashboardSaleItemCard(
 
                     Spacer(modifier = Modifier.width(4.dp))
 
+                    // Return Sale Button (if not already returned)
+                    if (!sale.isReturned) {
+                        OutlinedButton(
+                            onClick = { showReturnDialog = true },
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.height(34.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFD97706)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD97706).copy(alpha = 0.7f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AssignmentReturn,
+                                contentDescription = "পণ্য ফেরত",
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("ফেরত", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+
                     OutlinedButton(
                         onClick = onViewReceipt,
                         shape = RoundedCornerShape(8.dp),
@@ -1367,6 +1408,19 @@ fun DashboardSaleItemCard(
                 TextButton(onClick = { showDeleteConfirm = false }) {
                     Text("বাতিল")
                 }
+            }
+        )
+    }
+
+    if (showReturnDialog) {
+        ProductReturnDialog(
+            sale = sale,
+            items = items,
+            config = config,
+            onDismiss = { showReturnDialog = false },
+            onConfirmReturn = { returnedMap ->
+                showReturnDialog = false
+                onReturnSale(returnedMap)
             }
         )
     }

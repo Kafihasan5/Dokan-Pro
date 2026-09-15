@@ -31,6 +31,7 @@ import com.example.ui.PaponViewModel
 import com.example.ui.ShopConfig
 import com.example.ui.theme.StatusDanger
 import com.example.ui.theme.StatusSuccess
+import com.example.ui.components.ProductReturnDialog
 import com.example.util.Formatters
 import com.example.util.InvoiceImageHelper
 
@@ -68,7 +69,8 @@ fun ReceiptScreen(
     }
 
     var showImagePreviewDialog by remember { mutableStateOf(false) }
-    var cachedBitmap by remember(currentSale.id, saleItems.size) { mutableStateOf<Bitmap?>(null) }
+    var showReturnDialog by remember { mutableStateOf(false) }
+    var cachedBitmap by remember(currentSale.id, saleItems.size, currentSale.isReturned) { mutableStateOf<Bitmap?>(null) }
 
     fun getOrGenerateBitmap(): Bitmap {
         val existing = cachedBitmap
@@ -115,17 +117,32 @@ fun ReceiptScreen(
         contentPadding = PaddingValues(bottom = 90.dp)
     ) {
         item {
-            // Success Badge
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(30.dp))
-                    .background(StatusSuccess.copy(alpha = 0.15f))
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = StatusSuccess, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("বিক্রয় সফলভাবে সংরক্ষিত হয়েছে!", color = StatusSuccess, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            // Status Badge
+            if (currentSale.isReturned) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(30.dp))
+                        .background(StatusDanger.copy(alpha = 0.15f))
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Cancel, contentDescription = null, tint = StatusDanger, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("এই বিক্রয়টি ফেরত (Returned) হিসেবে চিহ্নিত!", color = StatusDanger, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(30.dp))
+                        .background(StatusSuccess.copy(alpha = 0.15f))
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = StatusSuccess, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("বিক্রয় সফলভাবে সংরক্ষিত হয়েছে!", color = StatusSuccess, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
                 }
             }
 
@@ -423,9 +440,30 @@ fun ReceiptScreen(
             }
         }
 
+        // Return Sale Action Button (If not already returned)
+        if (!currentSale.isReturned) {
+            item {
+                Spacer(modifier = Modifier.height(14.dp))
+
+                OutlinedButton(
+                    onClick = { showReturnDialog = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFD97706)),
+                    border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFFD97706))
+                ) {
+                    Icon(Icons.Default.AssignmentReturn, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("পণ্য ফেরত / রিটার্ন নিন", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+
         // Navigation Buttons
         item {
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -543,5 +581,21 @@ fun ReceiptScreen(
                 }
             }
         }
+    }
+
+    // PRODUCT RETURN DIALOG
+    if (showReturnDialog) {
+        ProductReturnDialog(
+            sale = currentSale,
+            items = saleItems,
+            config = config,
+            onDismiss = { showReturnDialog = false },
+            onConfirmReturn = { returnedMap ->
+                showReturnDialog = false
+                viewModel.returnSaleItems(currentSale.id, returnedMap) {
+                    cachedBitmap = null
+                }
+            }
+        )
     }
 }

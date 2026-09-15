@@ -137,22 +137,151 @@ class PaponRepository(private val dao: PaponDao) {
     }
 
 
-    suspend fun returnSale(saleId: Long) = withContext(Dispatchers.IO) {
-        dao.markSaleAsReturned(saleId)
-        val items = dao.getSaleItems(saleId)
-        val restocked = mutableListOf<Product>()
-        for (item in items) {
-            if (item.productId > 0) {
-                dao.adjustProductStock(item.productId, item.qty) // restock
-                dao.getProductById(item.productId)?.let { restocked.add(it) }
+    /**
+     * Process return of sale items (full or partial return)
+     * @param saleId The ID of the sale
+     * @param returnedItems Map of saleItemId to returned quantity (Double)
+     */
+    suspend fun returnSaleItems(
+        saleId: Long,
+        returnedItems: Map<Long, Double>
+    ): Boolean = withContext(Dispatchers.IO) {
+        val sale = dao.getSaleById(saleId) ?: return@withContext false
+        if (sale.isReturned) return@withContext false
+        val allItems = dao.getSaleItems(saleId)
+        if (allItems.isEmpty() || returnedItems.isEmpty()) return@withContext false
+
+        val restockedProducts = mutableListOf<Product>()
+        var totalRefundPoisha = 0L
+        var allItemsFullyReturned = true
+        val remainingItemsAfterReturn = mutableListOf<SaleItem>()
+
+        for (item in allItems) {
+            val returnQty = (returnedItems[item.id] ?: 0.0).coerceAtMost(item.qty)
+            if (returnQty > 0.0) {
+                // 1. Restock product
+                if (item.productId > 0) {
+                    dao.adjustProductStock(item.productId, returnQty)
+                    dao.insertStockAdjustment(
+                        StockAdjustment(
+                            productId = item.productId,
+                            productName = item.productName,
+                            qtyChange = returnQty,
+                            reason = "পণ্য ফেরত",
+                            note = "ইনভয়েস: ${sale.invoiceNo} (ফেরত: ${returnQty} ${item.unitName})"
+                        )
+                    )
+                    dao.getProductById(item.productId)?.let { restockedProducts.add(it) }
+                }
+
+                val refundForThisItem = (returnQty * item.unitPricePoisha).toLong()
+                totalRefundPoisha += refundForThisItem
+
+                val remainingQty = item.qty - returnQty
+                if (remainingQty > 0.001) {
+                    allItemsFullyReturned = false
+                    val updatedItem = item.copy(
+                        qty = remainingQty,
+                        lineTotalPoisha = (remainingQty * item.unitPricePoisha).toLong()
+                    )
+                    dao.updateSaleItem(updatedItem)
+                    remainingItemsAfterReturn.add(updatedItem)
+                } else {
+                    // Fully returned this item
+                    dao.deleteSaleItemById(item.id)
+                }
+            } else {
+                allItemsFullyReturned = false
+                remainingItemsAfterReturn.add(item)
             }
         }
-        dao.getSaleById(saleId)?.let { sale ->
+
+        // Check if full invoice was returned
+        val isFullInvoiceReturn = allItemsFullyReturned || remainingItemsAfterReturn.isEmpty()
+
+        if (isFullInvoiceReturn) {
+            // Mark sale as returned
+            val updatedSale = sale.copy(
+                isReturned = true,
+                note = (sale.note?.let { "$it | " } ?: "") + "সম্পূর্ণ ফেরতকৃত"
+            )
+            dao.updateSale(updatedSale)
+
+            // If customer had due, adjust customer ledger
+            if (sale.customerId != null && sale.dueAmountPoisha > 0) {
+                val ledger = CustomerLedger(
+                    customerId = sale.customerId,
+                    refType = "sale_return",
+                    refId = saleId,
+                    debitPoisha = 0,
+                    creditPoisha = sale.dueAmountPoisha,
+                    note = "বিক্রয় ফেরত সমন্বয়: ${sale.invoiceNo}"
+                )
+                val ledgerId = dao.insertCustomerLedger(ledger)
+                scope.launch {
+                    supabaseSync.syncCustomerLedger(ledger.copy(id = ledgerId))
+                }
+            }
+
             scope.launch {
-                supabaseSync.syncSaleReturn(sale, restocked)
+                supabaseSync.syncSaleReturn(updatedSale, restockedProducts)
+            }
+        } else {
+            // Partial Return: Update sale totals
+            val newSubtotal = remainingItemsAfterReturn.sumOf { it.lineTotalPoisha }
+            val newTotal = (newSubtotal - sale.discountPoisha + sale.vatPoisha).coerceAtLeast(0L)
+
+            val newDue: Long
+            val newPaid: Long
+            if (sale.dueAmountPoisha > 0) {
+                val dueReduction = totalRefundPoisha.coerceAtMost(sale.dueAmountPoisha)
+                newDue = (sale.dueAmountPoisha - dueReduction).coerceAtLeast(0L)
+                newPaid = sale.paidAmountPoisha
+
+                // Adjust customer ledger for due reduction
+                if (sale.customerId != null && dueReduction > 0) {
+                    val ledger = CustomerLedger(
+                        customerId = sale.customerId,
+                        refType = "sale_return",
+                        refId = saleId,
+                        debitPoisha = 0,
+                        creditPoisha = dueReduction,
+                        note = "আংশিক পণ্য ফেরত সমন্বয়: ${sale.invoiceNo}"
+                    )
+                    val ledgerId = dao.insertCustomerLedger(ledger)
+                    scope.launch {
+                        supabaseSync.syncCustomerLedger(ledger.copy(id = ledgerId))
+                    }
+                }
+            } else {
+                newDue = 0L
+                newPaid = newTotal
+            }
+
+            val updatedSale = sale.copy(
+                subtotalPoisha = newSubtotal,
+                totalPoisha = newTotal,
+                paidAmountPoisha = newPaid,
+                dueAmountPoisha = newDue,
+                note = (sale.note?.let { "$it | " } ?: "") + "আংশিক ফেরত"
+            )
+            dao.updateSale(updatedSale)
+
+            scope.launch {
+                supabaseSync.syncSale(updatedSale, remainingItemsAfterReturn, restockedProducts)
             }
         }
+
+        true
     }
+
+    suspend fun returnFullSale(saleId: Long): Boolean = withContext(Dispatchers.IO) {
+        val items = dao.getSaleItems(saleId)
+        val returnMap = items.associate { it.id to it.qty }
+        returnSaleItems(saleId, returnMap)
+    }
+
+    suspend fun returnSale(saleId: Long) = returnFullSale(saleId)
 
     suspend fun deleteSale(saleId: Long) = withContext(Dispatchers.IO) {
         dao.deleteSaleById(saleId)
