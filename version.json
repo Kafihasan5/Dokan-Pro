@@ -1,6 +1,6 @@
 {
-  "versionCode": 14,
-  "versionName": "1.0.14",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v14/app-debug.apk",
-  "releaseNotes": "Restore clean and user-favored dashboard design layout"
+  "versionCode": 15,
+  "versionName": "1.0.15",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v15/app-debug.apk",
+  "releaseNotes": "Replace dashboard time filter chips with clean dropdown selector menu"
 }
