@@ -122,9 +122,6 @@ object AppUpdater {
                                 downloadUrl = downloadUrl,
                                 releaseNotes = releaseNotes
                             )
-                        } else if (remoteVersionCode > 0 && !isNewerVersion(remoteVersionCode, remoteVersionName)) {
-                            // Up to date according to version.json
-                            return@withContext null
                         }
                     }
                 }
