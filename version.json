@@ -1,6 +1,6 @@
 {
-  "versionCode": 24,
-  "versionName": "1.0.24",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v24/app-debug.apk",
-  "releaseNotes": "fix: resolve compose theme border token, animation specs and compiler issues"
+  "versionCode": 25,
+  "versionName": "1.0.25",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v25/app-debug.apk",
+  "releaseNotes": "feat: display dedicated Product Profit card with net surplus subtitle on Dashboard"
 }
