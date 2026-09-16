@@ -1,6 +1,6 @@
 {
-  "versionCode": 36,
-  "versionName": "1.0.36",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v36/app-debug.apk",
-  "releaseNotes": "fix(pos): add missing ime import for window insets in PosScreen"
+  "versionCode": 38,
+  "versionName": "1.0.38",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v38/app-debug.apk",
+  "releaseNotes": "fix(build): resolve AppScreen import and licenseInfo status check"
 }
