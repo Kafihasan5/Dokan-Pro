@@ -1,6 +1,6 @@
 {
-  "versionCode": 41,
-  "versionName": "1.0.41",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v41/app-debug.apk",
-  "releaseNotes": "fix(build): resolve Notifications import, delay import, and Composable color in TopHeader"
+  "versionCode": 44,
+  "versionName": "1.0.44",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v44/app-debug.apk",
+  "releaseNotes": "fix(build): pass non-null phone String to Supplier constructor in QuickAddSupplierDialog"
 }
