@@ -696,7 +696,7 @@ fun SettingsScreen(
                     SectionHeaderWithIcon(title = "লাইভ সাপোর্ট ও চ্যাট", icon = Icons.Default.SupportAgent)
 
                     Text(
-                        text = "অ্যাপ ব্যবহারের যেকোনো সমস্যা বা সহায়তার জন্য আমাদের অফিসিয়াল টেলিগ্রাম বটের মাধ্যমে সরাসরি চ্যাট করুন। প্রতিটি ডিভাইসের জন্য ডেডিকেটেড সাপোর্ট দেওয়া হয়।",
+                        text = "অ্যাপ ব্যবহারের যেকোনো সমস্যা বা সহায়তার জন্য আমাদের অফিসিয়াল লাইভ সাপোর্টে সরাসরি চ্যাট করুন। প্রতিটি দোকানের জন্য সার্বক্ষণিক ডেডিকেটেড সাপোর্ট প্রদান করা হয়।",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

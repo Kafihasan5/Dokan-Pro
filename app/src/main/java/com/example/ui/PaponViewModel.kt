@@ -256,7 +256,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
     fun syncSupportMessages() {
         viewModelScope.launch {
-            TelegramSupportManager.syncMessagesFromSupabase(getApplication(), getDeviceId())
+            TelegramSupportManager.syncAllMessages(getApplication(), getDeviceId())
         }
     }
 

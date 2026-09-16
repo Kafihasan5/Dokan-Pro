@@ -1,11 +1,8 @@
 package com.example.ui.screens
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,7 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -36,12 +32,8 @@ import android.view.HapticFeedbackConstants
 import com.example.data.support.SupportChatMessage
 import com.example.ui.PaponViewModel
 import com.example.ui.ShopConfig
-import com.example.ui.components.DokanPrimaryButton
-import com.example.ui.components.DokanSecondaryButton
 import com.example.ui.theme.*
-import com.example.util.Formatters
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -54,19 +46,13 @@ fun LiveSupportScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val view = LocalView.current
-    val scope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
 
     val messages by viewModel.supportMessages.collectAsState()
     val isSyncing by viewModel.isSupportSyncing.collectAsState()
-    val configuredChatId by viewModel.configuredSupportChatId.collectAsState()
 
     var inputText by remember { mutableStateOf("") }
-    var showChatIdDialog by remember { mutableStateOf(false) }
-    var tempChatIdInput by remember(configuredChatId) { mutableStateOf(configuredChatId) }
-
     val listState = rememberLazyListState()
 
     // Auto-scroll to bottom when new messages arrive
@@ -76,11 +62,12 @@ fun LiveSupportScreen(
         }
     }
 
-    // Periodic sync while on this screen
+    // Periodic sync every 3s while active on this screen for instant incoming replies
     LaunchedEffect(Unit) {
+        viewModel.syncSupportMessages()
         while (true) {
+            delay(3000)
             viewModel.syncSupportMessages()
-            delay(10000) // Poll every 10s for incoming replies
         }
     }
 
@@ -88,14 +75,8 @@ fun LiveSupportScreen(
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
 
-        if (configuredChatId.isBlank()) {
-            showChatIdDialog = true
-            return
-        }
-
         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
         inputText = ""
-        keyboardController?.hide()
 
         viewModel.sendSupportMessage(trimmed) { success, errMsg ->
             if (!success && errMsg != null) {
@@ -104,10 +85,11 @@ fun LiveSupportScreen(
         }
     }
 
+    val isKeyboardOpen = WindowInsets.ime.asPaddingValues().calculateBottomPadding() > 0.dp
+
     Scaffold(
-        modifier = modifier
-            .fillMaxSize()
-            .imePadding(),
+        modifier = modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             Surface(
                 color = MaterialTheme.colorScheme.surface,
@@ -120,108 +102,134 @@ fun LiveSupportScreen(
                         .fillMaxWidth()
                         .statusBarsPadding()
                         .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        IconButton(onClick = onBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "পিছনে যান"
-                            )
-                        }
-
-                        // Avatar with active green indicator
-                        Box {
-                            Box(
-                                modifier = Modifier
-                                    .size(42.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        Brush.linearGradient(
-                                            listOf(
-                                                MaterialTheme.colorScheme.primary,
-                                                MaterialTheme.colorScheme.tertiary
-                                            )
-                                        )
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.SupportAgent,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                            // Online Dot
-                            Box(
-                                modifier = Modifier
-                                    .size(12.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.dokanColors.success)
-                                    .align(Alignment.BottomEnd)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(Spacing.sm))
-
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "দোকান প্রো লাইভ সাপোর্ট",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Icon(
-                                    imageVector = Icons.Default.Verified,
-                                    contentDescription = "অফিসিয়াল",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                            Text(
-                                text = if (isSyncing) "মেসেজ সিঙ্ক হচ্ছে..." else "টেলিগ্রাম বট লাইভ কানেক্টেড",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.dokanColors.success
-                            )
-                        }
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "পিছনে যান"
+                        )
                     }
 
-                    // Top Action: Direct WhatsApp / Call fallback
-                    Row {
-                        IconButton(
-                            onClick = {
-                                try {
-                                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                                        data = Uri.parse("https://wa.me/8801700000000") // Fallback official link
-                                    }
-                                    context.startActivity(intent)
-                                } catch (_: Exception) {
-                                    viewModel.showToast("হোয়াটসঅ্যাপ অ্যাপ খুঁজে পাওয়া যায়নি")
-                                }
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Chat,
-                                contentDescription = "হোয়াটসঅ্যাপ সাপোর্ট",
-                                tint = MaterialTheme.dokanColors.success
-                            )
-                        }
+                    Spacer(modifier = Modifier.width(Spacing.xs))
 
-                        IconButton(
-                            onClick = { showChatIdDialog = true }
+                    // Avatar with active green indicator
+                    Box {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(
+                                            MaterialTheme.colorScheme.primary,
+                                            MaterialTheme.colorScheme.tertiary
+                                        )
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "টেলিগ্রাম গ্রুপ সেটিংস",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                imageVector = Icons.Default.SupportAgent,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
                             )
                         }
+                        // Online Dot
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.dokanColors.success)
+                                .align(Alignment.BottomEnd)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(Spacing.sm))
+
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "দোকান প্রো লাইভ সাপোর্ট",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.Default.Verified,
+                                contentDescription = "অফিসিয়াল",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Text(
+                            text = if (isSyncing) "মেসেজ সিঙ্ক হচ্ছে..." else "অনলাইন সাপোর্ট অ্যাক্টিভ",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.dokanColors.success
+                        )
+                    }
+                }
+            }
+        },
+        bottomBar = {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .imePadding(),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp,
+                shadowElevation = 8.dp,
+                border = BorderStroke(1.dp, MaterialTheme.dokanColors.border)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.md, vertical = Spacing.sm)
+                        .then(
+                            if (isKeyboardOpen) Modifier
+                            else Modifier.navigationBarsPadding()
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    OutlinedTextField(
+                        value = inputText,
+                        onValueChange = { inputText = it },
+                        modifier = Modifier
+                            .weight(1f)
+                            .defaultMinSize(minHeight = 48.dp),
+                        placeholder = {
+                            Text(
+                                "আপনার সমস্যার কথা লিখুন...",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        },
+                        shape = RoundedCornerShape(Radius.pill),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                        ),
+                        maxLines = 4
+                    )
+
+                    IconButton(
+                        onClick = { handleSend(inputText) },
+                        enabled = inputText.isNotBlank(),
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (inputText.isNotBlank()) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "মেসেজ পাঠান",
+                            tint = if (inputText.isNotBlank()) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -233,49 +241,6 @@ fun LiveSupportScreen(
                 .padding(innerPadding)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            // If Group Chat ID is not configured yet, show a helpful alert banner
-            if (configuredChatId.isBlank()) {
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.md, vertical = Spacing.xs)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(Spacing.sm),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(Spacing.xs))
-                            Text(
-                                text = "টেলিগ্রাম গ্রুপ আইডি সেট করুন",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        TextButton(
-                            onClick = { showChatIdDialog = true },
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            Text("সেট করুন", style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                }
-            }
-
             // Quick Help Suggestion Chips
             val quickChips = listOf(
                 "🔑 লাইসেন্স অ্যাক্টিভেশন সমস্যা",
@@ -346,7 +311,7 @@ fun LiveSupportScreen(
                         )
                         Spacer(modifier = Modifier.height(Spacing.xs))
                         Text(
-                            text = "আপনার যেকোনো প্রশ্ন, সমস্যা বা সহায়তার জন্য মেসেজ লিখুন। আপনার জন্য টেলিগ্রামে ডেডিকেটেড সাপোর্ট টপিক তৈরি হবে এবং দ্রুত সমাধান প্রদান করা হবে।",
+                            text = "আপনার যেকোনো প্রশ্ন, সমস্যা বা সহায়তার জন্য মেসেজ লিখুন। আমাদের সাপোর্ট প্রতিনিধি দ্রুত আপনার প্রশ্নের উত্তর প্রদান করবেন।",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
@@ -367,116 +332,7 @@ fun LiveSupportScreen(
                     }
                 }
             }
-
-            // Bottom Message Input Bar
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp,
-                shadowElevation = 8.dp,
-                border = BorderStroke(1.dp, MaterialTheme.dokanColors.border)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.md, vertical = Spacing.sm)
-                        .navigationBarsPadding(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                ) {
-                    OutlinedTextField(
-                        value = inputText,
-                        onValueChange = { inputText = it },
-                        modifier = Modifier
-                            .weight(1f)
-                            .defaultMinSize(minHeight = 48.dp),
-                        placeholder = {
-                            Text(
-                                "আপনার সমস্যার কথা লিখুন...",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        },
-                        shape = RoundedCornerShape(Radius.pill),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
-                        ),
-                        maxLines = 4
-                    )
-
-                    IconButton(
-                        onClick = { handleSend(inputText) },
-                        enabled = inputText.isNotBlank(),
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (inputText.isNotBlank()) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.surfaceVariant
-                            )
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "মেসেজ পাঠান",
-                            tint = if (inputText.isNotBlank()) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
         }
-    }
-
-    // Config Support Group ID Dialog
-    if (showChatIdDialog) {
-        AlertDialog(
-            onDismissRequest = { showChatIdDialog = false },
-            title = {
-                Text(
-                    text = "টেলিগ্রাম সাপোর্ট গ্রুপ কনফিগারেশন",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    Text(
-                        text = "আপনার যে টেলিগ্রাম গ্রুপে সাপোর্ট মেসেজ যাবে এবং টপিক তৈরি হবে, সেই গ্রুপের Chat ID (যেমন: -1002345678901) এখানে দিন:",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    OutlinedTextField(
-                        value = tempChatIdInput,
-                        onValueChange = { tempChatIdInput = it.trim() },
-                        label = { Text("Telegram Group Chat ID") },
-                        placeholder = { Text("-100xxxxxxxxxx") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Text(
-                        text = "বট: @dokanpro_bot\nটোকেন: 8677361782:AAFs...advY",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            },
-            confirmButton = {
-                DokanPrimaryButton(
-                    text = "সংরক্ষণ করুন",
-                    onClick = {
-                        viewModel.setSupportChatId(tempChatIdInput)
-                        showChatIdDialog = false
-                        viewModel.showToast("সাপোর্ট গ্রুপ আইডি সফলভাবে সংরক্ষিত হয়েছে!")
-                    }
-                )
-            },
-            dismissButton = {
-                DokanSecondaryButton(
-                    text = "বাতিল",
-                    onClick = { showChatIdDialog = false }
-                )
-            }
-        )
     }
 }
 

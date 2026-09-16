@@ -102,9 +102,9 @@ object TelegramSupportManager {
             return@withContext Result.success(existing)
         }
 
-        val chatId = getSupportChatId(context)
+        val chatId = getSupportChatId(context).ifBlank { DEFAULT_SUPPORT_CHAT_ID }
         if (chatId.isBlank()) {
-            return@withContext Result.failure(Exception("সাপোর্ট টেলিগ্রাম গ্রুপ আইডি কনফিগার করা হয়নি"))
+            return@withContext Result.failure(Exception("সাপোর্ট সার্ভিস সাময়িকভাবে অনুপলব্ধ"))
         }
 
         try {
@@ -211,10 +211,10 @@ object TelegramSupportManager {
         // Add to local UI flow immediately
         appendLocalMessage(context, pendingMsg)
 
-        val chatId = getSupportChatId(context)
+        val chatId = getSupportChatId(context).ifBlank { DEFAULT_SUPPORT_CHAT_ID }
         if (chatId.isBlank()) {
             updateMessageStatus(context, pendingMsg.id, isSending = false, isFailed = true)
-            return@withContext Result.failure(Exception("সাপোর্ট গ্রুপ চ্যাট আইডি কনফিগার করা হয়নি। দয়া করে সেটিংস থেকে আইডি সেট করুন।"))
+            return@withContext Result.failure(Exception("সাপোর্ট সার্ভিস সাময়িকভাবে অনুপলব্ধ"))
         }
 
         val topicResult = getOrCreateForumTopic(context, deviceId, config, appVersion, licenseStatus)
@@ -257,6 +257,77 @@ object TelegramSupportManager {
         } catch (e: Exception) {
             updateMessageStatus(context, pendingMsg.id, isSending = false, isFailed = true)
             Result.failure(e)
+        }
+    }
+
+    suspend fun syncMessagesFromTelegram(context: Context, deviceId: String) = withContext(Dispatchers.IO) {
+        val topicId = getStoredTopicId(context, deviceId)
+        if (topicId <= 0L) return@withContext
+        _isSyncing.value = true
+
+        try {
+            val req = Request.Builder()
+                .url("$TELEGRAM_API_BASE/getUpdates?offset=-100&allowed_updates=[\"message\"]")
+                .get()
+                .build()
+
+            val resp = client.newCall(req).execute()
+            val body = resp.body?.string().orEmpty()
+
+            if (resp.isSuccessful && body.isNotBlank()) {
+                val json = JSONObject(body)
+                if (json.optBoolean("ok", false)) {
+                    val results = json.optJSONArray("result") ?: JSONArray()
+                    val incomingReplies = mutableListOf<SupportChatMessage>()
+
+                    for (i in 0 until results.length()) {
+                        val update = results.getJSONObject(i)
+                        val message = update.optJSONObject("message") ?: continue
+
+                        val threadId = message.optLong("message_thread_id", -1L)
+                        val replyTo = message.optJSONObject("reply_to_message")
+                        val replyThreadId = replyTo?.optLong("message_thread_id", -1L) ?: -1L
+
+                        val isOurTopic = (threadId == topicId || replyThreadId == topicId)
+                        if (!isOurTopic) continue
+
+                        val fromObj = message.optJSONObject("from")
+                        val isBot = fromObj?.optBoolean("is_bot", false) ?: false
+                        if (isBot) continue
+
+                        val text = message.optString("text", "").trim()
+                        if (text.isEmpty()) continue
+
+                        val msgId = "tg_${message.optLong("message_id")}"
+                        val dateSec = message.optLong("date", System.currentTimeMillis() / 1000)
+
+                        incomingReplies.add(
+                            SupportChatMessage(
+                                id = msgId,
+                                sender = "support",
+                                text = text,
+                                timestamp = dateSec * 1000L,
+                                isSending = false,
+                                isFailed = false
+                            )
+                        )
+                    }
+
+                    if (incomingReplies.isNotEmpty()) {
+                        mergeMessages(context, incomingReplies)
+                    }
+                }
+            }
+        } catch (_: Exception) {
+        } finally {
+            _isSyncing.value = false
+        }
+    }
+
+    suspend fun syncAllMessages(context: Context, deviceId: String) = withContext(Dispatchers.IO) {
+        syncMessagesFromTelegram(context, deviceId)
+        if (SupabaseConfig.isConnected) {
+            syncMessagesFromSupabase(context, deviceId)
         }
     }
 
