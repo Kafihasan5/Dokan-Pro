@@ -5,16 +5,17 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.media.AudioAttributes
 import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.example.MainActivity
-import com.example.paponshop.R
+import com.example.R
 
 object AppNotificationHelper {
-    private const val CHANNEL_ID = "dokan_support_channel"
+    private const val CHANNEL_ID = "dokan_support_channel_v2"
     private const val CHANNEL_NAME = "দোকান প্রো সহায়তা ও নোটিশ"
     private const val CHANNEL_DESC = "সাপোর্ট টিম ও সার্বজনীন গুরুত্বপূর্ণ বিজ্ঞপ্তি"
 
@@ -33,8 +34,12 @@ object AppNotificationHelper {
             ).apply {
                 description = CHANNEL_DESC
                 enableLights(true)
+                lightColor = Color.BLUE
                 enableVibration(true)
+                vibrationPattern = longArrayOf(0, 250, 250, 250)
                 setSound(soundUri, audioAttributes)
+                setShowBadge(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             }
 
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -52,7 +57,8 @@ object AppNotificationHelper {
         createNotificationChannel(context)
 
         val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            action = "OPEN_LIVE_SUPPORT_${notificationId}"
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("NAVIGATE_TO", "LIVE_SUPPORT")
         }
 
@@ -70,8 +76,10 @@ object AppNotificationHelper {
             .setContentTitle(title)
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setDefaults(NotificationCompat.DEFAULT_LIGHTS or NotificationCompat.DEFAULT_VIBRATE)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setVibrate(longArrayOf(0, 250, 250, 250))
             .setSound(soundUri)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
@@ -80,7 +88,7 @@ object AppNotificationHelper {
             val manager = NotificationManagerCompat.from(context)
             manager.notify(notificationId, builder.build())
         } catch (_: SecurityException) {
-            // Android 13+ permission not granted yet
+            // Android 13+ notification permission not granted yet
         } catch (_: Exception) {}
     }
 }

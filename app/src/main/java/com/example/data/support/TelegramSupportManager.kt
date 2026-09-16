@@ -11,6 +11,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -44,6 +50,12 @@ data class SupportNotification(
 
 object TelegramSupportManager {
 
+    @Volatile
+    var isLiveSupportActive: Boolean = false
+
+    private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var backgroundJob: Job? = null
+
     // Dedicated Telegram Bot for Dokan Pro Live Support
     const val BOT_TOKEN = "8677361782:AAFsMQlvxzOljDyaRbNxbrbDv8jTWFkadvY"
     private const val TELEGRAM_API_BASE = "https://api.telegram.org/bot$BOT_TOKEN"
@@ -76,11 +88,28 @@ object TelegramSupportManager {
     val configuredChatId: StateFlow<String> = _configuredChatId.asStateFlow()
 
     fun init(context: Context) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val appContext = context.applicationContext
+        AppNotificationHelper.createNotificationChannel(appContext)
+        val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val saved = prefs.getString(KEY_SUPPORT_CHAT_ID, "") ?: ""
         _configuredChatId.value = if (saved.isNotBlank()) saved else DEFAULT_SUPPORT_CHAT_ID
-        loadLocalMessages(context)
-        loadLocalNotifications(context)
+        loadLocalMessages(appContext)
+        loadLocalNotifications(appContext)
+        startBackgroundPolling(appContext)
+    }
+
+    fun startBackgroundPolling(context: Context) {
+        if (backgroundJob?.isActive == true) return
+        val appContext = context.applicationContext
+        backgroundJob = backgroundScope.launch {
+            while (isActive) {
+                try {
+                    val deviceId = com.example.data.license.AppLicenseManager(appContext).getDeviceId()
+                    syncAllMessages(appContext, deviceId)
+                } catch (_: Exception) {}
+                delay(5000)
+            }
+        }
     }
 
     fun setSupportChatId(context: Context, chatId: String) {

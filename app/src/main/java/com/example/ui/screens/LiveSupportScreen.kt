@@ -55,6 +55,16 @@ fun LiveSupportScreen(
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
+    val imeBottom = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+    val isKeyboardOpen = imeBottom > 0.dp
+
+    DisposableEffect(Unit) {
+        com.example.data.support.TelegramSupportManager.isLiveSupportActive = true
+        onDispose {
+            com.example.data.support.TelegramSupportManager.isLiveSupportActive = false
+        }
+    }
+
     // Auto-scroll to bottom when new messages arrive or keyboard opens
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -92,8 +102,6 @@ fun LiveSupportScreen(
             }
         }
     }
-
-    val isKeyboardOpen = WindowInsets.ime.asPaddingValues().calculateBottomPadding() > 0.dp
 
     Scaffold(
         modifier = modifier.fillMaxSize(),

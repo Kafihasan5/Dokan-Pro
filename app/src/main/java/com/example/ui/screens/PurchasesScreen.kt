@@ -900,7 +900,7 @@ private fun PayPurchaseDueDialog(
                     keyboardType = KeyboardType.Decimal,
                     prefix = { Text("৳ ", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) },
                     isError = errorMessage != null,
-                    supportingText = errorMessage?.let { { Text(it, color = MaterialTheme.dokanColors.danger) } }
+                    errorText = errorMessage
                 )
 
                 DokanTextField(
@@ -972,7 +972,7 @@ private fun QuickAddSupplierDialog(
                     onValueChange = { name = it; nameError = false },
                     label = "সাপ্লায়ারের নাম *",
                     isError = nameError,
-                    supportingText = if (nameError) { { Text("সাপ্লায়ারের নাম আবশ্যক", color = MaterialTheme.dokanColors.danger) } } else null
+                    errorText = if (nameError) "সাপ্লায়ারের নাম আবশ্যক" else null
                 )
                 DokanTextField(
                     value = phone,
@@ -983,7 +983,7 @@ private fun QuickAddSupplierDialog(
                 DokanTextField(
                     value = company,
                     onValueChange = { company = it },
-                    label = "প্রতিষ্ঠান / কোম্পানি (ঐচ্ছিক)"
+                    label = "কোম্পানির নাম (ঐচ্ছিক)"
                 )
                 DokanTextField(
                     value = address,
@@ -1002,7 +1002,7 @@ private fun QuickAddSupplierDialog(
                     onSave(
                         Supplier(
                             name = name.trim(),
-                            phone = phone.trim(),
+                            phone = phone.trim().ifBlank { null },
                             company = company.trim().ifBlank { null },
                             address = address.trim().ifBlank { null }
                         )
@@ -1032,7 +1032,7 @@ private fun QuickAddProductDialog(
     var nameBn by remember { mutableStateOf("") }
     var purchasePriceText by remember { mutableStateOf("") }
     var salePriceText by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("মুদি") }
+    var category by remember { mutableStateOf("") }
     var unit by remember { mutableStateOf("পিস") }
     var nameError by remember { mutableStateOf(false) }
 
@@ -1055,7 +1055,7 @@ private fun QuickAddProductDialog(
                     onValueChange = { nameBn = it; nameError = false },
                     label = "পণ্যের নাম (বাংলা) *",
                     isError = nameError,
-                    supportingText = if (nameError) { { Text("পণ্যের নাম আবশ্যক", color = MaterialTheme.dokanColors.danger) } } else null
+                    errorText = if (nameError) "পণ্যের নাম আবশ্যক" else null
                 )
 
                 Row(
@@ -1111,8 +1111,8 @@ private fun QuickAddProductDialog(
                             nameBn = nameBn.trim(),
                             purchasePricePoisha = (pPriceTaka * 100).toLong(),
                             salePricePoisha = (sPriceTaka * 100).toLong(),
-                            category = category.trim().ifBlank { "সাধারণ" },
-                            unit = unit.trim().ifBlank { "পিস" },
+                            categoryId = 1,
+                            unitName = unit.trim().ifBlank { "পিস" },
                             stockQty = 0.0
                         )
                     )
