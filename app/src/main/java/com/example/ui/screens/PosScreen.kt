@@ -27,7 +27,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -48,6 +50,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -104,9 +107,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -804,6 +810,9 @@ private fun PosCartModalSheetContent(
 
     var showCustomerPicker by remember { mutableStateOf(false) }
     val view = LocalView.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val imeBottom = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+    val isKeyboardOpen = imeBottom > 0.dp
 
     if (cartItems.isEmpty()) {
         LaunchedEffect(Unit) {
@@ -814,6 +823,7 @@ private fun PosCartModalSheetContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .fillMaxHeight(0.92f)
             .imePadding()
     ) {
         // Modal Sheet Header
@@ -890,16 +900,15 @@ private fun PosCartModalSheetContent(
             }
         }
 
-        HorizontalDivider(modifier = Modifier.padding(top = Spacing.xs, bottom = Spacing.sm))
+        HorizontalDivider(modifier = Modifier.padding(top = Spacing.xs, bottom = Spacing.xs))
 
         // Scrollable content
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f, fill = false)
+                .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.lg)
-                .padding(bottom = 32.dp)
+                .padding(horizontal = Spacing.lg, vertical = Spacing.xs)
         ) {
             // Cart Items Header
             Text(
@@ -1040,23 +1049,46 @@ private fun PosCartModalSheetContent(
             }
 
             Spacer(modifier = Modifier.height(Spacing.md))
+        }
 
-            // বিল সম্পন্ন করুন Button (56dp, full width, Radius.md)
-            DokanPrimaryButton(
-                text = if (selectedPaymentMethod == "due") "বাকিতে বিল সম্পন্ন করুন" else "বিল সম্পন্ন করুন",
-                onClick = {
-                    viewModel.checkoutSale(
-                        onSuccess = {
-                            view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                            onDismiss()
-                        },
-                        onError = { err -> viewModel.showToast(err) }
-                    )
-                },
+        // Sticky Bottom Payment Action Bar: Always visible and pinned above soft keyboard
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 8.dp,
+            shadowElevation = 8.dp,
+            border = BorderStroke(1.dp, MaterialTheme.dokanColors.border.copy(alpha = 0.5f))
+        ) {
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
-            )
+                    .padding(horizontal = Spacing.lg)
+                    .padding(top = Spacing.sm, bottom = if (isKeyboardOpen) Spacing.xs else Spacing.sm)
+                    .then(if (!isKeyboardOpen) Modifier.windowInsetsPadding(WindowInsets.navigationBars) else Modifier)
+            ) {
+                val buttonText = when {
+                    selectedPaymentMethod == "due" -> "বাকিতে বিল সম্পন্ন করুন"
+                    selectedPaymentMethod == "cash" && cashTenderedPoisha > 0 -> "পেমেন্ট নিশ্চিত করুন (${Formatters.formatMoney(cashTenderedPoisha, config.useBengaliNumerals, config.currencySymbol)})"
+                    else -> "পেমেন্ট নিশ্চিত করুন"
+                }
+
+                DokanPrimaryButton(
+                    text = buttonText,
+                    onClick = {
+                        keyboardController?.hide()
+                        viewModel.checkoutSale(
+                            onSuccess = {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                onDismiss()
+                            },
+                            onError = { err -> viewModel.showToast(err) }
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp)
+                )
+            }
         }
     }
 
@@ -1250,6 +1282,7 @@ private fun CashTenderSection(
     var cashInputText by remember(cashTenderedPoisha) {
         mutableStateOf(if (cashTenderedPoisha > 0) (cashTenderedPoisha / 100).toString() else "")
     }
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     Column(
         modifier = Modifier
@@ -1284,6 +1317,7 @@ private fun CashTenderSection(
             if (cashTenderedPoisha > 0) {
                 TextButton(
                     onClick = {
+                        keyboardController?.hide()
                         cashInputText = ""
                         onSetCash(0L)
                     },
@@ -1305,7 +1339,7 @@ private fun CashTenderSection(
             }
         }
 
-        // Input Box for Customer Tendered Amount
+        // Input Box for Customer Tendered Amount with Number Keypad & Done action
         DokanTextField(
             value = cashInputText,
             onValueChange = { input ->
@@ -1315,7 +1349,14 @@ private fun CashTenderSection(
                 onSetCash((amountDouble * 100).toLong())
             },
             label = "গ্রাহকের দেওয়া টাকা / নোট (৳)",
-            placeholder = if (grandTotalTaka > 0) "যেমন: $grandTotalTaka বা ১০০০" else "টাকার পরিমাণ লিখুন"
+            placeholder = if (grandTotalTaka > 0) "যেমন: $grandTotalTaka বা ১০০০" else "টাকার পরিমাণ লিখুন",
+            keyboardType = KeyboardType.Number,
+            imeAction = ImeAction.Done,
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    keyboardController?.hide()
+                }
+            )
         )
 
         // Note Chips Row
@@ -1352,6 +1393,7 @@ private fun CashTenderSection(
 
                 Surface(
                     onClick = {
+                        keyboardController?.hide()
                         cashInputText = amt.toString()
                         onSetCash(amt * 100)
                     },
