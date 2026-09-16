@@ -1,6 +1,6 @@
 {
-  "versionCode": 39,
-  "versionName": "1.0.39",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v39/app-debug.apk",
-  "releaseNotes": "fix(support): poll Telegram replies directly, fix input box keyboard jump, remove settings/chat icons and telegram mentions"
+  "versionCode": 41,
+  "versionName": "1.0.41",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v41/app-debug.apk",
+  "releaseNotes": "fix(build): resolve Notifications import, delay import, and Composable color in TopHeader"
 }
