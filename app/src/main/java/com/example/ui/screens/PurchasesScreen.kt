@@ -1002,7 +1002,7 @@ private fun QuickAddSupplierDialog(
                     onSave(
                         Supplier(
                             name = name.trim(),
-                            phone = phone.trim().ifBlank { null },
+                            phone = phone.trim(),
                             company = company.trim().ifBlank { null },
                             address = address.trim().ifBlank { null }
                         )
