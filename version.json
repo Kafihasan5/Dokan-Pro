@@ -1,6 +1,6 @@
 {
-  "versionCode": 33,
-  "versionName": "1.0.33",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v33/app-debug.apk",
-  "releaseNotes": "feat: add previous due (ager baki) option when adding customer and in due khata"
+  "versionCode": 34,
+  "versionName": "1.0.34",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v34/app-debug.apk",
+  "releaseNotes": "feat: add cash tendered and change return calculation in POS and receipts"
 }
