@@ -16,6 +16,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import java.util.Calendar
 import org.json.JSONArray
+import com.example.data.support.TelegramSupportManager
+import com.example.data.support.SupportChatMessage
 
 data class CartItem(
     val productId: Long, // 0 for custom quick item
@@ -69,7 +71,8 @@ enum class AppScreen {
     EXPENSES,
     BACKUP,
     SETTINGS,
-    RECEIPT
+    RECEIPT,
+    LIVE_SUPPORT
 }
 
 class PaponViewModel(application: Application) : AndroidViewModel(application) {
@@ -216,6 +219,47 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getDeviceId(): String = licenseManager.getDeviceId()
 
+    // Telegram Live Support Integration
+    val supportMessages: StateFlow<List<SupportChatMessage>> = TelegramSupportManager.messages
+    val isSupportSyncing: StateFlow<Boolean> = TelegramSupportManager.isSyncing
+    val configuredSupportChatId: StateFlow<String> = TelegramSupportManager.configuredChatId
+
+    fun setSupportChatId(chatId: String) {
+        TelegramSupportManager.setSupportChatId(getApplication(), chatId)
+    }
+
+    fun sendSupportMessage(text: String, onComplete: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            val deviceId = getDeviceId()
+            val config = shopConfig.value
+            val licInfo = licenseInfo.value
+            val statusStr = when {
+                isDemoMode.value -> "ট্রায়াল / ডেমো"
+                licInfo != null && licInfo.isActive -> "অ্যাক্টিভেটেড (প্রো)"
+                else -> "অনিবন্ধিত"
+            }
+            val result = TelegramSupportManager.sendMessage(
+                context = getApplication(),
+                deviceId = deviceId,
+                text = text,
+                config = config,
+                appVersion = BuildConfig.VERSION_NAME,
+                licenseStatus = statusStr
+            )
+            if (result.isSuccess) {
+                onComplete(true, null)
+            } else {
+                onComplete(false, result.exceptionOrNull()?.message)
+            }
+        }
+    }
+
+    fun syncSupportMessages() {
+        viewModelScope.launch {
+            TelegramSupportManager.syncMessagesFromSupabase(getApplication(), getDeviceId())
+        }
+    }
+
     fun clearActivationError() {
         _activationError.value = null
     }
@@ -249,6 +293,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     init {
+        TelegramSupportManager.init(application)
         loadShopConfig()
         loadUnits()
         val db = PaponDatabase.getInstance(application)

@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.DropdownMenu
@@ -389,6 +390,21 @@ fun TopHeader(
                                 onClick = {
                                     showMenu = false
                                     onOpenMoreMenu(AppScreen.BACKUP)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("লাইভ সাপোর্ট ও চ্যাট", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold) },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.SupportAgent,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                },
+                                modifier = Modifier.padding(horizontal = Spacing.sm),
+                                onClick = {
+                                    showMenu = false
+                                    onOpenMoreMenu(AppScreen.LIVE_SUPPORT)
                                 }
                             )
                             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))

@@ -689,6 +689,27 @@ fun SettingsScreen(
                 }
             }
 
+            // 8.5. লাইভ সাপোর্ট ও সাহায্য
+            item {
+                SettingsCard {
+                    SectionHeaderWithIcon(title = "লাইভ সাপোর্ট ও চ্যাট", icon = Icons.Default.SupportAgent)
+
+                    Text(
+                        text = "অ্যাপ ব্যবহারের যেকোনো সমস্যা বা সহায়তার জন্য আমাদের অফিসিয়াল টেলিগ্রাম বটের মাধ্যমে সরাসরি চ্যাট করুন। প্রতিটি ডিভাইসের জন্য ডেডিকেটেড সাপোর্ট দেওয়া হয়।",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+
+                    DokanPrimaryButton(
+                        text = "💬 লাইভ চ্যাট সাপোর্ট শুরু করুন",
+                        onClick = { viewModel.navigateTo(AppScreen.LIVE_SUPPORT) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
             // 9. অ্যাপ ভার্সন
             item {
                 SettingsCard {

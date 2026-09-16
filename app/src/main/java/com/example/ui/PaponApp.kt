@@ -52,7 +52,7 @@ fun DokanProApp(
     BackHandler(enabled = isAppActivated && currentScreen != AppScreen.DASHBOARD) {
         when (currentScreen) {
             AppScreen.RECEIPT -> viewModel.navigateTo(AppScreen.DASHBOARD)
-            AppScreen.PURCHASES, AppScreen.EXPENSES, AppScreen.BACKUP, AppScreen.SETTINGS -> {
+            AppScreen.PURCHASES, AppScreen.EXPENSES, AppScreen.BACKUP, AppScreen.SETTINGS, AppScreen.LIVE_SUPPORT -> {
                 viewModel.navigateTo(AppScreen.DASHBOARD)
             }
             else -> viewModel.navigateTo(AppScreen.DASHBOARD)
@@ -158,6 +158,13 @@ fun DokanProApp(
                         }
                         AppScreen.SETTINGS -> {
                             SettingsScreen(
+                                viewModel = viewModel,
+                                config = shopConfig,
+                                onBack = { viewModel.navigateTo(AppScreen.DASHBOARD) }
+                            )
+                        }
+                        AppScreen.LIVE_SUPPORT -> {
+                            LiveSupportScreen(
                                 viewModel = viewModel,
                                 config = shopConfig,
                                 onBack = { viewModel.navigateTo(AppScreen.DASHBOARD) }
