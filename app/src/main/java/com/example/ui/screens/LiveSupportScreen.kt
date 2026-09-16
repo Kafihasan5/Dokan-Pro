@@ -64,6 +64,7 @@ fun LiveSupportScreen(
 
     // Periodic sync every 3s while active on this screen for instant incoming replies
     LaunchedEffect(Unit) {
+        viewModel.markAllNotificationsRead()
         viewModel.syncSupportMessages()
         while (true) {
             delay(3000)
@@ -174,9 +175,7 @@ fun LiveSupportScreen(
         },
         bottomBar = {
             Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .imePadding(),
+                modifier = Modifier.fillMaxWidth(),
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 8.dp,
                 shadowElevation = 8.dp,
@@ -382,7 +381,7 @@ private fun ChatBubbleRow(msg: SupportChatMessage) {
             Column(modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm)) {
                 if (!isUser) {
                     Text(
-                        text = "ডোকান প্রো সাপোর্ট টিম",
+                        text = "দোকান প্রো সাপোর্ট টিম",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary

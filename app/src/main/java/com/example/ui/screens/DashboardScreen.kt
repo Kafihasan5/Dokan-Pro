@@ -120,6 +120,7 @@ import com.example.ui.components.SectionHeader
 import com.example.ui.components.StatCard
 import com.example.ui.components.StatTone
 import com.example.ui.components.TopHeader
+import com.example.ui.components.NotificationBottomSheet
 import com.example.ui.theme.Brand500
 import com.example.ui.theme.Brand700
 import com.example.ui.theme.Radius
@@ -281,6 +282,10 @@ fun DashboardScreen(
     val coroutineScope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
 
+    val unreadSupportCount by viewModel.unreadSupportCount.collectAsState()
+    val supportNotifications by viewModel.supportNotifications.collectAsState()
+    var showNotificationsSheet by remember { mutableStateOf(false) }
+
     PullToRefreshBox(
         isRefreshing = isManualRefreshing,
         onRefresh = {
@@ -306,8 +311,24 @@ fun DashboardScreen(
                 onToggleTheme = { viewModel.toggleThemeMode() },
                 isDemoMode = isDemoMode,
                 remainingDemoMillis = remainingDemoMillis,
-                onBuyLicenseClick = { openBuyLicense() }
+                onBuyLicenseClick = { openBuyLicense() },
+                unreadNotificationsCount = unreadSupportCount,
+                onOpenNotifications = { showNotificationsSheet = true }
             )
+
+            if (showNotificationsSheet) {
+                NotificationBottomSheet(
+                    notifications = supportNotifications,
+                    onDismiss = { showNotificationsSheet = false },
+                    onOpenSupportChat = {
+                        showNotificationsSheet = false
+                        onNavigate(AppScreen.LIVE_SUPPORT)
+                    },
+                    onMarkAllRead = {
+                        viewModel.markAllNotificationsRead()
+                    }
+                )
+            }
 
             Column(
                 modifier = Modifier

@@ -254,6 +254,30 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    val supportNotifications: StateFlow<List<com.example.data.support.SupportNotification>> = TelegramSupportManager.notifications
+    val unreadSupportCount: StateFlow<Int> = TelegramSupportManager.unreadNotificationCount
+
+    fun markAllNotificationsRead() {
+        TelegramSupportManager.markAllNotificationsRead(getApplication())
+    }
+
+    fun triggerNewUserSetupNotification(config: ShopConfig = shopConfig.value) {
+        viewModelScope.launch {
+            val statusStr = when {
+                isDemoMode.value -> "ট্রায়াল / ডেমো"
+                licenseInfo.value != null -> "অ্যাক্টিভেটেড (প্রো)"
+                else -> "অনিবন্ধিত"
+            }
+            TelegramSupportManager.notifyNewUserSetup(
+                context = getApplication(),
+                deviceId = getDeviceId(),
+                config = config,
+                appVersion = BuildConfig.VERSION_NAME,
+                licenseStatus = statusStr
+            )
+        }
+    }
+
     fun syncSupportMessages() {
         viewModelScope.launch {
             TelegramSupportManager.syncAllMessages(getApplication(), getDeviceId())
@@ -296,6 +320,15 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         TelegramSupportManager.init(application)
         loadShopConfig()
         loadUnits()
+        if (_shopConfig.value.isOnboardingCompleted) {
+            triggerNewUserSetupNotification(_shopConfig.value)
+        }
+        viewModelScope.launch {
+            while (true) {
+                delay(6000)
+                TelegramSupportManager.syncAllMessages(application, getDeviceId())
+            }
+        }
         val db = PaponDatabase.getInstance(application)
         repository = PaponRepository(db.paponDao())
 
@@ -1254,6 +1287,9 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 putBoolean("is_onboarding_completed", config.isOnboardingCompleted)
                 putString("notice_message", config.noticeMessage)
                 apply()
+            }
+            if (config.isOnboardingCompleted) {
+                triggerNewUserSetupNotification(config)
             }
         } catch (_: Exception) {}
     }

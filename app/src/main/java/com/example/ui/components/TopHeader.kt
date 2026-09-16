@@ -75,7 +75,9 @@ fun TopHeader(
     onToggleTheme: () -> Unit = {},
     isDemoMode: Boolean = false,
     remainingDemoMillis: Long = 0L,
-    onBuyLicenseClick: () -> Unit = {}
+    onBuyLicenseClick: () -> Unit = {},
+    unreadNotificationsCount: Int = 0,
+    onOpenNotifications: () -> Unit = {}
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val systemDark = isSystemInDarkTheme()
@@ -250,6 +252,42 @@ fun TopHeader(
                                 .size(20.dp)
                                 .then(if (isSyncing) Modifier.rotate(rotation) else Modifier)
                         )
+                    }
+
+                    // Notification Bell with Badge
+                    Box {
+                        IconButton(
+                            onClick = onOpenNotifications,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                                .testTag("notification_button")
+                        ) {
+                            BadgedBox(
+                                badge = {
+                                    if (unreadNotificationsCount > 0) {
+                                        Badge(
+                                            containerColor = MaterialTheme.dokanColors.danger,
+                                            contentColor = Color.White
+                                        ) {
+                                            Text(
+                                                text = if (unreadNotificationsCount > 9) "9+" else unreadNotificationsCount.toString(),
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Notifications,
+                                    contentDescription = "বিজ্ঞপ্তি ও বার্তা",
+                                    tint = if (unreadNotificationsCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                     }
 
                     // More options menu button (40dp with Radius.md restyled menu)

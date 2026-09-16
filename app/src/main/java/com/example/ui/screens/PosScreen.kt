@@ -815,6 +815,15 @@ private fun PosCartModalSheetContent(
     val imeBottom = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
     val isKeyboardOpen = imeBottom > 0.dp
 
+    val cartScrollState = rememberScrollState()
+
+    LaunchedEffect(cashTenderedPoisha) {
+        if (cashTenderedPoisha > 0) {
+            delay(100)
+            cartScrollState.animateScrollTo(cartScrollState.maxValue)
+        }
+    }
+
     if (cartItems.isEmpty()) {
         LaunchedEffect(Unit) {
             onDismiss()
@@ -908,7 +917,7 @@ private fun PosCartModalSheetContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(cartScrollState)
                 .padding(horizontal = Spacing.lg, vertical = Spacing.xs)
         ) {
             // Cart Items Header
