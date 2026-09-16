@@ -32,6 +32,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.PaponViewModel
+import com.example.ui.AppScreen
 import com.example.ui.ShopConfig
 import com.example.ui.components.*
 import com.example.ui.theme.*

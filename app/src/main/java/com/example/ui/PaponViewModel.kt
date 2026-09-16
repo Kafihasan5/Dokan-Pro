@@ -235,7 +235,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
             val licInfo = licenseInfo.value
             val statusStr = when {
                 isDemoMode.value -> "ট্রায়াল / ডেমো"
-                licInfo != null && licInfo.isActive -> "অ্যাক্টিভেটেড (প্রো)"
+                licInfo != null -> "অ্যাক্টিভেটেড (প্রো)"
                 else -> "অনিবন্ধিত"
             }
             val result = TelegramSupportManager.sendMessage(
