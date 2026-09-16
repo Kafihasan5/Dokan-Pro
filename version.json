@@ -1,6 +1,6 @@
 {
-  "versionCode": 32,
-  "versionName": "1.0.32",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v32/app-debug.apk",
-  "releaseNotes": "fix: remove demo timer chip from TopHeader subtitle to preserve clean layout"
+  "versionCode": 33,
+  "versionName": "1.0.33",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v33/app-debug.apk",
+  "releaseNotes": "feat: add previous due (ager baki) option when adding customer and in due khata"
 }
