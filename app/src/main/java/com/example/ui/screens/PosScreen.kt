@@ -1065,8 +1065,14 @@ private fun PosCartModalSheetContent(
                 viewModel.selectCustomer(cust?.id)
                 showCustomerPicker = false
             },
-            onAddNew = { name, phone ->
-                viewModel.saveCustomer(Customer(name = name, phone = phone)) {}
+            onAddNew = { name, phone, initialDuePoisha ->
+                viewModel.saveCustomer(
+                    Customer(name = name, phone = phone),
+                    initialDuePoisha = initialDuePoisha
+                ) { newId ->
+                    viewModel.selectCustomer(newId)
+                    showCustomerPicker = false
+                }
             }
         )
     }
@@ -1527,12 +1533,13 @@ fun CustomerPickerDialog(
     customers: List<Customer>,
     onDismiss: () -> Unit,
     onSelect: (Customer?) -> Unit,
-    onAddNew: (String, String) -> Unit
+    onAddNew: (String, String, Long) -> Unit
 ) {
     var search by remember { mutableStateOf("") }
     var isAddingNew by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
     var newPhone by remember { mutableStateOf("") }
+    var newInitialDue by remember { mutableStateOf("") }
 
     val filtered = customers.filter {
         it.name.contains(search, ignoreCase = true) || it.phone.contains(search)
@@ -1544,16 +1551,22 @@ fun CustomerPickerDialog(
         title = { Text(if (isAddingNew) "নতুন কাস্টমার যোগ" else "কাস্টমার নির্বাচন", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) },
         text = {
             if (isAddingNew) {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     DokanTextField(
                         value = newName,
                         onValueChange = { newName = it },
-                        label = "কাস্টমারের নাম"
+                        label = "কাস্টমারের নাম *"
                     )
                     DokanTextField(
                         value = newPhone,
                         onValueChange = { newPhone = it },
-                        label = "মোবাইল নম্বর"
+                        label = "মোবাইল নম্বর *"
+                    )
+                    DokanTextField(
+                        value = newInitialDue,
+                        onValueChange = { newInitialDue = it.filter { c -> c.isDigit() || c == '.' } },
+                        label = "পূর্বের বাকি / আগের বকেয়া (৳)",
+                        placeholder = "০ (যদি থাকে)"
                     )
                 }
             } else {
@@ -1614,7 +1627,9 @@ fun CustomerPickerDialog(
                 Button(
                     onClick = {
                         if (newName.isNotBlank() && newPhone.isNotBlank()) {
-                            onAddNew(newName, newPhone)
+                            val dueTk = newInitialDue.toDoubleOrNull() ?: 0.0
+                            val duePoisha = (dueTk * 100).toLong()
+                            onAddNew(newName.trim(), newPhone.trim(), duePoisha)
                             isAddingNew = false
                         }
                     },

@@ -299,12 +299,52 @@ class PaponRepository(private val dao: PaponDao) {
     val allCustomers: Flow<List<Customer>> = dao.getAllCustomers()
     val totalDueFlow: Flow<Long> = dao.getTotalDueFlow()
 
-    suspend fun saveCustomer(customer: Customer): Long {
+    suspend fun saveCustomer(
+        customer: Customer,
+        initialDuePoisha: Long = 0L,
+        initialDueNote: String? = null
+    ): Long = withContext(Dispatchers.IO) {
         val id = dao.insertCustomer(customer)
         val saved = customer.copy(id = id)
         dao.removeDeletedRecord("customers", id)
         scope.launch { supabaseSync.syncCustomer(saved) }
-        return id
+
+        if (initialDuePoisha > 0) {
+            val ledger = CustomerLedger(
+                customerId = id,
+                refType = "opening_balance",
+                refId = null,
+                debitPoisha = initialDuePoisha,
+                creditPoisha = 0L,
+                note = initialDueNote ?: "পূর্বের বাকি",
+                entryDate = customer.createdAt,
+                createdAt = customer.createdAt
+            )
+            val ledgerId = dao.insertCustomerLedger(ledger)
+            scope.launch { supabaseSync.syncCustomerLedger(ledger.copy(id = ledgerId)) }
+        }
+        id
+    }
+
+    suspend fun addCustomerDue(
+        customerId: Long,
+        amountPoisha: Long,
+        note: String? = null,
+        refType: String = "opening_balance"
+    ): Long = withContext(Dispatchers.IO) {
+        val ledger = CustomerLedger(
+            customerId = customerId,
+            refType = refType,
+            refId = null,
+            debitPoisha = amountPoisha,
+            creditPoisha = 0L,
+            note = note ?: "পূর্বের বাকি",
+            entryDate = System.currentTimeMillis(),
+            createdAt = System.currentTimeMillis()
+        )
+        val id = dao.insertCustomerLedger(ledger)
+        scope.launch { supabaseSync.syncCustomerLedger(ledger.copy(id = id)) }
+        id
     }
     suspend fun getCustomerById(id: Long): Customer? = dao.getCustomerById(id)
     fun getCustomerLedger(customerId: Long): Flow<List<CustomerLedger>> = dao.getCustomerLedger(customerId)

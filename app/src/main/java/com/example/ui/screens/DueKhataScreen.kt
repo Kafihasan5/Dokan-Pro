@@ -37,6 +37,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
@@ -44,6 +45,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.PersonAdd
@@ -349,8 +351,8 @@ fun DueKhataScreen(
     if (showAddCustomerDialog) {
         AddCustomerDialog(
             onDismiss = { showAddCustomerDialog = false },
-            onSave = { newCust ->
-                viewModel.saveCustomer(newCust) {
+            onSave = { newCust, initialDuePoisha ->
+                viewModel.saveCustomer(newCust, initialDuePoisha = initialDuePoisha) {
                     showAddCustomerDialog = false
                 }
             }
@@ -613,6 +615,7 @@ private fun CustomerDetailBottomSheet(
     val ledgerItems by viewModel.getCustomerLedgerFlow(customer.id).collectAsState(initial = emptyList())
 
     var showPaymentDialog by remember { mutableStateOf(false) }
+    var showAddDueDialog by remember { mutableStateOf(false) }
     var showPreviewDialog by remember { mutableStateOf(false) }
     var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var previewCaption by remember { mutableStateOf("") }
@@ -696,28 +699,39 @@ private fun CustomerDetailBottomSheet(
             // Action Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
             ) {
                 Button(
                     onClick = { showPaymentDialog = true },
-                    modifier = Modifier.weight(1.2f),
+                    modifier = Modifier.weight(1.1f),
                     shape = RoundedCornerShape(Radius.sm),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Icon(Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("বাকি আদায়", style = MaterialTheme.typography.labelLarge)
+                    Icon(Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text("বাকি আদায়", style = MaterialTheme.typography.labelMedium)
+                }
+
+                OutlinedButton(
+                    onClick = { showAddDueDialog = true },
+                    modifier = Modifier.weight(1.05f),
+                    shape = RoundedCornerShape(Radius.sm),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.dokanColors.danger)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text("বাকি যোগ", style = MaterialTheme.typography.labelMedium)
                 }
 
                 Button(
                     onClick = { sendWhatsAppReminder() },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(0.95f),
                     shape = RoundedCornerShape(Radius.sm),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366))
                 ) {
-                    Icon(Icons.Default.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("তাগাদা", color = Color.White, style = MaterialTheme.typography.labelLarge)
+                    Icon(Icons.Default.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text("তাগাদা", color = Color.White, style = MaterialTheme.typography.labelMedium)
                 }
 
                 OutlinedButton(
@@ -726,9 +740,9 @@ private fun CustomerDetailBottomSheet(
                         context.startActivity(callIntent)
                     },
                     shape = RoundedCornerShape(Radius.sm),
-                    modifier = Modifier.weight(0.8f)
+                    modifier = Modifier.weight(0.6f)
                 ) {
-                    Icon(Icons.Default.Call, contentDescription = "কল করুন", modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Call, contentDescription = "কল করুন", modifier = Modifier.size(16.dp))
                 }
             }
 
@@ -883,6 +897,19 @@ private fun CustomerDetailBottomSheet(
         )
     }
 
+    if (showAddDueDialog) {
+        AddDueDialog(
+            customerName = customer.name,
+            config = config,
+            onDismiss = { showAddDueDialog = false },
+            onConfirm = { amountPoisha, note ->
+                viewModel.addCustomerDue(customer.id, amountPoisha, note) {
+                    showAddDueDialog = false
+                }
+            }
+        )
+    }
+
     collectedReceiptInfo?.let { info ->
         PaymentSuccessReceiptDialog(
             customer = customer,
@@ -950,14 +977,22 @@ private fun TimelineLedgerItemRow(item: CustomerLedger, config: ShopConfig) {
 
         // Note and Date on the left
         Column(modifier = Modifier.weight(1f)) {
+            val title = when {
+                isPayment -> "জমা / আদায়"
+                item.refType == "opening_balance" -> "পূর্বের বাকি"
+                item.refType == "adjustment" -> "বাকি সমন্বয়"
+                else -> "বাকি ক্রয়"
+            }
             Text(
-                text = if (isPayment) "জমা / আদায়" else "বাকি ক্রয়",
+                text = title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = dotColor
             )
+            val dateStr = Formatters.formatDateTime(item.entryDate, config.useBengaliNumerals)
+            val subtitle = if (!item.note.isNullOrBlank()) "${item.note} • $dateStr" else dateStr
             Text(
-                text = item.note ?: Formatters.formatDateTime(item.entryDate, config.useBengaliNumerals),
+                text = subtitle,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1144,21 +1179,104 @@ fun DueCollectionDialog(
 }
 
 @Composable
+fun AddDueDialog(
+    customerName: String,
+    config: ShopConfig,
+    onDismiss: () -> Unit,
+    onConfirm: (Long, String?) -> Unit
+) {
+    var amountText by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf("পূর্বের বাকি") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(Radius.lg),
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    tint = MaterialTheme.dokanColors.danger,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(modifier = Modifier.width(Spacing.xs))
+                Text("বাকি / বকেয়া যোগ: $customerName", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                DokanTextField(
+                    value = amountText,
+                    onValueChange = { amountText = it.filter { c -> c.isDigit() || c == '.' } },
+                    label = "বাকি টাকার পরিমাণ (৳) *"
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    listOf(500L, 1000L, 2000L, 5000L).forEach { amt ->
+                        AssistChip(
+                            onClick = { amountText = amt.toString() },
+                            label = { Text("৳$amt", style = MaterialTheme.typography.labelSmall) },
+                            shape = RoundedCornerShape(Radius.pill)
+                        )
+                    }
+                }
+
+                DokanTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    label = "বিবরণ / নোট (যেমন: পূর্বের বাকি)"
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val a = amountText.toDoubleOrNull() ?: 0.0
+                    if (a > 0) {
+                        onConfirm((a * 100).toLong(), note.ifBlank { "পূর্বের বাকি" })
+                    }
+                },
+                shape = RoundedCornerShape(Radius.sm),
+                enabled = (amountText.toDoubleOrNull() ?: 0.0) > 0,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.dokanColors.danger)
+            ) {
+                Text("বাকি যোগ করুন", style = MaterialTheme.typography.labelLarge)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("বাতিল", style = MaterialTheme.typography.labelLarge) }
+        }
+    )
+}
+
+@Composable
 fun AddCustomerDialog(
     onDismiss: () -> Unit,
-    onSave: (Customer) -> Unit
+    onSave: (Customer, Long) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
+    var previousDueText by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var creditLimitText by remember { mutableStateOf("5000") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(Radius.lg),
-        title = { Text("নতুন কাস্টমার যোগ", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) },
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.PersonAdd,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(modifier = Modifier.width(Spacing.xs))
+                Text("নতুন কাস্টমার যোগ", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+        },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 DokanTextField(
                     value = name,
                     onValueChange = { name = it },
@@ -1170,6 +1288,39 @@ fun AddCustomerDialog(
                     onValueChange = { phone = it },
                     label = "মোবাইল নম্বর *"
                 )
+
+                DokanTextField(
+                    value = previousDueText,
+                    onValueChange = { previousDueText = it.filter { c -> c.isDigit() || c == '.' } },
+                    label = "পূর্বের বাকি / আগের বকেয়া (৳)",
+                    placeholder = "০ (যদি থাকে)"
+                )
+
+                if ((previousDueText.toDoubleOrNull() ?: 0.0) > 0.0) {
+                    Surface(
+                        shape = RoundedCornerShape(Radius.xs),
+                        color = MaterialTheme.dokanColors.dangerContainer.copy(alpha = 0.2f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.dokanColors.danger,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(Spacing.xs))
+                            Text(
+                                text = "কাস্টমার তৈরির সাথে সাথে ৳${previousDueText} পূর্বের বাকি হিসেবে খতিয়ানে যোগ হবে",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.dokanColors.danger
+                            )
+                        }
+                    }
+                }
 
                 DokanTextField(
                     value = address,
@@ -1189,13 +1340,16 @@ fun AddCustomerDialog(
                 onClick = {
                     if (name.isNotBlank() && phone.isNotBlank()) {
                         val limitPoisha = ((creditLimitText.toLongOrNull() ?: 5000L) * 100)
+                        val prevDueTk = previousDueText.toDoubleOrNull() ?: 0.0
+                        val prevDuePoisha = (prevDueTk * 100).toLong()
                         onSave(
                             Customer(
                                 name = name.trim(),
                                 phone = phone.trim(),
                                 address = address.trim().ifBlank { null },
                                 creditLimitPoisha = limitPoisha
-                            )
+                            ),
+                            prevDuePoisha
                         )
                     }
                 },

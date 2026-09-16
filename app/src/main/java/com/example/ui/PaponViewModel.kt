@@ -846,10 +846,28 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // --- CUSTOMER & DUE COLLECTION ---
-    fun saveCustomer(customer: Customer, onSuccess: () -> Unit) {
+    fun saveCustomer(
+        customer: Customer,
+        initialDuePoisha: Long = 0L,
+        initialDueNote: String? = null,
+        onSuccess: (Long) -> Unit = {}
+    ) {
         viewModelScope.launch {
-            repository.saveCustomer(customer)
+            val id = repository.saveCustomer(customer, initialDuePoisha, initialDueNote)
             showToast("কাস্টমার সফলভাবে যোগ করা হয়েছে")
+            onSuccess(id)
+        }
+    }
+
+    fun addCustomerDue(
+        customerId: Long,
+        amountPoisha: Long,
+        note: String? = null,
+        onSuccess: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            repository.addCustomerDue(customerId, amountPoisha, note)
+            showToast("বাকি সফলভাবে যোগ করা হয়েছে")
             onSuccess()
         }
     }
