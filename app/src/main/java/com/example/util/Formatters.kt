@@ -19,6 +19,20 @@ object Formatters {
         return sb.toString()
     }
 
+    fun fromBengaliDigits(input: String): String {
+        val bnDigits = charArrayOf('০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯')
+        val sb = StringBuilder()
+        for (c in input) {
+            val idx = bnDigits.indexOf(c)
+            if (idx != -1) {
+                sb.append(idx)
+            } else if (c in '0'..'9' || c == '.') {
+                sb.append(c)
+            }
+        }
+        return sb.toString()
+    }
+
     fun formatMoney(poisha: Long, useBn: Boolean = true, symbol: String = "৳"): String {
         val isNegative = poisha < 0
         val absPoisha = Math.abs(poisha)

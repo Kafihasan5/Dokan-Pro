@@ -543,6 +543,12 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     private val _cashTenderedPoisha = MutableStateFlow(0L)
     val cashTenderedPoisha: StateFlow<Long> = _cashTenderedPoisha.asStateFlow()
 
+    private val _lastCashTenderedPoisha = MutableStateFlow(0L)
+    val lastCashTenderedPoisha: StateFlow<Long> = _lastCashTenderedPoisha.asStateFlow()
+
+    private val _lastChangeReturnPoisha = MutableStateFlow(0L)
+    val lastChangeReturnPoisha: StateFlow<Long> = _lastChangeReturnPoisha.asStateFlow()
+
     private val _posSearchQuery = MutableStateFlow("")
     val posSearchQuery: StateFlow<String> = _posSearchQuery.asStateFlow()
 
@@ -771,6 +777,8 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 _lastCompletedSaleId.value = saleId
                 _lastCompletedSale.value = sale.copy(id = saleId)
                 _lastCompletedSaleItems.value = saleItems
+                _lastCashTenderedPoisha.value = if (method == "cash") _cashTenderedPoisha.value else 0L
+                _lastChangeReturnPoisha.value = if (method == "cash" && _cashTenderedPoisha.value > total) _cashTenderedPoisha.value - total else 0L
 
                 clearCart()
                 _currentScreen.value = AppScreen.RECEIPT
@@ -787,6 +795,8 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
             _lastCompletedSale.value = sale
             val items = allSaleItems.value.filter { it.saleId == sale.id }
             _lastCompletedSaleItems.value = items
+            _lastCashTenderedPoisha.value = 0L
+            _lastChangeReturnPoisha.value = 0L
             _currentScreen.value = AppScreen.RECEIPT
         }
     }

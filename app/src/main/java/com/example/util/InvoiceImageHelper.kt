@@ -82,10 +82,13 @@ object InvoiceImageHelper {
         config: ShopConfig,
         sale: Sale,
         items: List<SaleItem>,
-        customerPreviousDue: Long = 0L
+        customerPreviousDue: Long = 0L,
+        cashTenderedPoisha: Long = 0L,
+        changeReturnPoisha: Long = 0L
     ): Bitmap {
         val isDue = sale.dueAmountPoisha > 0
         val hasCustomer = !sale.customerName.isNullOrBlank()
+        val hasChange = sale.paymentMethod == "cash" && cashTenderedPoisha > sale.paidAmountPoisha
 
         val displayBold = getDisplayFontBold(context)
         val bodyRegular = getBodyFontRegular(context)
@@ -102,6 +105,7 @@ object InvoiceImageHelper {
             sale.isReturned -> 230
             isDue && customerPreviousDue > 0 -> 400
             isDue -> 330
+            hasChange -> 320
             sale.discountPoisha > 0 || sale.vatPoisha > 0 -> 280
             else -> 230
         }
@@ -391,6 +395,28 @@ object InvoiceImageHelper {
         canvas.drawText("পরিশোধিত (Paid):", leftCol, ty, paint)
         paint.textAlign = Paint.Align.RIGHT
         canvas.drawText(Formatters.formatMoney(sale.paidAmountPoisha, config.useBengaliNumerals, config.currencySymbol), rightCol, ty, paint)
+
+        if (sale.paymentMethod == "cash" && cashTenderedPoisha > sale.paidAmountPoisha) {
+            ty += 34f
+            paint.typeface = bodyRegular
+            paint.textSize = 22f
+            paint.color = Ink2Color
+            paint.textAlign = Paint.Align.LEFT
+            canvas.drawText("নগদ গ্রহণ (Tendered):", leftCol, ty, paint)
+            paint.textAlign = Paint.Align.RIGHT
+            canvas.drawText(Formatters.formatMoney(cashTenderedPoisha, config.useBengaliNumerals, config.currencySymbol), rightCol, ty, paint)
+
+            if (changeReturnPoisha > 0) {
+                ty += 32f
+                paint.typeface = bodyBold
+                paint.textSize = 23f
+                paint.color = StatusSuccessColor
+                paint.textAlign = Paint.Align.LEFT
+                canvas.drawText("ফেরত দেওয়া হয়েছে (Change):", leftCol, ty, paint)
+                paint.textAlign = Paint.Align.RIGHT
+                canvas.drawText(Formatters.formatMoney(changeReturnPoisha, config.useBengaliNumerals, config.currencySymbol), rightCol, ty, paint)
+            }
+        }
 
         // Due Amount Section: Warning-toned box
         if (isDue) {

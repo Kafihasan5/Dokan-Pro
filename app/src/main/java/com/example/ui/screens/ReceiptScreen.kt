@@ -52,6 +52,8 @@ fun ReceiptScreen(
     val sale by viewModel.lastCompletedSale.collectAsState()
     val saleItems by viewModel.lastCompletedSaleItems.collectAsState()
     val customers by viewModel.customers.collectAsState()
+    val lastCashTendered by viewModel.lastCashTenderedPoisha.collectAsState()
+    val lastChangeReturn by viewModel.lastChangeReturnPoisha.collectAsState()
 
     if (sale == null) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -75,7 +77,7 @@ fun ReceiptScreen(
 
     var showImagePreviewDialog by remember { mutableStateOf(false) }
     var showReturnDialog by remember { mutableStateOf(false) }
-    var cachedBitmap by remember(currentSale.id, saleItems.size, currentSale.isReturned) { mutableStateOf<Bitmap?>(null) }
+    var cachedBitmap by remember(currentSale.id, saleItems.size, currentSale.isReturned, lastCashTendered, lastChangeReturn) { mutableStateOf<Bitmap?>(null) }
 
     fun getOrGenerateBitmap(): Bitmap {
         val existing = cachedBitmap
@@ -87,7 +89,9 @@ fun ReceiptScreen(
             config = config,
             sale = currentSale,
             items = saleItems,
-            customerPreviousDue = previousDue
+            customerPreviousDue = previousDue,
+            cashTenderedPoisha = lastCashTendered,
+            changeReturnPoisha = lastChangeReturn
         )
         cachedBitmap = newBmp
         return newBmp
@@ -190,6 +194,8 @@ fun ReceiptScreen(
                 sale = currentSale,
                 items = saleItems,
                 config = config,
+                cashTenderedPoisha = lastCashTendered,
+                changeReturnPoisha = lastChangeReturn,
                 onReturnClick = { showReturnDialog = true }
             )
         }
@@ -331,6 +337,8 @@ private fun PaperReceiptCard(
     sale: com.example.data.entity.Sale,
     items: List<com.example.data.entity.SaleItem>,
     config: ShopConfig,
+    cashTenderedPoisha: Long = 0L,
+    changeReturnPoisha: Long = 0L,
     onReturnClick: () -> Unit
 ) {
     val bgColor = MaterialTheme.colorScheme.surface
@@ -453,6 +461,40 @@ private fun PaperReceiptCard(
                         style = amountTextStyle(15.sp),
                         color = MaterialTheme.dokanColors.success
                     )
+                }
+
+                if (sale.paymentMethod == "cash" && cashTenderedPoisha > sale.paidAmountPoisha) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("নগদ গ্রহণ", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            text = Formatters.formatMoney(cashTenderedPoisha, config.useBengaliNumerals, config.currencySymbol),
+                            style = amountTextStyle(15.sp),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    if (changeReturnPoisha > 0) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "ফেরত দেওয়া হয়েছে",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.dokanColors.success
+                            )
+                            Text(
+                                text = Formatters.formatMoney(changeReturnPoisha, config.useBengaliNumerals, config.currencySymbol),
+                                style = amountTextStyle(16.sp),
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.dokanColors.success
+                            )
+                        }
+                    }
                 }
 
                 if (sale.dueAmountPoisha > 0) {

@@ -11,11 +11,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +56,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MenuBook
@@ -1243,53 +1246,274 @@ private fun CashTenderSection(
     config: ShopConfig,
     onSetCash: (Long) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-        val grandTotalTaka = grandTotal / 100
+    val grandTotalTaka = (grandTotal / 100).coerceAtLeast(0)
+    var cashInputText by remember(cashTenderedPoisha) {
+        mutableStateOf(if (cashTenderedPoisha > 0) (cashTenderedPoisha / 100).toString() else "")
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.sm))
+            .background(MaterialTheme.dokanColors.surfaceAlt)
+            .padding(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+    ) {
+        // Header with Title & Reset action
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            listOf(
-                grandTotalTaka,
-                grandTotalTaka + 50,
-                grandTotalTaka + 100,
-                500L,
-                1000L
-            ).distinct().take(4).forEach { amt ->
-                OutlinedButton(
-                    onClick = { onSetCash(amt * 100) },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(Radius.xs),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Payments,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(Spacing.xs))
+                Text(
+                    text = "নগদ গ্রহণ ও ফেরত টাকার হিসাব",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            if (cashTenderedPoisha > 0) {
+                TextButton(
+                    onClick = {
+                        cashInputText = ""
+                        onSetCash(0L)
+                    },
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                 ) {
+                    Icon(
+                        imageVector = Icons.Default.Clear,
+                        contentDescription = "রিসেট",
+                        tint = MaterialTheme.dokanColors.danger,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
                     Text(
-                        text = "${config.currencySymbol}${if (config.useBengaliNumerals) Formatters.toBengaliDigits(amt.toString()) else amt}",
-                        style = MaterialTheme.typography.labelSmall
+                        text = "মুছুন",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.dokanColors.danger
                     )
                 }
             }
         }
 
-        // Animated "ফেরত দিতে হবে" line
-        AnimatedVisibility(visible = changeReturnPoisha > 0) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("ফেরত দিতে হবে:", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.dokanColors.success, fontWeight = FontWeight.Bold)
-                AnimatedContent(
-                    targetState = changeReturnPoisha,
-                    transitionSpec = { slideInVertically { -it } + fadeIn() togetherWith slideOutVertically { it } + fadeOut() },
-                    label = "change_return_anim"
-                ) { targetVal ->
-                    Text(
-                        text = Formatters.formatMoney(targetVal, config.useBengaliNumerals, config.currencySymbol),
-                        style = amountTextStyle(18.sp),
-                        color = MaterialTheme.dokanColors.success
+        // Input Box for Customer Tendered Amount
+        DokanTextField(
+            value = cashInputText,
+            onValueChange = { input ->
+                val normalized = Formatters.fromBengaliDigits(input).filter { it.isDigit() || it == '.' }
+                cashInputText = normalized
+                val amountDouble = normalized.toDoubleOrNull() ?: 0.0
+                onSetCash((amountDouble * 100).toLong())
+            },
+            label = "গ্রাহকের দেওয়া টাকা / নোট (৳)",
+            placeholder = if (grandTotalTaka > 0) "যেমন: $grandTotalTaka বা ১০০০" else "টাকার পরিমাণ লিখুন"
+        )
+
+        // Note Chips Row
+        val noteOptions = remember(grandTotalTaka) {
+            val list = mutableListOf<Long>()
+            if (grandTotalTaka > 0) {
+                list.add(grandTotalTaka)
+            }
+            val standardNotes = listOf(50L, 100L, 200L, 500L, 1000L)
+            standardNotes.filter { it >= grandTotalTaka }.forEach { list.add(it) }
+
+            val next50 = ((grandTotalTaka + 49) / 50) * 50
+            if (next50 > grandTotalTaka) list.add(next50)
+            val next100 = ((grandTotalTaka + 99) / 100) * 100
+            if (next100 > grandTotalTaka) list.add(next100)
+
+            list.distinct().sorted().take(5)
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+        ) {
+            noteOptions.forEach { amt ->
+                val isExact = amt == grandTotalTaka
+                val isSelected = (cashTenderedPoisha / 100) == amt
+                val labelText = if (isExact) {
+                    "হুবহু ${Formatters.formatMoney(amt * 100, config.useBengaliNumerals, config.currencySymbol)}"
+                } else {
+                    Formatters.formatMoney(amt * 100, config.useBengaliNumerals, config.currencySymbol)
+                }
+
+                Surface(
+                    onClick = {
+                        cashInputText = amt.toString()
+                        onSetCash(amt * 100)
+                    },
+                    shape = RoundedCornerShape(Radius.pill),
+                    color = when {
+                        isSelected -> MaterialTheme.colorScheme.primary
+                        isExact -> MaterialTheme.colorScheme.primaryContainer
+                        else -> MaterialTheme.colorScheme.surface
+                    },
+                    border = BorderStroke(
+                        1.dp,
+                        if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
                     )
+                ) {
+                    Text(
+                        text = labelText,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = if (isSelected || isExact) FontWeight.Bold else FontWeight.Medium,
+                        color = when {
+                            isSelected -> MaterialTheme.colorScheme.onPrimary
+                            isExact -> MaterialTheme.colorScheme.onPrimaryContainer
+                            else -> MaterialTheme.colorScheme.onSurface
+                        },
+                        modifier = Modifier.padding(horizontal = Spacing.sm, vertical = 6.dp)
+                    )
+                }
+            }
+        }
+
+        // Live Change Due Card
+        if (cashTenderedPoisha > 0) {
+            when {
+                cashTenderedPoisha > grandTotal -> {
+                    val change = cashTenderedPoisha - grandTotal
+                    Surface(
+                        shape = RoundedCornerShape(Radius.sm),
+                        color = Color(0xFFDCFCE7),
+                        border = BorderStroke(1.5.dp, Color(0xFF16A34A)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF16A34A)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Payments,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(Spacing.sm))
+                                Column {
+                                    Text(
+                                        text = "গ্রাহককে ফেরত দিন",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF166534)
+                                    )
+                                    Text(
+                                        text = "নগদ ফেরত প্রদান আবশ্যক",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF15803D)
+                                    )
+                                }
+                            }
+
+                            AnimatedContent(
+                                targetState = change,
+                                transitionSpec = { slideInVertically { -it } + fadeIn() togetherWith slideOutVertically { it } + fadeOut() },
+                                label = "change_return_live"
+                            ) { targetChange ->
+                                Text(
+                                    text = Formatters.formatMoney(targetChange, config.useBengaliNumerals, config.currencySymbol),
+                                    style = amountTextStyle(22.sp),
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF15803D)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                cashTenderedPoisha == grandTotal -> {
+                    Surface(
+                        shape = RoundedCornerShape(Radius.sm),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.dokanColors.success,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(Spacing.sm))
+                            Text(
+                                text = "হুবহু পরিশোধ (কোনো ফেরত নেই)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.dokanColors.success
+                            )
+                        }
+                    }
+                }
+
+                cashTenderedPoisha < grandTotal -> {
+                    val remaining = grandTotal - cashTenderedPoisha
+                    Surface(
+                        shape = RoundedCornerShape(Radius.sm),
+                        color = Color(0xFFFEF3C7),
+                        border = BorderStroke(1.dp, Color(0xFFF59E0B)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = Color(0xFFB45309),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(Spacing.sm))
+                                Text(
+                                    text = "কম দেওয়া হয়েছে",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF92400E)
+                                )
+                            }
+                            Text(
+                                text = "বাকি: ${Formatters.formatMoney(remaining, config.useBengaliNumerals, config.currencySymbol)}",
+                                style = amountTextStyle(15.sp),
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFB45309)
+                            )
+                        }
+                    }
                 }
             }
         }
