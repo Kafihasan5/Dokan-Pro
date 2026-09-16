@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -35,6 +36,8 @@ import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -86,6 +89,8 @@ fun TopHeader(
         "light" -> false
         else -> systemDark
     }
+    val bellTint = if (unreadNotificationsCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+    val badgeDangerColor = MaterialTheme.dokanColors.danger
 
     // Infinite rotation animation when syncing
     val infiniteTransition = rememberInfiniteTransition(label = "sync_spin")
@@ -268,7 +273,7 @@ fun TopHeader(
                                 badge = {
                                     if (unreadNotificationsCount > 0) {
                                         Badge(
-                                            containerColor = MaterialTheme.dokanColors.danger,
+                                            containerColor = badgeDangerColor,
                                             contentColor = Color.White
                                         ) {
                                             Text(
@@ -283,7 +288,7 @@ fun TopHeader(
                                 Icon(
                                     imageVector = Icons.Default.Notifications,
                                     contentDescription = "বিজ্ঞপ্তি ও বার্তা",
-                                    tint = if (unreadNotificationsCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    tint = bellTint,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
