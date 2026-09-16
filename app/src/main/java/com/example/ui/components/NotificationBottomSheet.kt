@@ -33,7 +33,8 @@ fun NotificationBottomSheet(
     notifications: List<SupportNotification>,
     onDismiss: () -> Unit,
     onOpenSupportChat: () -> Unit,
-    onMarkAllRead: () -> Unit
+    onMarkAllRead: () -> Unit,
+    onClearAll: () -> Unit = {}
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -68,12 +69,22 @@ fun NotificationBottomSheet(
                 }
 
                 if (notifications.isNotEmpty()) {
-                    TextButton(onClick = onMarkAllRead) {
-                        Text(
-                            text = "সব পড়া হয়েছে",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = onMarkAllRead) {
+                            Text(
+                                text = "সব পড়া হয়েছে",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        TextButton(onClick = onClearAll) {
+                            Text(
+                                text = "সব মুছুন",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.dokanColors.danger
+                            )
+                        }
                     }
                 }
             }

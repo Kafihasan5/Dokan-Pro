@@ -261,6 +261,11 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         TelegramSupportManager.markAllNotificationsRead(getApplication())
     }
 
+    fun clearAllNotifications() {
+        TelegramSupportManager.clearAllNotifications(getApplication())
+        showToast("সকল বিজ্ঞপ্তি মুছে ফেলা হয়েছে")
+    }
+
     fun triggerNewUserSetupNotification(config: ShopConfig = shopConfig.value) {
         viewModelScope.launch {
             val statusStr = when {
@@ -991,6 +996,58 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
             showToast("সাপ্লায়ার যোগ করা হয়েছে")
             onSuccess()
         }
+    }
+
+    fun saveSupplierAndReturn(supplier: Supplier, onSaved: (Supplier) -> Unit) {
+        viewModelScope.launch {
+            val id = repository.saveSupplier(supplier)
+            val created = supplier.copy(id = id)
+            showToast("সাপ্লায়ার যোগ করা হয়েছে")
+            onSaved(created)
+        }
+    }
+
+    fun saveProductAndReturn(product: Product, onSaved: (Product) -> Unit) {
+        viewModelScope.launch {
+            val id = repository.saveProduct(product)
+            val created = product.copy(id = id)
+            showToast("পণ্য সফলভাবে যোগ করা হয়েছে")
+            onSaved(created)
+        }
+    }
+
+    fun payPurchaseDue(
+        purchaseId: Long,
+        paymentAmountPoisha: Long,
+        note: String? = null,
+        onSuccess: () -> Unit
+    ) {
+        viewModelScope.launch {
+            val ok = repository.payPurchaseDue(purchaseId, paymentAmountPoisha, note)
+            if (ok) {
+                showToast("সাপ্লায়ার বকেয়া পরিশোধ সফল হয়েছে")
+                onSuccess()
+            } else {
+                showToast("বকেয়া পরিশোধে ব্যর্থ বা কোনো বকেয়া নেই")
+            }
+        }
+    }
+
+    fun recordSupplierPayment(
+        supplierId: Long,
+        amountPoisha: Long,
+        note: String? = null,
+        onSuccess: () -> Unit
+    ) {
+        viewModelScope.launch {
+            repository.recordSupplierPayment(supplierId, amountPoisha, note)
+            showToast("সাপ্লায়ার বকেয়া পরিশোধ সংরক্ষণ করা হয়েছে")
+            onSuccess()
+        }
+    }
+
+    fun getSupplierBalanceFlow(supplierId: Long): Flow<Long> {
+        return repository.getSupplierBalance(supplierId)
     }
 
     fun deleteSupplier(supplierId: Long, onSuccess: (() -> Unit)? = null) {

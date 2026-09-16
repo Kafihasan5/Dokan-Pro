@@ -449,6 +449,68 @@ class PaponRepository(private val dao: PaponDao) {
         purchaseId
     }
 
+    suspend fun payPurchaseDue(
+        purchaseId: Long,
+        paymentAmountPoisha: Long,
+        note: String? = null
+    ): Boolean = withContext(Dispatchers.IO) {
+        val purchase = dao.getPurchaseById(purchaseId) ?: return@withContext false
+        if (purchase.dueAmountPoisha <= 0 || paymentAmountPoisha <= 0) return@withContext false
+
+        val actualPay = minOf(paymentAmountPoisha, purchase.dueAmountPoisha)
+        val updatedDue = purchase.dueAmountPoisha - actualPay
+        val updatedPaid = purchase.paidAmountPoisha + actualPay
+
+        val updatedPurchase = purchase.copy(
+            paidAmountPoisha = updatedPaid,
+            dueAmountPoisha = updatedDue
+        )
+        dao.updatePurchase(updatedPurchase)
+
+        // Insert payment into supplier ledger
+        dao.insertSupplierLedger(
+            SupplierLedger(
+                supplierId = purchase.supplierId,
+                refType = "payment",
+                refId = purchaseId,
+                debitPoisha = actualPay,
+                creditPoisha = 0,
+                note = note?.ifBlank { null } ?: "চালান নং ${purchase.invoiceNo} এর বকেয়া পরিশোধ",
+                entryDate = System.currentTimeMillis()
+            )
+        )
+
+        scope.launch {
+            supabaseSync.syncPurchase(updatedPurchase, emptyList(), emptyList())
+        }
+
+        true
+    }
+
+    suspend fun recordSupplierPayment(
+        supplierId: Long,
+        amountPoisha: Long,
+        note: String? = null
+    ): Long = withContext(Dispatchers.IO) {
+        if (amountPoisha <= 0) return@withContext 0L
+        val ledgerId = dao.insertSupplierLedger(
+            SupplierLedger(
+                supplierId = supplierId,
+                refType = "payment",
+                refId = null,
+                debitPoisha = amountPoisha,
+                creditPoisha = 0,
+                note = note?.ifBlank { null } ?: "সাপ্লায়ার বকেয়া পরিশোধ",
+                entryDate = System.currentTimeMillis()
+            )
+        )
+        ledgerId
+    }
+
+    fun getSupplierBalance(supplierId: Long): Flow<Long> = dao.getSupplierBalance(supplierId)
+
+    fun getSupplierLedger(supplierId: Long): Flow<List<SupplierLedger>> = dao.getSupplierLedger(supplierId)
+
     // --- EXPENSES ---
     val allExpenseCategories: Flow<List<ExpenseCategory>> = dao.getAllExpenseCategories()
     val allExpenses: Flow<List<Expense>> = dao.getAllExpenses()

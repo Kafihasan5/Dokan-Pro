@@ -3,6 +3,7 @@ package com.example.data.support
 import android.content.Context
 import com.example.data.supabase.SupabaseConfig
 import com.example.ui.ShopConfig
+import com.example.util.AppNotificationHelper
 import com.example.util.Formatters
 import com.example.util.SoundHelper
 import kotlinx.coroutines.Dispatchers
@@ -381,15 +382,49 @@ object TelegramSupportManager {
                         val replyThreadId = replyTo?.optLong("message_thread_id", -1L) ?: -1L
                         val dateSec = message.optLong("date", System.currentTimeMillis() / 1000)
 
-                        // 1. Check for Broadcast Messages from General Tab (/all, /broadcast, /notice, /সব)
-                        val isGeneralTab = (threadId <= 1L)
-                        val isBroadcastCmd = text.startsWith("/all", ignoreCase = true) ||
-                                text.startsWith("/broadcast", ignoreCase = true) ||
-                                text.startsWith("/notice", ignoreCase = true) ||
-                                text.startsWith("/সব", ignoreCase = true)
+                        // 1. Check for Broadcast Messages from General Tab (#all, /all, @all, !all, all:, broadcast, notice, নোটিশ, ইত্যাদি)
+                        val trimmedLower = text.trim().lowercase(Locale.ROOT)
+                        val isBroadcastCmd = trimmedLower.startsWith("/all") ||
+                                trimmedLower.startsWith("#all") ||
+                                trimmedLower.startsWith("@all") ||
+                                trimmedLower.startsWith("!all") ||
+                                trimmedLower.startsWith("all:") ||
+                                trimmedLower.startsWith("all ") ||
+                                trimmedLower.startsWith("/broadcast") ||
+                                trimmedLower.startsWith("#broadcast") ||
+                                trimmedLower.startsWith("/notice") ||
+                                trimmedLower.startsWith("#notice") ||
+                                trimmedLower.startsWith("notice:") ||
+                                trimmedLower.startsWith("/সব") ||
+                                trimmedLower.startsWith("#সব") ||
+                                trimmedLower.startsWith("সব:") ||
+                                trimmedLower.startsWith("নোটিশ") ||
+                                trimmedLower.startsWith("ঘোষণা")
 
-                        if (isGeneralTab && isBroadcastCmd) {
-                            val cleanNotice = text.substringAfter(" ").trim()
+                        val isGeneralTab = (threadId <= 1L)
+
+                        if (isBroadcastCmd || isGeneralTab) {
+                            val cleanNotice = when {
+                                trimmedLower.startsWith("/all") -> text.substringAfter("/all", "").trim().removePrefix(":").trim()
+                                trimmedLower.startsWith("#all") -> text.substringAfter("#all", "").trim().removePrefix(":").trim()
+                                trimmedLower.startsWith("@all") -> text.substringAfter("@all", "").trim().removePrefix(":").trim()
+                                trimmedLower.startsWith("!all") -> text.substringAfter("!all", "").trim().removePrefix(":").trim()
+                                trimmedLower.startsWith("all:") -> text.substringAfter("all:", "").trim()
+                                trimmedLower.startsWith("all ") -> text.substringAfter("all ", "").trim()
+                                trimmedLower.startsWith("/broadcast") -> text.substringAfter("/broadcast", "").trim().removePrefix(":").trim()
+                                trimmedLower.startsWith("#broadcast") -> text.substringAfter("#broadcast", "").trim().removePrefix(":").trim()
+                                trimmedLower.startsWith("/notice") -> text.substringAfter("/notice", "").trim().removePrefix(":").trim()
+                                trimmedLower.startsWith("#notice") -> text.substringAfter("#notice", "").trim().removePrefix(":").trim()
+                                trimmedLower.startsWith("notice:") -> text.substringAfter("notice:", "").trim()
+                                trimmedLower.startsWith("/সব") -> text.substringAfter("/সব", "").trim().removePrefix(":").trim()
+                                trimmedLower.startsWith("#সব") -> text.substringAfter("#সব", "").trim().removePrefix(":").trim()
+                                trimmedLower.startsWith("সব:") -> text.substringAfter("সব:", "").trim()
+                                trimmedLower.startsWith("নোটিশ") -> text.substringAfter("নোটিশ", "").trim().removePrefix(":").trim()
+                                trimmedLower.startsWith("ঘোষণা") -> text.substringAfter("ঘোষণা", "").trim().removePrefix(":").trim()
+                                else -> text
+                            }.ifBlank { text }
+
+                            val rawMsgId = message.optInt("message_id", 1)
                             val bId = "broadcast_${message.optLong("message_id")}"
                             if (cleanNotice.isNotEmpty() && !existingNotifIds.contains(bId)) {
                                 val notif = SupportNotification(
@@ -412,6 +447,15 @@ object TelegramSupportManager {
                                     )
                                 )
                                 hasNewIncoming = true
+
+                                // Post system notification in phone's notification bar
+                                AppNotificationHelper.showSupportNotification(
+                                    context = context,
+                                    notificationId = rawMsgId,
+                                    title = "📢 সার্বজনীন নোটিশ",
+                                    message = cleanNotice,
+                                    isBroadcast = true
+                                )
                             }
                             continue
                         }
@@ -444,6 +488,16 @@ object TelegramSupportManager {
                                 isRead = false
                             )
                             addNotification(context, notif)
+
+                            // Post system notification in phone's notification bar
+                            val rawMsgId = message.optInt("message_id", (System.currentTimeMillis() % 100000).toInt())
+                            AppNotificationHelper.showSupportNotification(
+                                context = context,
+                                notificationId = rawMsgId,
+                                title = "দোকান প্রো কাস্টমার সাপোর্ট",
+                                message = text,
+                                isBroadcast = false
+                            )
                         }
                     }
 
@@ -676,6 +730,12 @@ object TelegramSupportManager {
 
     fun markAllNotificationsRead(context: Context) {
         _notifications.value = _notifications.value.map { it.copy(isRead = true) }
+        _unreadNotificationCount.value = 0
+        saveLocalNotifications(context)
+    }
+
+    fun clearAllNotifications(context: Context) {
+        _notifications.value = emptyList()
         _unreadNotificationCount.value = 0
         saveLocalNotifications(context)
     }

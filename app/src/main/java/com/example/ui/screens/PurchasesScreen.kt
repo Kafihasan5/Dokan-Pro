@@ -56,6 +56,7 @@ fun PurchasesScreen(
     var showAddPurchaseSheet by remember { mutableStateOf(false) }
     var showAddSupplierSheet by remember { mutableStateOf(false) }
     var purchaseToDelete by remember { mutableStateOf<Purchase?>(null) }
+    var purchaseToPayDue by remember { mutableStateOf<Purchase?>(null) }
 
     DokanScreenScaffold(
         title = "ক্রয় ও সাপ্লায়ার",
@@ -167,11 +168,26 @@ fun PurchasesScreen(
                     PurchaseCard(
                         purchase = purchase,
                         config = config,
+                        onPayDueClick = { purchaseToPayDue = purchase },
                         onDeleteClick = { purchaseToDelete = purchase }
                     )
                 }
             }
         }
+    }
+
+    // Pay Purchase Due Dialog
+    purchaseToPayDue?.let { purchase ->
+        PayPurchaseDueDialog(
+            purchase = purchase,
+            config = config,
+            onDismiss = { purchaseToPayDue = null },
+            onConfirmPay = { amountPoisha, note ->
+                viewModel.payPurchaseDue(purchase.id, amountPoisha, note) {
+                    purchaseToPayDue = null
+                }
+            }
+        )
     }
 
     // Delete Confirmation Dialog
@@ -196,6 +212,12 @@ fun PurchasesScreen(
             products = products,
             config = config,
             onDismiss = { showAddPurchaseSheet = false },
+            onQuickCreateSupplier = { newSup, onDone ->
+                viewModel.saveSupplierAndReturn(newSup, onDone)
+            },
+            onQuickCreateProduct = { newProd, onDone ->
+                viewModel.saveProductAndReturn(newProd, onDone)
+            },
             onSave = { purchase, items ->
                 viewModel.recordPurchase(purchase, items) {
                     showAddPurchaseSheet = false
@@ -224,6 +246,7 @@ fun PurchasesScreen(
 private fun PurchaseCard(
     purchase: Purchase,
     config: ShopConfig,
+    onPayDueClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
     val avatarColor = remember(purchase.supplierId, purchase.supplierName) {
@@ -291,16 +314,29 @@ private fun PurchaseCard(
 
                 if (purchase.dueAmountPoisha > 0) {
                     Surface(
+                        onClick = onPayDueClick,
                         shape = RoundedCornerShape(Radius.pill),
-                        color = MaterialTheme.dokanColors.warningContainer
+                        color = MaterialTheme.dokanColors.warningContainer,
+                        border = BorderStroke(1.dp, MaterialTheme.dokanColors.warning.copy(alpha = 0.5f))
                     ) {
-                        Text(
-                            text = "বাকি ${Formatters.formatMoney(purchase.dueAmountPoisha, config.useBengaliNumerals, config.currencySymbol)}",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.dokanColors.warning,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Payments,
+                                contentDescription = "বকেয়া পরিশোধ",
+                                tint = MaterialTheme.dokanColors.warning,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "বাকি ${Formatters.formatMoney(purchase.dueAmountPoisha, config.useBengaliNumerals, config.currencySymbol)} • পরিশোধ",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.dokanColors.warning
+                            )
+                        }
                     }
                 } else {
                     Surface(
@@ -345,12 +381,17 @@ private fun AddPurchaseBottomSheet(
     products: List<Product>,
     config: ShopConfig,
     onDismiss: () -> Unit,
+    onQuickCreateSupplier: (Supplier, (Supplier) -> Unit) -> Unit,
+    onQuickCreateProduct: (Product, (Product) -> Unit) -> Unit,
     onSave: (Purchase, List<PurchaseItem>) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var selectedSupplier by remember { mutableStateOf(suppliers.firstOrNull()) }
     var selectedProduct by remember { mutableStateOf(products.firstOrNull()) }
+    var showQuickAddSupplier by remember { mutableStateOf(false) }
+    var showQuickAddProduct by remember { mutableStateOf(false) }
+
     var qtyText by remember { mutableStateOf("10") }
     var unitPriceText by remember {
         mutableStateOf(if (products.isNotEmpty()) (products.first().purchasePricePoisha / 100.0).toString() else "50")
@@ -406,7 +447,21 @@ private fun AddPurchaseBottomSheet(
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     SectionHeader(title = "সাপ্লায়ার ও পণ্য")
 
-                    Text("সাপ্লায়ার নির্বাচন:", style = MaterialTheme.typography.labelSmall)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("সাপ্লায়ার নির্বাচন:", style = MaterialTheme.typography.labelSmall)
+                        TextButton(
+                            onClick = { showQuickAddSupplier = true },
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                        ) {
+                            Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("+ নতুন সাপ্লায়ার", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        }
+                    }
                     var supMenuExpanded by remember { mutableStateOf(false) }
                     Surface(
                         shape = RoundedCornerShape(Radius.sm),
@@ -446,7 +501,21 @@ private fun AddPurchaseBottomSheet(
                         }
                     }
 
-                    Text("পণ্য নির্বাচন:", style = MaterialTheme.typography.labelSmall)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("পণ্য নির্বাচন:", style = MaterialTheme.typography.labelSmall)
+                        TextButton(
+                            onClick = { showQuickAddProduct = true },
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                        ) {
+                            Icon(Icons.Default.AddCircleOutline, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("+ নতুন পণ্য", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        }
+                    }
                     var prodMenuExpanded by remember { mutableStateOf(false) }
                     Surface(
                         shape = RoundedCornerShape(Radius.sm),
@@ -607,6 +676,31 @@ private fun AddPurchaseBottomSheet(
                 }
             }
         }
+
+        if (showQuickAddSupplier) {
+            QuickAddSupplierDialog(
+                onDismiss = { showQuickAddSupplier = false },
+                onSave = { newSup ->
+                    onQuickCreateSupplier(newSup) { created ->
+                        selectedSupplier = created
+                        showQuickAddSupplier = false
+                    }
+                }
+            )
+        }
+
+        if (showQuickAddProduct) {
+            QuickAddProductDialog(
+                onDismiss = { showQuickAddProduct = false },
+                onSave = { newProd ->
+                    onQuickCreateProduct(newProd) { created ->
+                        selectedProduct = created
+                        unitPriceText = (created.purchasePricePoisha / 100.0).toString()
+                        showQuickAddProduct = false
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -705,4 +799,333 @@ private fun AddSupplierBottomSheet(
             Spacer(modifier = Modifier.height(Spacing.lg))
         }
     }
+}
+
+// ==============================================================================
+// PAY PURCHASE DUE DIALOG (সাপ্লায়ার বকেয়া পরিশোধ)
+// ==============================================================================
+@Composable
+private fun PayPurchaseDueDialog(
+    purchase: Purchase,
+    config: ShopConfig,
+    onDismiss: () -> Unit,
+    onConfirmPay: (amountPoisha: Long, note: String?) -> Unit
+) {
+    val defaultAmountTaka = (purchase.dueAmountPoisha / 100.0).toString()
+    var amountText by remember { mutableStateOf(defaultAmountTaka) }
+    var noteText by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Payments,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(Spacing.xs))
+                Text(
+                    text = "সাপ্লায়ার বকেয়া পরিশোধ",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(Radius.sm),
+                    color = MaterialTheme.dokanColors.surfaceAlt,
+                    border = BorderStroke(1.dp, MaterialTheme.dokanColors.border),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(Spacing.sm)) {
+                        Text(
+                            text = "সাপ্লায়ার: ${purchase.supplierName}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "চালান নং: ${purchase.invoiceNo}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "মোট বিল:",
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                            Text(
+                                text = Formatters.formatMoney(purchase.totalPoisha, config.useBengaliNumerals, config.currencySymbol),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "বর্তমান বকেয়া:",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.dokanColors.warning
+                            )
+                            Text(
+                                text = Formatters.formatMoney(purchase.dueAmountPoisha, config.useBengaliNumerals, config.currencySymbol),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.dokanColors.warning
+                            )
+                        }
+                    }
+                }
+
+                DokanTextField(
+                    value = amountText,
+                    onValueChange = {
+                        amountText = it.filter { c -> c.isDigit() || c == '.' }
+                        errorMessage = null
+                    },
+                    label = "পরিশোধের পরিমাণ (৳) *",
+                    keyboardType = KeyboardType.Decimal,
+                    prefix = { Text("৳ ", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) },
+                    isError = errorMessage != null,
+                    supportingText = errorMessage?.let { { Text(it, color = MaterialTheme.dokanColors.danger) } }
+                )
+
+                DokanTextField(
+                    value = noteText,
+                    onValueChange = { noteText = it },
+                    label = "পেমেন্ট মন্তব্য (ঐচ্ছিক)",
+                    placeholder = "যেমন: ক্যাশ পরিশোধ"
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val amountTaka = amountText.toDoubleOrNull() ?: 0.0
+                    val amountPoisha = (amountTaka * 100).toLong()
+                    if (amountPoisha <= 0) {
+                        errorMessage = "সঠিক পরিমাণ লিখুন"
+                        return@Button
+                    }
+                    if (amountPoisha > purchase.dueAmountPoisha) {
+                        errorMessage = "বকেয়ার চেয়ে বেশি পরিশোধ করা যাবে না"
+                        return@Button
+                    }
+                    onConfirmPay(amountPoisha, noteText.trim().ifBlank { null })
+                },
+                shape = RoundedCornerShape(Radius.pill)
+            ) {
+                Text("পরিশোধ নিশ্চিত করুন")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("বাতিল")
+            }
+        }
+    )
+}
+
+// ==============================================================================
+// QUICK ADD SUPPLIER DIALOG (ইনলাইন দ্রুত সাপ্লায়ার তৈরি)
+// ==============================================================================
+@Composable
+private fun QuickAddSupplierDialog(
+    onDismiss: () -> Unit,
+    onSave: (Supplier) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var company by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf("") }
+    var nameError by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.PersonAdd, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(Spacing.xs))
+                Text("নতুন সাপ্লায়ার যোগ করুন", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                DokanTextField(
+                    value = name,
+                    onValueChange = { name = it; nameError = false },
+                    label = "সাপ্লায়ারের নাম *",
+                    isError = nameError,
+                    supportingText = if (nameError) { { Text("সাপ্লায়ারের নাম আবশ্যক", color = MaterialTheme.dokanColors.danger) } } else null
+                )
+                DokanTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = "মোবাইল নম্বর",
+                    keyboardType = KeyboardType.Phone
+                )
+                DokanTextField(
+                    value = company,
+                    onValueChange = { company = it },
+                    label = "প্রতিষ্ঠান / কোম্পানি (ঐচ্ছিক)"
+                )
+                DokanTextField(
+                    value = address,
+                    onValueChange = { address = it },
+                    label = "ঠিকানা (ঐচ্ছিক)"
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (name.trim().isEmpty()) {
+                        nameError = true
+                        return@Button
+                    }
+                    onSave(
+                        Supplier(
+                            name = name.trim(),
+                            phone = phone.trim(),
+                            company = company.trim().ifBlank { null },
+                            address = address.trim().ifBlank { null }
+                        )
+                    )
+                },
+                shape = RoundedCornerShape(Radius.pill)
+            ) {
+                Text("যোগ করুন")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("বাতিল")
+            }
+        }
+    )
+}
+
+// ==============================================================================
+// QUICK ADD PRODUCT DIALOG (ইনলাইন দ্রুত পণ্য তৈরি)
+// ==============================================================================
+@Composable
+private fun QuickAddProductDialog(
+    onDismiss: () -> Unit,
+    onSave: (Product) -> Unit
+) {
+    var nameBn by remember { mutableStateOf("") }
+    var purchasePriceText by remember { mutableStateOf("") }
+    var salePriceText by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("মুদি") }
+    var unit by remember { mutableStateOf("পিস") }
+    var nameError by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.AddCircleOutline, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(Spacing.xs))
+                Text("নতুন পণ্য যোগ করুন", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                DokanTextField(
+                    value = nameBn,
+                    onValueChange = { nameBn = it; nameError = false },
+                    label = "পণ্যের নাম (বাংলা) *",
+                    isError = nameError,
+                    supportingText = if (nameError) { { Text("পণ্যের নাম আবশ্যক", color = MaterialTheme.dokanColors.danger) } } else null
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                ) {
+                    DokanTextField(
+                        value = purchasePriceText,
+                        onValueChange = { purchasePriceText = it.filter { c -> c.isDigit() || c == '.' } },
+                        label = "ক্রয়দর (৳) *",
+                        keyboardType = KeyboardType.Decimal,
+                        modifier = Modifier.weight(1f)
+                    )
+                    DokanTextField(
+                        value = salePriceText,
+                        onValueChange = { salePriceText = it.filter { c -> c.isDigit() || c == '.' } },
+                        label = "বিক্রয়দর (৳) *",
+                        keyboardType = KeyboardType.Decimal,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                ) {
+                    DokanTextField(
+                        value = category,
+                        onValueChange = { category = it },
+                        label = "ক্যাটাগরি",
+                        modifier = Modifier.weight(1f)
+                    )
+                    DokanTextField(
+                        value = unit,
+                        onValueChange = { unit = it },
+                        label = "একক (কেজি/পিস)",
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (nameBn.trim().isEmpty()) {
+                        nameError = true
+                        return@Button
+                    }
+                    val pPriceTaka = purchasePriceText.toDoubleOrNull() ?: 0.0
+                    val sPriceTaka = salePriceText.toDoubleOrNull() ?: pPriceTaka
+                    onSave(
+                        Product(
+                            nameBn = nameBn.trim(),
+                            purchasePricePoisha = (pPriceTaka * 100).toLong(),
+                            salePricePoisha = (sPriceTaka * 100).toLong(),
+                            category = category.trim().ifBlank { "সাধারণ" },
+                            unit = unit.trim().ifBlank { "পিস" },
+                            stockQty = 0.0
+                        )
+                    )
+                },
+                shape = RoundedCornerShape(Radius.pill)
+            ) {
+                Text("যোগ করুন")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("বাতিল")
+            }
+        }
+    )
 }

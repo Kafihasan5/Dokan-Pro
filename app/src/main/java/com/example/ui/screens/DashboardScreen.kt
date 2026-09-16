@@ -326,6 +326,9 @@ fun DashboardScreen(
                     },
                     onMarkAllRead = {
                         viewModel.markAllNotificationsRead()
+                    },
+                    onClearAll = {
+                        viewModel.clearAllNotifications()
                     }
                 )
             }

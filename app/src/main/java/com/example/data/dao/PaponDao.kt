@@ -157,6 +157,12 @@ interface PaponDao {
     @Query("SELECT * FROM purchases ORDER BY purchaseDate DESC")
     fun getAllPurchases(): Flow<List<Purchase>>
 
+    @Query("SELECT * FROM purchases WHERE id = :id LIMIT 1")
+    suspend fun getPurchaseById(id: Long): Purchase?
+
+    @Update
+    suspend fun updatePurchase(purchase: Purchase)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSupplierLedger(ledger: SupplierLedger): Long
 
@@ -165,6 +171,12 @@ interface PaponDao {
 
     @Query("SELECT * FROM supplier_ledger WHERE supplierId = :supplierId ORDER BY entryDate DESC")
     fun getSupplierLedger(supplierId: Long): Flow<List<SupplierLedger>>
+
+    @Query("SELECT COALESCE(SUM(creditPoisha - debitPoisha), 0) FROM supplier_ledger WHERE supplierId = :supplierId")
+    fun getSupplierBalance(supplierId: Long): Flow<Long>
+
+    @Query("SELECT COALESCE(SUM(creditPoisha - debitPoisha), 0) FROM supplier_ledger WHERE supplierId = :supplierId")
+    suspend fun getSupplierBalanceSync(supplierId: Long): Long
 
     // --- EXPENSES ---
     @Query("SELECT * FROM expense_categories ORDER BY id ASC")

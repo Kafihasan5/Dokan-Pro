@@ -240,25 +240,6 @@ fun TopHeader(
                         )
                     }
 
-                    // Refresh 40dp icon button
-                    IconButton(
-                        onClick = onSyncNow,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                            .testTag("sync_now_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "তথ্য হালনাগাদ (রিফ্রেশ)",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier
-                                .size(20.dp)
-                                .then(if (isSyncing) Modifier.rotate(rotation) else Modifier)
-                        )
-                    }
-
                     // Notification Bell with Badge
                     Box {
                         IconButton(
