@@ -642,7 +642,7 @@ fun SettingsScreen(
                                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.dokanColors.gold),
                                     shape = RoundedCornerShape(Radius.md)
                                 ) {
-                                    Text("লাইসেন্স কিনুন (৳৪৯০)", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Brand900)
+                                    Text("লাইসেন্স সংগ্রহ করুন", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Brand900)
                                 }
 
                                 DokanSecondaryButton(

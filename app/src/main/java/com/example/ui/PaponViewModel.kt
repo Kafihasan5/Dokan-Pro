@@ -47,7 +47,9 @@ data class ShopConfig(
     val userRole: String = "owner", // "owner" or "staff"
     val allowNegativeStock: Boolean = true,
     val isOnboardingCompleted: Boolean = false,
-    val noticeMessage: String = ""
+    val noticeMessage: String = "",
+    val firebaseShopCode: String = "",
+    val firebaseSyncEnabled: Boolean = false
 )
 
 data class AppUpdateInfo(
@@ -91,6 +93,13 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _shopConfig = MutableStateFlow(ShopConfig())
     val shopConfig: StateFlow<ShopConfig> = _shopConfig.asStateFlow()
+
+    lateinit var firebaseSyncManager: com.example.data.firebase.FirebaseSyncManager
+        private set
+
+    val firebaseSyncStatus: StateFlow<com.example.data.firebase.FirebaseSyncStatus>
+        get() = firebaseSyncManager.syncStatus
+
 
     private val _appUpdateInfo = MutableStateFlow(AppUpdateInfo())
     val appUpdateInfo: StateFlow<AppUpdateInfo> = _appUpdateInfo.asStateFlow()
@@ -154,7 +163,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                     _isDemoExpired.value = true
                     if (!licenseManager.isRealLicenseActive()) {
                         _isAppActivated.value = false
-                        showToast("⏱️ ১ ঘণ্টার ফ্রি ডেমো মেয়াদ সমাপ্ত হয়েছে। নিয়মিত ব্যবহারের জন্য লাইসেন্স সংগ্রহ করুন (৳৪৯০)।")
+                        showToast("⏱️ ১ দিনের ফ্রি ডেমো মেয়াদ সমাপ্ত হয়েছে। নিয়মিত ব্যবহারের জন্য ওয়েবসাইট থেকে লাইসেন্স সংগ্রহ করুন।")
                     }
                     break
                 }
@@ -340,6 +349,16 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         }
         val db = PaponDatabase.getInstance(application)
         repository = PaponRepository(db.paponDao())
+        firebaseSyncManager = com.example.data.firebase.FirebaseSyncManager(db.paponDao())
+
+        // Auto-connect Firebase live sync if enabled
+        val savedFirebaseCode = prefs.getString("firebase_shop_code", "") ?: ""
+        val isFirebaseSyncOn = prefs.getBoolean("firebase_sync_enabled", false)
+        val savedRole = prefs.getString("user_role", "owner") ?: "owner"
+        if (isFirebaseSyncOn && savedFirebaseCode.isNotBlank()) {
+            firebaseSyncManager.connectShop(savedFirebaseCode, savedRole)
+        }
+
 
         if (licenseManager.isDemoMode()) {
             startDemoTimerTicker()
@@ -898,11 +917,16 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 val saleId = repository.completeSale(sale, saleItems)
+                val completedSale = sale.copy(id = saleId)
                 _lastCompletedSaleId.value = saleId
-                _lastCompletedSale.value = sale.copy(id = saleId)
+                _lastCompletedSale.value = completedSale
                 _lastCompletedSaleItems.value = saleItems
                 _lastCashTenderedPoisha.value = if (method == "cash") _cashTenderedPoisha.value else 0L
                 _lastChangeReturnPoisha.value = if (method == "cash" && _cashTenderedPoisha.value > total) _cashTenderedPoisha.value - total else 0L
+
+                if (::firebaseSyncManager.isInitialized && _shopConfig.value.firebaseSyncEnabled) {
+                    firebaseSyncManager.pushSale(completedSale, saleItems)
+                }
 
                 clearCart()
                 _currentScreen.value = AppScreen.RECEIPT
@@ -928,7 +952,10 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     // --- PRODUCT CRUD ---
     fun saveProduct(product: Product, onSuccess: () -> Unit) {
         viewModelScope.launch {
-            repository.saveProduct(product)
+            val id = repository.saveProduct(product)
+            if (::firebaseSyncManager.isInitialized && _shopConfig.value.firebaseSyncEnabled) {
+                firebaseSyncManager.pushProduct(product.copy(id = if (product.id != 0L) product.id else id))
+            }
             showToast("পণ্য সফলভাবে সংরক্ষণ করা হয়েছে")
             onSuccess()
         }
@@ -937,6 +964,9 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteProduct(productId: Long) {
         viewModelScope.launch {
             repository.deleteProduct(productId)
+            if (::firebaseSyncManager.isInitialized && _shopConfig.value.firebaseSyncEnabled) {
+                firebaseSyncManager.deleteProduct(productId)
+            }
             showToast("পণ্য মুছে ফেলা হয়েছে")
         }
     }
@@ -975,6 +1005,9 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     fun adjustStock(productId: Long, productName: String, qtyChange: Double, reason: String, note: String?) {
         viewModelScope.launch {
             repository.adjustStock(productId, productName, qtyChange, reason, note)
+            if (::firebaseSyncManager.isInitialized && _shopConfig.value.firebaseSyncEnabled) {
+                firebaseSyncManager.syncProductStock(productId)
+            }
             showToast("স্টক সমন্বয় সম্পন্ন হয়েছে")
         }
     }
@@ -1051,7 +1084,10 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     fun saveProductAndReturn(product: Product, onSaved: (Product) -> Unit) {
         viewModelScope.launch {
             val id = repository.saveProduct(product)
-            val created = product.copy(id = id)
+            val created = product.copy(id = if (product.id != 0L) product.id else id)
+            if (::firebaseSyncManager.isInitialized && _shopConfig.value.firebaseSyncEnabled) {
+                firebaseSyncManager.pushProduct(created)
+            }
             showToast("পণ্য সফলভাবে যোগ করা হয়েছে")
             onSaved(created)
         }
@@ -1345,6 +1381,8 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
             val allowNegativeStock = prefs.getBoolean("allow_negative_stock", true)
             val isOnboardingCompleted = prefs.getBoolean("is_onboarding_completed", false)
             val noticeMessage = prefs.getString("notice_message", "") ?: ""
+            val firebaseShopCode = prefs.getString("firebase_shop_code", "") ?: ""
+            val firebaseSyncEnabled = prefs.getBoolean("firebase_sync_enabled", false)
 
             _shopConfig.value = ShopConfig(
                 shopName = shopName,
@@ -1361,7 +1399,9 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 userRole = userRole,
                 allowNegativeStock = allowNegativeStock,
                 isOnboardingCompleted = isOnboardingCompleted,
-                noticeMessage = noticeMessage
+                noticeMessage = noticeMessage,
+                firebaseShopCode = firebaseShopCode,
+                firebaseSyncEnabled = firebaseSyncEnabled
             )
         } catch (_: Exception) {}
     }
@@ -1384,12 +1424,66 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 putBoolean("allow_negative_stock", config.allowNegativeStock)
                 putBoolean("is_onboarding_completed", config.isOnboardingCompleted)
                 putString("notice_message", config.noticeMessage)
+                putString("firebase_shop_code", config.firebaseShopCode)
+                putBoolean("firebase_sync_enabled", config.firebaseSyncEnabled)
                 apply()
             }
             if (config.isOnboardingCompleted) {
                 triggerNewUserSetupNotification(config)
             }
         } catch (_: Exception) {}
+    }
+
+    fun getDefaultShopCode(): String {
+        val devId = getDeviceId().replace("-", "").takeLast(6).uppercase()
+        return if (devId.isNotBlank()) "SHOP-$devId" else "SHOP-PRO"
+    }
+
+    fun connectFirebaseShop(
+        shopCode: String,
+        role: String = _shopConfig.value.userRole,
+        onComplete: ((Boolean, String) -> Unit)? = null
+    ) {
+        val cleanCode = shopCode.trim().uppercase()
+        if (cleanCode.isBlank()) {
+            onComplete?.invoke(false, "দোকান কোড লিখুন")
+            return
+        }
+        val updated = _shopConfig.value.copy(
+            firebaseShopCode = cleanCode,
+            firebaseSyncEnabled = true,
+            userRole = role
+        )
+        updateShopConfig(updated)
+        firebaseSyncManager.connectShop(cleanCode, role) { success, msg ->
+            showToast(msg)
+            onComplete?.invoke(success, msg)
+        }
+    }
+
+    fun disconnectFirebaseShop() {
+        val updated = _shopConfig.value.copy(
+            firebaseSyncEnabled = false
+        )
+        updateShopConfig(updated)
+        firebaseSyncManager.disconnect()
+        showToast("ক্লাউড লাইভ সিঙ্ক সংযোগ বিচ্ছিন্ন করা হয়েছে")
+    }
+
+    fun pushAllDataToFirebase(onComplete: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            try {
+                _isSyncing.value = true
+                firebaseSyncManager.pushAllLocalDataToCloud()
+                _isSyncing.value = false
+                showToast("সকল পণ্য ও তথ্য ক্লাউডে সফলভাবে সিঙ্ক হয়েছে!")
+                onComplete?.invoke(true)
+            } catch (e: Exception) {
+                _isSyncing.value = false
+                showToast("সিঙ্কে সমস্যা: ${e.message}")
+                onComplete?.invoke(false)
+            }
+        }
     }
 
     private fun loadUnits() {

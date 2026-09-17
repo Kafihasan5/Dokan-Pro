@@ -313,7 +313,7 @@ fun TopHeader(
                                     text = {
                                         Column {
                                             Text(
-                                                text = "লাইসেন্স কিনুন (৳৪৯০)",
+                                                text = "লাইসেন্স কিনুন",
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color(0xFF16A34A)

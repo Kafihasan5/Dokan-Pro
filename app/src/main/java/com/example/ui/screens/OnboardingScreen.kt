@@ -41,6 +41,10 @@ fun OnboardingScreen(
 ) {
     var currentStep by remember { mutableIntStateOf(1) }
     var isSeedingData by remember { mutableStateOf(false) }
+    var showJoinShopDialog by remember { mutableStateOf(false) }
+    var joinShopCode by remember { mutableStateOf("") }
+    var isJoiningShop by remember { mutableStateOf(false) }
+
 
     // Step 1 Form State
     var shopName by remember { mutableStateOf(config.shopName.ifBlank { "Dokan Pro" }.let { if (it == "দোকান প্রো") "Dokan Pro" else it }) }
@@ -593,6 +597,60 @@ fun OnboardingScreen(
                         }
                     }
 
+                    // Option 3: কর্মচারীর হিসেবে যুক্ত হব
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(Radius.lg))
+                            .clickable(enabled = !isSeedingData) {
+                                showJoinShopDialog = true
+                            },
+                        shape = RoundedCornerShape(Radius.lg),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(Spacing.lg),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(52.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.dokanColors.successContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudSync,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.dokanColors.success,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(Spacing.md))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "কর্মচারী হিসেবে যুক্ত হব",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "দোকান মালিকের কোড দিয়ে সরাসরি লাইভ যুক্ত হয়ে বেচাকেনা করুন।",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    lineHeight = 17.sp
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(Spacing.sm))
 
                     DokanSecondaryButton(
@@ -602,6 +660,74 @@ fun OnboardingScreen(
                 }
             }
         }
+    }
+
+    if (showJoinShopDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isJoiningShop) showJoinShopDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CloudSync, contentDescription = null, tint = Brand500)
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                    Text("দোকানে যুক্ত হন (কর্মচারী মোড)")
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Text(
+                        "দোকান মালিকের কাছ থেকে পাওয়া দোকান কোডটি (যেমন: SHOP-XXXX) এখানে লিখুন:",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    DokanTextField(
+                        value = joinShopCode,
+                        onValueChange = { joinShopCode = it.uppercase() },
+                        label = "দোকান কোড",
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val code = joinShopCode.trim().uppercase()
+                        if (code.isBlank()) {
+                            viewModel.showToast("দোকান কোড লিখুন")
+                            return@Button
+                        }
+                        isJoiningShop = true
+                        val updated = config.copy(
+                            userRole = "staff",
+                            firebaseShopCode = code,
+                            firebaseSyncEnabled = true,
+                            isOnboardingCompleted = true
+                        )
+                        viewModel.updateShopConfig(updated)
+                        viewModel.connectFirebaseShop(code, "staff") { success, _ ->
+                            isJoiningShop = false
+                            if (success) {
+                                showJoinShopDialog = false
+                                viewModel.navigateTo(AppScreen.POS)
+                            }
+                        }
+                    },
+                    enabled = !isJoiningShop && joinShopCode.isNotBlank()
+                ) {
+                    if (isJoiningShop) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                    } else {
+                        Text("সংযুক্ত হন")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showJoinShopDialog = false },
+                    enabled = !isJoiningShop
+                ) {
+                    Text("বাতিল")
+                }
+            }
+        )
     }
 }
 

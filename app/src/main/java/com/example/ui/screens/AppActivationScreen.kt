@@ -137,7 +137,7 @@ fun AppActivationScreen(
             }
 
             Text(
-                text = "অ্যাপটি চালাতে ক্রয়কৃত ইমেইল দিয়ে অ্যাক্টিভ করুন অথবা ১ ঘণ্টার ফ্রি ডেমো টেস্ট করে দেখুন। সক্রিয় হওয়ার পর সম্পূর্ণ অ্যাপটি অফলাইনে চালানো যাবে।",
+                text = "অ্যাপটি চালাতে ক্রয়কৃত ইমেইল দিয়ে অ্যাক্টিভ করুন অথবা ১ দিনের ফ্রি ডেমো টেস্ট করে দেখুন। সক্রিয় হওয়ার পর সম্পূর্ণ অ্যাপটি অফলাইনে চালানো যাবে।",
                 fontSize = 13.sp,
                 color = Color.White.copy(alpha = 0.82f),
                 textAlign = TextAlign.Center,
@@ -145,7 +145,7 @@ fun AppActivationScreen(
                 modifier = Modifier.padding(horizontal = Spacing.sm)
             )
 
-            // 1-Hour Free Demo Card
+            // 1-Day Free Demo Card
             if (!isDemoUsed || !isDemoExpired) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -168,7 +168,7 @@ fun AppActivationScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "১ ঘণ্টার ফ্রি ডেমো টেস্ট করুন",
+                                text = "১ দিনের ফ্রি ডেমো টেস্ট করুন (২৪ ঘণ্টা)",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp,
                                 color = Color.White
@@ -196,7 +196,7 @@ fun AppActivationScreen(
                         )
 
                         DokanPrimaryButton(
-                            text = if (isActivating) "যাচাই করা হচ্ছে..." else "১ ঘণ্টার ফ্রি ডেমো শুরু করুন (৭ দিনের ডাটা সহ)",
+                            text = if (isActivating) "যাচাই করা হচ্ছে..." else "১ দিনের ফ্রি ডেমো শুরু করুন (২৪ ঘণ্টা)",
                             isLoading = isActivating,
                             enabled = !isActivating,
                             onClick = { viewModel.startOneHourDemo() }
@@ -225,14 +225,14 @@ fun AppActivationScreen(
                         Spacer(modifier = Modifier.width(Spacing.sm))
                         Column {
                             Text(
-                                text = "১ ঘণ্টার ফ্রি ডেমো মেয়াদ সমাপ্ত",
+                                text = "১ দিনের ফ্রি ডেমো মেয়াদ সমাপ্ত",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
                                 color = StatusDanger
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "আপনার ডিভাইসে ফ্রি ডেমো সেশনটি শেষ হয়েছে। Dokan-Pro নিয়মিত ব্যবহার করতে মাত্র ৳৪৯০ টাকায় আজীবন লাইসেন্স সংগ্রহ করুন।",
+                                text = "আপনার ডিভাইসে ফ্রি ডেমো সেশনটি শেষ হয়েছে। Dokan-Pro নিয়মিত ব্যবহার করতে ওয়েবসাইট থেকে আজীবন লাইসেন্স সংগ্রহ করুন।",
                                 fontSize = 11.sp,
                                 color = Color.White.copy(alpha = 0.85f),
                                 lineHeight = 15.sp
@@ -327,7 +327,7 @@ fun AppActivationScreen(
                 }
             }
 
-            // Purchase Card (Webix Solution Link with 490 Tk price)
+            // Purchase Card (Webix Solution Official License Link)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(Radius.lg),
@@ -359,7 +359,7 @@ fun AppActivationScreen(
                             color = Color(0xFF2E7D32)
                         ) {
                             Text(
-                                text = "৳৪৯০ আজীবন",
+                                text = "অফিসিয়াল লাইসেন্স",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
@@ -369,14 +369,14 @@ fun AppActivationScreen(
                     }
 
                     Text(
-                        text = "Webix Solution ওয়েবসাইট থেকে মাত্র ৪৯০ টাকায় Dokan-Pro এর আজীবন (Lifetime) অফিসিয়াল লাইসেন্স ক্রয় করুন। কোনো মাসিক বা বাৎসরিক চার্জ নেই।",
+                        text = "Webix Solution ওয়েবসাইট থেকে Dokan-Pro এর আজীবন (Lifetime) অফিসিয়াল লাইসেন্স ক্রয় করুন। বর্তমান প্যাকেজ ও মূল্য দেখতে নিচের বাটনে ক্লিক করুন। কোনো মাসিক বা বাৎসরিক চার্জ নেই।",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         lineHeight = 17.sp
                     )
 
                     DokanSecondaryButton(
-                        text = "ওয়েবসাইট থেকে লাইসেন্স কিনুন (৳৪৯০)",
+                        text = "ওয়েবসাইট থেকে লাইসেন্স সংগ্রহ করুন",
                         onClick = {
                             try {
                                 val intent = Intent(

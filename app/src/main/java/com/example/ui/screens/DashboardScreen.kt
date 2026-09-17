@@ -420,7 +420,7 @@ fun DashboardScreen(
                                     modifier = Modifier.height(32.dp)
                                 ) {
                                     Text(
-                                        text = "কিনুন ৳৪৯০",
+                                        text = "লাইসেন্স কিনুন",
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White

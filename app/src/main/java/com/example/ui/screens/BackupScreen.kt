@@ -16,7 +16,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -46,6 +48,13 @@ fun BackupScreen(
     val customerUrl by viewModel.customerSupabaseUrl.collectAsState()
     val customerKey by viewModel.customerSupabaseKey.collectAsState()
     val isCustomerCloudConfigured by viewModel.isCustomerCloudConfigured.collectAsState()
+
+    val firebaseSyncStatus by viewModel.firebaseSyncStatus.collectAsState()
+    val clipboardManager = LocalClipboardManager.current
+    var shopCodeInput by remember(config.firebaseShopCode) {
+        mutableStateOf(config.firebaseShopCode.ifBlank { viewModel.getDefaultShopCode() })
+    }
+    var selectedRole by remember(config.userRole) { mutableStateOf(config.userRole) }
 
     var isAutoBackupEnabled by remember { mutableStateOf(true) }
     var isWifiOnly by remember { mutableStateOf(true) }
@@ -82,6 +91,270 @@ fun BackupScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(Spacing.lg)
         ) {
+            // ==============================================================
+            // CARD 0: গুগল ফায়ারবেস লাইভ সিঙ্ক (Firebase Realtime Database)
+            // ==============================================================
+            item {
+                Surface(
+                    shape = RoundedCornerShape(Radius.lg),
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .softShadow(1, RoundedCornerShape(Radius.lg))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(Spacing.lg),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                    ) {
+                        // Header
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (firebaseSyncStatus.isConnected) MaterialTheme.dokanColors.successContainer
+                                            else MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudSync,
+                                        contentDescription = null,
+                                        tint = if (firebaseSyncStatus.isConnected) MaterialTheme.dokanColors.success else MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(Spacing.md))
+                                Column {
+                                    Text(
+                                        text = "গুগল ক্লাউড লাইভ সিঙ্ক",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "মালিক ও কর্মচারীর ফোন অটো সিঙ্ক (আজীবন ফ্রি)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(Radius.pill),
+                                color = if (firebaseSyncStatus.isConnected) MaterialTheme.dokanColors.successContainer else MaterialTheme.dokanColors.surfaceAlt,
+                                border = BorderStroke(1.dp, if (firebaseSyncStatus.isConnected) MaterialTheme.dokanColors.success.copy(alpha = 0.3f) else MaterialTheme.dokanColors.border)
+                            ) {
+                                Text(
+                                    text = if (firebaseSyncStatus.isConnected) "🟢 লাইভ সিঙ্ক সক্রিয়" else "⚪ অফলাইন",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (firebaseSyncStatus.isConnected) MaterialTheme.dokanColors.success else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+
+                        // Zero Data Loss Guarantee Banner
+                        Surface(
+                            shape = RoundedCornerShape(Radius.sm),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(Spacing.sm),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Security,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(Spacing.xs))
+                                Text(
+                                    text = "লোকাল ডাটা ১০০% সুরক্ষিত: বর্তমান কোনো ডাটা মুছবে না। ফোনের সব পণ্য ও হিসাব রেখে স্বয়ংক্রিয়ভাবে ক্লাউডে লাইভ সিঙ্ক হবে।",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    lineHeight = 15.sp
+                                )
+                            }
+                        }
+
+                        // Role Selector
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "এই ফোনের ভূমিকা (Role):",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                                FilterChip(
+                                    selected = selectedRole == "owner",
+                                    onClick = { selectedRole = "owner" },
+                                    label = { Text("দোকান মালিক") },
+                                    shape = RoundedCornerShape(Radius.pill)
+                                )
+                                FilterChip(
+                                    selected = selectedRole == "staff",
+                                    onClick = { selectedRole = "staff" },
+                                    label = { Text("কর্মচারী") },
+                                    shape = RoundedCornerShape(Radius.pill)
+                                )
+                            }
+                        }
+
+                        HorizontalDivider(color = MaterialTheme.dokanColors.border)
+
+                        if (selectedRole == "owner") {
+                            // OWNER VIEW
+                            Text(
+                                text = "আপনার দোকান কোড (Shop Code):",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            Surface(
+                                shape = RoundedCornerShape(Radius.md),
+                                color = MaterialTheme.dokanColors.surfaceAlt,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = shopCodeInput,
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+
+                                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                                        IconButton(
+                                            onClick = {
+                                                clipboardManager.setText(AnnotatedString(shopCodeInput))
+                                                viewModel.showToast("দোকান কোড কপি হয়েছে! কর্মচারীকে পাঠান।")
+                                            }
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.ContentCopy,
+                                                contentDescription = "কপি করুন",
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+
+                                        IconButton(
+                                            onClick = {
+                                                val shareIntent = Intent().apply {
+                                                    action = Intent.ACTION_SEND
+                                                    putExtra(
+                                                        Intent.EXTRA_TEXT,
+                                                        "দোকান প্রো অ্যাপে যুক্ত হতে আমার দোকান কোড: $shopCodeInput"
+                                                    )
+                                                    type = "text/plain"
+                                                }
+                                                context.startActivity(
+                                                    Intent.createChooser(shareIntent, "দোকান কোড শেয়ার করুন")
+                                                )
+                                            }
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Share,
+                                                contentDescription = "শেয়ার করুন",
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Text(
+                                text = "💡 কর্মচারীর ফোনে অ্যাপ ইনস্টল করে এই দোকান কোডটি দিলে সরাসরি আপনার দোকানের সাথে লাইভ যুক্ত হয়ে যাবে।",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            if (firebaseSyncStatus.isConnected) {
+                                DokanPrimaryButton(
+                                    text = "সকল ডাটা ক্লাউডে সিঙ্ক করুন (Push All Data)",
+                                    onClick = { viewModel.pushAllDataToFirebase() },
+                                    isLoading = isSyncing,
+                                    enabled = !isSyncing
+                                )
+
+                                DokanSecondaryButton(
+                                    text = "লাইভ সিঙ্ক সংযোগ বিচ্ছিন্ন করুন",
+                                    onClick = { viewModel.disconnectFirebaseShop() }
+                                )
+                            } else {
+                                DokanPrimaryButton(
+                                    text = "গুগল ক্লাউড লাইভ সিঙ্ক চালু করুন",
+                                    onClick = {
+                                        viewModel.connectFirebaseShop(shopCodeInput, "owner")
+                                    }
+                                )
+                            }
+                        } else {
+                            // STAFF VIEW
+                            Text(
+                                text = "মালিকের দোকান কোড প্রবেশ করান:",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            DokanTextField(
+                                value = shopCodeInput,
+                                onValueChange = { shopCodeInput = it.uppercase() },
+                                label = "দোকান কোড (যেমন: SHOP-XXXX)",
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Text(
+                                text = "💡 দোকান মালিকের ফোন থেকে দোকান কোডটি নিয়ে এখানে লিখুন এবং 'দোকানে সংযুক্ত হন' চাপুন।",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            if (firebaseSyncStatus.isConnected) {
+                                Text(
+                                    text = "🟢 সংযুক্ত দোকান: ${firebaseSyncStatus.shopCode}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.dokanColors.success
+                                )
+
+                                DokanSecondaryButton(
+                                    text = "সংযোগ বিচ্ছিন্ন করুন",
+                                    onClick = { viewModel.disconnectFirebaseShop() }
+                                )
+                            } else {
+                                DokanPrimaryButton(
+                                    text = "দোকানের সাথে সংযুক্ত হন (Join Shop)",
+                                    onClick = {
+                                        viewModel.connectFirebaseShop(shopCodeInput, "staff")
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // ==============================================================
             // CARD 1: লোকাল ফাইল ব্যাকআপ (Offline First)
             // ==============================================================

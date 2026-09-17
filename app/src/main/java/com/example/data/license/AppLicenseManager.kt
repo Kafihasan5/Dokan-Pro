@@ -48,11 +48,11 @@ class AppLicenseManager(private val context: Context) {
         private const val KEY_EXPIRES_AT = "expires_at"
         private const val KEY_DEVICE_ID = "device_id"
 
-        // 1-Hour Free Demo Mode Keys
+        // 1-Day Free Demo Mode Keys
         private const val KEY_IS_DEMO_MODE = "is_demo_mode"
         private const val KEY_DEMO_EXPIRES_AT = "demo_expires_at"
         private const val KEY_DEMO_ALREADY_USED = "demo_already_used"
-        const val DEMO_DURATION_MILLIS = 60 * 60 * 1000L // 1 hour (60 minutes)
+        const val DEMO_DURATION_MILLIS = 24 * 60 * 60 * 1000L // 1 day (24 hours)
     }
 
     private val client = OkHttpClient.Builder()
@@ -102,7 +102,7 @@ class AppLicenseManager(private val context: Context) {
         // 1. Fast local check: if already recorded as expired locally
         if (wasDemoUsed() && isDemoExpired()) {
             return@withContext DemoStartResult.Expired(
-                "আপনার এই ডিভাইসে ১ ঘণ্টার ফ্রি ডেমো সেশন ইতিমধ্যে শেষ হয়েছে। Dokan-Pro নিয়মিত ব্যবহার করতে আজীবন লাইসেন্স সংগ্রহ করুন (৳৪৯০)।"
+                "আপনার এই ডিভাইসে ১ দিনের ফ্রি ডেমো সেশন ইতিমধ্যে শেষ হয়েছে। Dokan-Pro নিয়মিত ব্যবহার করতে আজীবন লাইসেন্স সংগ্রহ করুন।"
             )
         }
 
@@ -162,12 +162,12 @@ class AppLicenseManager(private val context: Context) {
                         .putBoolean(KEY_DEMO_ALREADY_USED, true)
                         .apply()
                     return@withContext DemoStartResult.Expired(
-                        message.ifBlank { "আপনার এই ডিভাইসে ১ ঘণ্টার ফ্রি ডেমো সেশন ইতিমধ্যে শেষ হয়েছে।" }
+                        message.ifBlank { "আপনার এই ডিভাইসে ১ দিনের ফ্রি ডেমো সেশন ইতিমধ্যে শেষ হয়েছে।" }
                     )
                 }
             }
         } catch (e: java.net.UnknownHostException) {
-            return@withContext DemoStartResult.Error("১ ঘণ্টার ফ্রি ডেমো ভেরিফাই করার জন্য ইন্টারনেট সংযোগ প্রয়োজন। অনুগ্রহ করে ইন্টারনেট চালু করুন।")
+            return@withContext DemoStartResult.Error("১ দিনের ফ্রি ডেমো ভেরিফাই করার জন্য ইন্টারনেট সংযোগ প্রয়োজন। অনুগ্রহ করে ইন্টারনেট চালু করুন।")
         } catch (e: Exception) {
             return@withContext DemoStartResult.Error("ডেমো সেশন যাচাই করতে সমস্যা হয়েছে: ${e.message}")
         }
