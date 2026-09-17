@@ -639,7 +639,8 @@ private fun AddPurchaseBottomSheet(
 
     var draftItems by remember { mutableStateOf<List<PurchaseDraftItem>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
-    var isScannerOpen by remember { mutableStateOf(false) }
+    var isScannerOpen by remember { mutableStateOf(true) }
+    var isProductDropdownExpanded by remember { mutableStateOf(false) }
     var scanFeedbackMessage by remember { mutableStateOf<String?>(null) }
     var paidAmountText by remember { mutableStateOf("") }
 
@@ -744,20 +745,25 @@ private fun AddPurchaseBottomSheet(
                 modifier = Modifier
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = Spacing.lg, vertical = Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                    .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
                 // Section 1: সাপ্লায়ার নির্বাচন
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        SectionHeader(title = "১. সাপ্লায়ার নির্বাচন")
+                        Text(
+                            text = "১. সাপ্লায়ার নির্বাচন",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                         TextButton(
                             onClick = { showQuickAddSupplier = true },
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
                         ) {
                             Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
@@ -777,11 +783,11 @@ private fun AddPurchaseBottomSheet(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                                .padding(horizontal = Spacing.md, vertical = 8.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
                                 Icon(
                                     imageVector = Icons.Default.Storefront,
                                     contentDescription = null,
@@ -829,15 +835,23 @@ private fun AddPurchaseBottomSheet(
                 }
 
                 // Section 2: পণ্য অনুসন্ধান ও বারকোড স্ক্যান
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        SectionHeader(title = "২. চালানে পণ্য যোগ করুন")
+                        Text(
+                            text = "২. চালানে পণ্য যোগ করুন",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             // Barcode camera toggle
                             Surface(
                                 onClick = { isScannerOpen = !isScannerOpen },
@@ -912,62 +926,79 @@ private fun AddPurchaseBottomSheet(
                                     quickAddBarcode = barcode
                                 }
                             },
-                            modifier = Modifier.padding(vertical = 4.dp)
+                            modifier = Modifier.padding(vertical = 2.dp)
                         )
+                    }
 
-                        scanFeedbackMessage?.let { msg ->
-                            val isSuccess = msg.startsWith("✓")
-                            val isWarning = msg.startsWith("⚠️")
-                            Surface(
-                                shape = RoundedCornerShape(Radius.xs),
-                                color = when {
-                                    isSuccess -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                                    isWarning -> MaterialTheme.dokanColors.warning.copy(alpha = 0.15f)
-                                    else -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
-                                },
-                                modifier = Modifier.fillMaxWidth()
+                    scanFeedbackMessage?.let { msg ->
+                        val isSuccess = msg.startsWith("✓")
+                        val isWarning = msg.startsWith("⚠️")
+                        Surface(
+                            shape = RoundedCornerShape(Radius.xs),
+                            color = when {
+                                isSuccess -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                isWarning -> MaterialTheme.dokanColors.warning.copy(alpha = 0.15f)
+                                else -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = msg,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = when {
-                                            isSuccess -> MaterialTheme.colorScheme.primary
-                                            isWarning -> MaterialTheme.dokanColors.warning
-                                            else -> MaterialTheme.colorScheme.error
-                                        },
-                                        modifier = Modifier.weight(1f, fill = false)
-                                    )
-                                    if (!isSuccess && !isWarning && quickAddBarcode.isNotBlank()) {
-                                        TextButton(
-                                            onClick = { showQuickAddProduct = true },
-                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                                        ) {
-                                            Text("+ নতুন তৈরি করুন", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                                        }
+                                Text(
+                                    text = msg,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = when {
+                                        isSuccess -> MaterialTheme.colorScheme.primary
+                                        isWarning -> MaterialTheme.dokanColors.warning
+                                        else -> MaterialTheme.colorScheme.error
+                                    },
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+                                if (!isSuccess && !isWarning && quickAddBarcode.isNotBlank()) {
+                                    TextButton(
+                                        onClick = { showQuickAddProduct = true },
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                    ) {
+                                        Text("+ নতুন তৈরি করুন", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
                         }
                     }
 
-                    // Product Search Bar
+                    // Product Search Bar with Dropdown Toggle
                     OutlinedTextField(
                         value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        placeholder = { Text("পণ্য খুঁজুন (নাম বা বারকোড দিয়ে)...", style = MaterialTheme.typography.bodySmall) },
+                        onValueChange = { 
+                            searchQuery = it
+                            if (it.isNotBlank()) {
+                                isProductDropdownExpanded = true
+                            }
+                        },
+                        placeholder = { Text("পণ্য খুঁজুন বা ড্রপডাউন থেকে নির্বাচন করুন...", style = MaterialTheme.typography.bodySmall) },
                         leadingIcon = {
                             Icon(Icons.Default.Search, contentDescription = "সার্চ", tint = MaterialTheme.colorScheme.primary)
                         },
                         trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(Icons.Default.Close, contentDescription = "মুছুন", modifier = Modifier.size(18.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (searchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(28.dp)) {
+                                        Icon(Icons.Default.Close, contentDescription = "মুছুন", modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                                IconButton(
+                                    onClick = { isProductDropdownExpanded = !isProductDropdownExpanded },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isProductDropdownExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                        contentDescription = "ড্রপডাউন",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
                                 }
                             }
                         },
@@ -980,99 +1011,189 @@ private fun AddPurchaseBottomSheet(
                         )
                     )
 
-                    // Search Results List
-                    if (searchQuery.isNotBlank()) {
-                        val matches = remember(searchQuery, products) {
-                            val q = searchQuery.trim()
-                            products.filter {
-                                it.nameBn.contains(q, ignoreCase = true) ||
-                                it.nameEn.contains(q, ignoreCase = true) ||
-                                it.barcode?.contains(q) == true
-                            }.take(5)
-                        }
-
-                        if (matches.isNotEmpty()) {
-                            Surface(
-                                shape = RoundedCornerShape(Radius.sm),
-                                color = MaterialTheme.colorScheme.surface,
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
-                                shadowElevation = 4.dp,
-                                modifier = Modifier.fillMaxWidth()
+                    // Dropdown button if not expanded and search is blank
+                    if (!isProductDropdownExpanded && searchQuery.isBlank()) {
+                        Surface(
+                            onClick = { isProductDropdownExpanded = true },
+                            shape = RoundedCornerShape(Radius.xs),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = Spacing.md, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column(modifier = Modifier.padding(Spacing.xs)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.List, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = "পণ্য নির্বাচন করুন (ট্যাপ করলে চালানে যুক্ত হবে):",
+                                        text = "পণ্য ড্রপডাউন তালিকা দেখুন (${products.size}টি পণ্য)",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary
                                     )
-                                    matches.forEach { prod ->
-                                        Surface(
-                                            onClick = {
-                                                addOrSelectProduct(prod)
-                                                searchQuery = ""
-                                            },
-                                            shape = RoundedCornerShape(Radius.xs),
-                                            color = MaterialTheme.dokanColors.surfaceAlt,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 2.dp)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Column(modifier = Modifier.weight(1f)) {
-                                                    Text(
-                                                        text = prod.nameBn,
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                    Text(
-                                                        text = "মজুদ: ${Formatters.formatQty(prod.stockQty, prod.unitName, config.useBengaliNumerals)} • পূর্বের ক্রয়দর: ${Formatters.formatMoney(prod.purchasePricePoisha, config.useBengaliNumerals, config.currencySymbol)}",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        fontSize = 10.sp,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
-                                                }
-                                                Icon(
-                                                    imageVector = Icons.Default.AddCircle,
-                                                    contentDescription = "যোগ",
-                                                    tint = MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                            }
-                                        }
-                                    }
+                                }
+                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+
+                    // Product Dropdown & Multi-add Selection List
+                    if (isProductDropdownExpanded || searchQuery.isNotBlank()) {
+                        val filteredProducts = remember(searchQuery, products) {
+                            if (searchQuery.isBlank()) {
+                                products
+                            } else {
+                                val q = searchQuery.trim()
+                                products.filter {
+                                    it.nameBn.contains(q, ignoreCase = true) ||
+                                    it.nameEn.contains(q, ignoreCase = true) ||
+                                    it.barcode?.contains(q) == true
                                 }
                             }
-                        } else {
-                            Surface(
-                                shape = RoundedCornerShape(Radius.xs),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(Radius.sm),
+                            color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                            shadowElevation = 3.dp,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(Spacing.xs)) {
                                 Row(
-                                    modifier = Modifier.padding(8.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 6.dp, vertical = 4.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "\"$searchQuery\" নামে কোনো পণ্য পাওয়া যায়নি",
+                                        text = if (searchQuery.isBlank()) "পণ্য তালিকা (${filteredProducts.size}টি) - ট্যাপ করে যোগ করুন:" else "খোঁজার ফলাফল (${filteredProducts.size}টি):",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold
                                     )
-                                    TextButton(
+                                    IconButton(
                                         onClick = {
-                                            showQuickAddProduct = true
+                                            isProductDropdownExpanded = false
+                                            searchQuery = ""
                                         },
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                        modifier = Modifier.size(22.dp)
                                     ) {
-                                        Text("+ নতুন তৈরি করুন", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                        Icon(Icons.Default.Close, contentDescription = "বন্ধ", modifier = Modifier.size(14.dp))
+                                    }
+                                }
+
+                                if (filteredProducts.isEmpty()) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(Spacing.sm),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Text(
+                                            text = if (searchQuery.isBlank()) "কোনো পণ্য পাওয়া যায়নি" else "\"$searchQuery\" নামে কোনো পণ্য নেই",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        TextButton(
+                                            onClick = { showQuickAddProduct = true },
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                        ) {
+                                            Text("+ নতুন পণ্য তৈরি করুন", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                } else {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(max = 200.dp)
+                                            .verticalScroll(rememberScrollState()),
+                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        filteredProducts.forEach { prod ->
+                                            val isAdded = draftItems.any { it.product.id == prod.id }
+                                            Surface(
+                                                onClick = {
+                                                    addOrSelectProduct(prod)
+                                                    // Keeps dropdown open so multiple products can be added!
+                                                },
+                                                shape = RoundedCornerShape(Radius.xs),
+                                                color = if (isAdded) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f) else MaterialTheme.dokanColors.surfaceAlt,
+                                                border = if (isAdded) BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)) else null,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = 8.dp, vertical = 5.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(
+                                                            text = prod.nameBn,
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                        Text(
+                                                            text = "মজুদ: ${Formatters.formatQty(prod.stockQty, prod.unitName, config.useBengaliNumerals)} • ক্রয়দর: ${Formatters.formatMoney(prod.purchasePricePoisha, config.useBengaliNumerals, config.currencySymbol)}",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            fontSize = 10.sp,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                    if (isAdded) {
+                                                        Surface(
+                                                            shape = RoundedCornerShape(Radius.pill),
+                                                            color = MaterialTheme.colorScheme.primary,
+                                                            modifier = Modifier.padding(start = 6.dp)
+                                                        ) {
+                                                            Text(
+                                                                text = "✓ যুক্ত",
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                color = MaterialTheme.colorScheme.onPrimary,
+                                                                fontSize = 10.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                            )
+                                                        }
+                                                    } else {
+                                                        Surface(
+                                                            shape = RoundedCornerShape(Radius.pill),
+                                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                                            modifier = Modifier.padding(start = 6.dp)
+                                                        ) {
+                                                            Row(
+                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                                verticalAlignment = Alignment.CenterVertically
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = Icons.Default.Add,
+                                                                    contentDescription = "যোগ",
+                                                                    tint = MaterialTheme.colorScheme.primary,
+                                                                    modifier = Modifier.size(12.dp)
+                                                                )
+                                                                Spacer(modifier = Modifier.width(2.dp))
+                                                                Text(
+                                                                    text = "যোগ",
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    color = MaterialTheme.colorScheme.primary,
+                                                                    fontSize = 10.sp,
+                                                                    fontWeight = FontWeight.Bold
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -1106,34 +1227,26 @@ private fun AddPurchaseBottomSheet(
                         Surface(
                             shape = RoundedCornerShape(Radius.sm),
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-                            border = BorderStroke(1.dp, MaterialTheme.dokanColors.border),
+                            border = BorderStroke(1.dp, MaterialTheme.dokanColors.border.copy(alpha = 0.5f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(Spacing.lg),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
+                                    .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.AddShoppingCart,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(36.dp)
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
                                 )
-                                Spacer(modifier = Modifier.height(Spacing.xs))
+                                Spacer(modifier = Modifier.width(Spacing.xs))
                                 Text(
-                                    text = "চালানে এখনও কোনো পণ্য যোগ করা হয়নি",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "উপরের সার্চবার বা বারকোড স্ক্যানার দিয়ে চালানের পণ্যগুলো এক এক করে যোগ করুন।",
+                                    text = "চালানে এখনও কোনো পণ্য যোগ করা হয়নি। উপরের ড্রপডাউন বা স্ক্যানার দিয়ে যোগ করুন।",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -1155,7 +1268,12 @@ private fun AddPurchaseBottomSheet(
 
                 // Section 4: চালান বিল ও পেমেন্ট
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    SectionHeader(title = "৪. চালান বিল ও পরিশোধ বিবরণ")
+                    Text(
+                        text = "৪. চালান বিল ও পরিশোধ বিবরণ",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
 
                     Surface(
                         shape = RoundedCornerShape(Radius.sm),
@@ -1262,7 +1380,7 @@ private fun AddPurchaseBottomSheet(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(Spacing.lg),
+                        .padding(horizontal = Spacing.md, vertical = Spacing.sm),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.md)
                 ) {
                     DokanSecondaryButton(

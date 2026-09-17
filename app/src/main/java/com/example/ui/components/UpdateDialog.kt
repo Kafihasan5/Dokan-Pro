@@ -29,6 +29,17 @@ fun UpdateDialog(
     var currentState by remember { mutableStateOf<UpdateState>(UpdateState.UpdateAvailable(updateInfo)) }
     var downloadedFile by remember { mutableStateOf<File?>(null) }
 
+    // Keep screen turned ON during download so timeout/sleep never interrupts update
+    val activity = context as? android.app.Activity
+    DisposableEffect(currentState) {
+        if (currentState is UpdateState.Downloading) {
+            activity?.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            activity?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
     AlertDialog(
         onDismissRequest = {
             if (currentState !is UpdateState.Downloading) {

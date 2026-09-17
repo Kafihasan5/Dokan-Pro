@@ -185,6 +185,15 @@ object AppUpdater {
         downloadUrl: String,
         onProgress: (Int) -> Unit
     ): File? = withContext(Dispatchers.IO) {
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+        val wakeLock = powerManager?.newWakeLock(
+            android.os.PowerManager.PARTIAL_WAKE_LOCK,
+            "DokanPro:UpdateDownloadWakeLock"
+        )?.apply {
+            setReferenceCounted(false)
+            acquire(15 * 60 * 1000L) // 15 minutes max
+        }
+
         try {
             val request = Request.Builder()
                 .url(downloadUrl)
@@ -227,6 +236,12 @@ object AppUpdater {
         } catch (e: Exception) {
             e.printStackTrace()
             null
+        } finally {
+            try {
+                if (wakeLock?.isHeld == true) {
+                    wakeLock.release()
+                }
+            } catch (_: Exception) {}
         }
     }
 
@@ -245,6 +260,11 @@ object AppUpdater {
                 }
             }
 
+            // 1. Try PackageInstaller Session API for self-update (native system prompt without play protect interception)
+            val sessionSuccess = tryInstallWithPackageInstaller(context, apkFile)
+            if (sessionSuccess) return
+
+            // 2. Fallback: standard Intent with self-installer extras
             val apkUri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.provider",
@@ -254,10 +274,51 @@ object AppUpdater {
             val installIntent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(apkUri, "application/vnd.android.package-archive")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+                putExtra(Intent.EXTRA_RETURN_RESULT, true)
+                putExtra(Intent.EXTRA_INSTALLER_PACKAGE_NAME, context.packageName)
             }
             context.startActivity(installIntent)
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    private fun tryInstallWithPackageInstaller(context: Context, apkFile: File): Boolean {
+        return try {
+            val packageInstaller = context.packageManager.packageInstaller
+            val params = android.content.pm.PackageInstaller.SessionParams(
+                android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL
+            ).apply {
+                setAppPackageName(context.packageName)
+                setSize(apkFile.length())
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    setRequireUserAction(android.content.pm.PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
+                }
+            }
+            val sessionId = packageInstaller.createSession(params)
+            val session = packageInstaller.openSession(sessionId)
+            session.openWrite("package_apk", 0, apkFile.length()).use { out ->
+                apkFile.inputStream().use { input ->
+                    input.copyTo(out)
+                }
+                session.fsync(out)
+            }
+
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            val pendingIntent = android.app.PendingIntent.getActivity(
+                context,
+                sessionId,
+                intent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) android.app.PendingIntent.FLAG_MUTABLE else 0)
+            )
+            session.commit(pendingIntent.intentSender)
+            session.close()
+            true
+        } catch (_: Exception) {
+            false
         }
     }
 }

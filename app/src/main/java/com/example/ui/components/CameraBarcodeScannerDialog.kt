@@ -278,7 +278,7 @@ fun CameraBarcodeScannerDialog(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(200.dp)
+                                .height(125.dp)
                                 .clip(RoundedCornerShape(Radius.md))
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                                 .padding(Spacing.lg),
@@ -320,7 +320,7 @@ fun CameraBarcodeScannerDialog(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(210.dp)
+                                .height(125.dp)
                                 .clip(RoundedCornerShape(Radius.md))
                                 .background(Color.Black),
                             contentAlignment = Alignment.Center
@@ -882,12 +882,12 @@ private fun ScannerReticleOverlay() {
     )
 
     Canvas(modifier = Modifier.fillMaxSize()) {
-        val reticleWidth = size.width * 0.75f
-        val reticleHeight = size.height * 0.65f
+        val reticleWidth = size.width * 0.78f
+        val reticleHeight = size.height * 0.70f
         val left = (size.width - reticleWidth) / 2f
         val top = (size.height - reticleHeight) / 2f
-        val cornerLength = 24.dp.toPx()
-        val strokeWidth = 3.dp.toPx()
+        val cornerLength = minOf(16.dp.toPx(), reticleHeight * 0.35f)
+        val strokeWidth = 2.5.dp.toPx()
         val cornerColor = Color(0xFF22C55E) // Bright Green
 
         // Dimmed mask outside the reticle box so the user clearly sees that only the center frame is active
@@ -1142,7 +1142,7 @@ fun CompactCameraBarcodeScanner(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(130.dp),
+                    .height(90.dp),
                 shape = RoundedCornerShape(Radius.md),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
@@ -1233,7 +1233,7 @@ fun CompactCameraBarcodeScanner(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(140.dp)
+                    .height(90.dp)
                     .clip(RoundedCornerShape(Radius.md))
                     .background(Color.Black),
                 contentAlignment = Alignment.Center
