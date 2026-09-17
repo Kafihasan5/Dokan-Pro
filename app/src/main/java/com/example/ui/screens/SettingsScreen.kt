@@ -403,7 +403,6 @@ fun SettingsScreen(
 
                                 DokanSecondaryButton(
                                     text = "কপি করুন",
-                                    icon = Icons.Default.ContentCopy,
                                     onClick = {
                                         val codeToCopy = shopCodeInput.ifBlank { viewModel.getDefaultShopCode() }
                                         clipboardManager.setText(AnnotatedString(codeToCopy))
@@ -421,7 +420,6 @@ fun SettingsScreen(
 
                         DokanPrimaryButton(
                             text = if (isPushingData) "ক্লাউডে সেভ হচ্ছে..." else "এখনই ক্লাউডে ব্যাকআপ দিন (Sync Now)",
-                            icon = Icons.Default.CloudUpload,
                             onClick = {
                                 isPushingData = true
                                 viewModel.pushAllDataToFirebase {
@@ -444,14 +442,11 @@ fun SettingsScreen(
                             onValueChange = { shopCodeInput = it.uppercase().trim() },
                             label = "মালিকের দোকান কোড",
                             placeholder = "SHOP-XXXXXX",
-                            leadingIcon = {
-                                Icon(Icons.Default.Storefront, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            }
+                            leadingIcon = Icons.Default.Storefront
                         )
 
                         DokanPrimaryButton(
                             text = if (isConnectingShop) "সংযুক্ত হচ্ছে..." else "দোকানে যুক্ত হন",
-                            icon = Icons.Default.Link,
                             onClick = {
                                 if (shopCodeInput.isNotBlank()) {
                                     isConnectingShop = true
