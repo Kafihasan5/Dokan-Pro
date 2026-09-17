@@ -22,7 +22,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -76,17 +78,14 @@ fun SettingsScreen(
     var showDemoActivationDialog by remember { mutableStateOf(false) }
     var demoActivationEmail by remember { mutableStateOf("") }
 
-    val customerSupabaseUrl by viewModel.customerSupabaseUrl.collectAsState()
-    val customerSupabaseKey by viewModel.customerSupabaseKey.collectAsState()
-    val isCustomerCloudConfigured by viewModel.isCustomerCloudConfigured.collectAsState()
-
-    var cloudUrlInput by remember(customerSupabaseUrl) { mutableStateOf(customerSupabaseUrl) }
-    var cloudKeyInput by remember(customerSupabaseKey) { mutableStateOf(customerSupabaseKey) }
-    var isCloudKeyVisible by remember { mutableStateOf(false) }
-    var isTestingCloud by remember { mutableStateOf(false) }
-    var cloudTestMessage by remember { mutableStateOf<String?>(null) }
-    var showSqlSchemaDialog by remember { mutableStateOf(false) }
-    var showCloudRestoreConfirmDialog by remember { mutableStateOf(false) }
+    val firebaseSyncStatus by viewModel.firebaseSyncStatus.collectAsState()
+    val clipboardManager = LocalClipboardManager.current
+    var shopCodeInput by remember(config.firebaseShopCode) {
+        mutableStateOf(config.firebaseShopCode.ifBlank { viewModel.getDefaultShopCode() })
+    }
+    var selectedRole by remember(config.userRole) { mutableStateOf(config.userRole) }
+    var isConnectingShop by remember { mutableStateOf(false) }
+    var isPushingData by remember { mutableStateOf(false) }
 
     DokanScreenScaffold(
         title = "দোকান ও অ্যাপ সেটিংস",
@@ -289,7 +288,7 @@ fun SettingsScreen(
                 }
             }
 
-            // 6. অনলাইন ক্লাউড সিঙ্ক
+            // 6. গুগল ক্লাউড লাইভ সিঙ্ক (Firebase Realtime Database)
             item {
                 SettingsCard {
                     Row(
@@ -297,134 +296,186 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        SectionHeaderWithIcon(title = "অনলাইন ক্লাউড সিঙ্ক", icon = Icons.Default.CloudSync)
+                        SectionHeaderWithIcon(title = "গুগল ক্লাউড লাইভ সিঙ্ক", icon = Icons.Default.CloudSync)
 
-                        // Live Status Pill: সংযুক্ত ✓ in success tone, সেটআপ করা নেই in neutral tone
                         Surface(
                             shape = RoundedCornerShape(Radius.pill),
-                            color = if (isCustomerCloudConfigured) MaterialTheme.dokanColors.successContainer else MaterialTheme.dokanColors.surfaceAlt,
-                            border = BorderStroke(1.dp, if (isCustomerCloudConfigured) MaterialTheme.dokanColors.success.copy(alpha = 0.3f) else MaterialTheme.dokanColors.border)
+                            color = if (firebaseSyncStatus.isConnected) MaterialTheme.dokanColors.successContainer else MaterialTheme.dokanColors.surfaceAlt,
+                            border = BorderStroke(1.dp, if (firebaseSyncStatus.isConnected) MaterialTheme.dokanColors.success.copy(alpha = 0.3f) else MaterialTheme.dokanColors.border)
                         ) {
                             Text(
-                                text = if (isCustomerCloudConfigured) "সংযুক্ত ✓" else "সেটআপ করা নেই",
+                                text = if (firebaseSyncStatus.isConnected) "🟢 লাইভ সিঙ্ক সক্রিয়" else "⚪ অফলাইন",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isCustomerCloudConfigured) MaterialTheme.dokanColors.success else MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = if (firebaseSyncStatus.isConnected) MaterialTheme.dokanColors.success else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
                         }
                     }
 
-                    Text(
-                        text = "আপনার নিজস্ব Supabase প্রজেক্টের URL এবং API Key এখানে সেভ করে যেকোনো ডিভাইস থেকে ব্যাকআপ ও রিস্টোর করুন।",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(Radius.sm),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(Spacing.sm),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Security,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(Spacing.xs))
+                            Text(
+                                text = "গুগল ক্লাউড লাইভ ডাটাবেস: আজীবন ১০০% ফ্রি ও অটোমেটিক। ফোনের লোকাল ডেটা অক্ষত রেখে মালিক ও কর্মচারীর ফোনে লাইভ সিঙ্ক হয়।",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
 
-                    DokanTextField(
-                        value = cloudUrlInput,
-                        onValueChange = {
-                            cloudUrlInput = it
-                            cloudTestMessage = null
-                        },
-                        label = "Supabase Project URL",
-                        placeholder = "https://xxxx.supabase.co"
-                    )
+                    // Role selector
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "আপনার ভূমিকা (Role):",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                            FilterChip(
+                                selected = selectedRole == "owner",
+                                onClick = { selectedRole = "owner" },
+                                label = { Text("দোকান মালিক") },
+                                shape = RoundedCornerShape(Radius.pill)
+                            )
+                            FilterChip(
+                                selected = selectedRole == "staff",
+                                onClick = { selectedRole = "staff" },
+                                label = { Text("কর্মচারী") },
+                                shape = RoundedCornerShape(Radius.pill)
+                            )
+                        }
+                    }
 
-                    DokanTextField(
-                        value = cloudKeyInput,
-                        onValueChange = {
-                            cloudKeyInput = it
-                            cloudTestMessage = null
-                        },
-                        label = "Supabase Secret / Anon API Key",
-                        placeholder = "eyJhbGciOi...",
-                        trailingIcon = {
-                            IconButton(onClick = { isCloudKeyVisible = !isCloudKeyVisible }) {
-                                Icon(
-                                    if (isCloudKeyVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = null
+                    HorizontalDivider(color = MaterialTheme.dokanColors.border)
+
+                    if (selectedRole == "owner") {
+                        // OWNER VIEW
+                        Text(
+                            text = "আপনার দোকানের নির্ধারিত দোকান কোড (Shop ID):",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Surface(
+                            shape = RoundedCornerShape(Radius.md),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "দোকান কোড (Shop ID)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = shopCodeInput.ifBlank { viewModel.getDefaultShopCode() },
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        letterSpacing = 1.sp
+                                    )
+                                }
+
+                                DokanSecondaryButton(
+                                    text = "কপি করুন",
+                                    icon = Icons.Default.ContentCopy,
+                                    onClick = {
+                                        val codeToCopy = shopCodeInput.ifBlank { viewModel.getDefaultShopCode() }
+                                        clipboardManager.setText(AnnotatedString(codeToCopy))
+                                        viewModel.showToast("দোকান কোড কপি করা হয়েছে: $codeToCopy")
+                                    }
                                 )
                             }
                         }
-                    )
 
-                    if (cloudTestMessage != null) {
                         Text(
-                            text = cloudTestMessage ?: "",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (cloudTestMessage?.contains("সফল") == true) MaterialTheme.dokanColors.success else MaterialTheme.dokanColors.danger
+                            text = "কর্মচারীর ফোনে এই কোডটি দিলে তারা সরাসরি আপনার দোকানে যুক্ত হয়ে লাইভ বিক্রি ও স্টক দেখতে পারবে।",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-                    ) {
                         DokanPrimaryButton(
-                            text = "সংরক্ষণ করুন",
-                            onClick = { viewModel.saveCustomerCloudConfig(cloudUrlInput, cloudKeyInput) },
-                            enabled = cloudUrlInput.isNotBlank() && cloudKeyInput.isNotBlank(),
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        DokanSecondaryButton(
-                            text = if (isTestingCloud) "পরীক্ষা..." else "কানেকশন টেস্ট",
+                            text = if (isPushingData) "ক্লাউডে সেভ হচ্ছে..." else "এখনই ক্লাউডে ব্যাকআপ দিন (Sync Now)",
+                            icon = Icons.Default.CloudUpload,
                             onClick = {
-                                isTestingCloud = true
-                                cloudTestMessage = "টেস্ট করা হচ্ছে..."
-                                viewModel.testCustomerCloudConnection(cloudUrlInput, cloudKeyInput) { ok, msg ->
-                                    isTestingCloud = false
-                                    cloudTestMessage = msg
+                                isPushingData = true
+                                viewModel.pushAllDataToFirebase {
+                                    isPushingData = false
                                 }
                             },
-                            enabled = !isTestingCloud && cloudUrlInput.isNotBlank() && cloudKeyInput.isNotBlank(),
-                            modifier = Modifier.weight(1f)
+                            isLoading = isPushingData,
+                            enabled = !isPushingData
                         )
-                    }
+                    } else {
+                        // EMPLOYEE VIEW
+                        Text(
+                            text = "মালিকের দোকানের সাথে কানেক্ট করতে দোকান কোড দিন:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
 
-                    if (isCustomerCloudConfigured) {
-                        HorizontalDivider(color = MaterialTheme.dokanColors.border)
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-                        ) {
-                            DokanSecondaryButton(
-                                text = if (isSyncing) "সেভ..." else "ক্লাউড ব্যাকআপ",
-                                onClick = { viewModel.backupToCustomerCloud { _, _ -> } },
-                                enabled = !isSyncing,
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            DokanSecondaryButton(
-                                text = "ক্লাউড রিস্টোর",
-                                onClick = { showCloudRestoreConfirmDialog = true },
-                                enabled = !isSyncing,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-
-                        DokanDangerButton(
-                            text = "ক্লাউড ডিসকানেক্ট করুন",
-                            onClick = {
-                                viewModel.clearCustomerCloudConfig {
-                                    cloudUrlInput = ""
-                                    cloudKeyInput = ""
-                                    cloudTestMessage = null
-                                }
+                        DokanTextField(
+                            value = shopCodeInput,
+                            onValueChange = { shopCodeInput = it.uppercase().trim() },
+                            label = "মালিকের দোকান কোড",
+                            placeholder = "SHOP-XXXXXX",
+                            leadingIcon = {
+                                Icon(Icons.Default.Storefront, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             }
                         )
+
+                        DokanPrimaryButton(
+                            text = if (isConnectingShop) "সংযুক্ত হচ্ছে..." else "দোকানে যুক্ত হন",
+                            icon = Icons.Default.Link,
+                            onClick = {
+                                if (shopCodeInput.isNotBlank()) {
+                                    isConnectingShop = true
+                                    viewModel.connectFirebaseShop(shopCodeInput, "staff") { ok, msg ->
+                                        isConnectingShop = false
+                                        viewModel.showToast(msg)
+                                    }
+                                } else {
+                                    viewModel.showToast("দোকান কোড লিখুন")
+                                }
+                            },
+                            isLoading = isConnectingShop,
+                            enabled = !isConnectingShop && shopCodeInput.isNotBlank()
+                        )
                     }
 
-                    TextButton(
-                        onClick = { showSqlSchemaDialog = true },
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                    ) {
-                        Icon(Icons.Default.Code, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("সুপাবেস ডাটাবেস স্ক্রিপ্ট (SQL Setup)", style = MaterialTheme.typography.labelMedium)
+                    if (firebaseSyncStatus.isConnected) {
+                        DokanSecondaryButton(
+                            text = "লাইভ সিঙ্ক ডিসকানেক্ট করুন",
+                            onClick = {
+                                viewModel.disconnectFirebaseShop()
+                                viewModel.showToast("লাইভ সিঙ্ক ডিসকানেক্ট করা হয়েছে")
+                            }
+                        )
                     }
                 }
             }
@@ -804,7 +855,7 @@ fun SettingsScreen(
                         }
 
                         Text(
-                            text = "ক্লাউড (Supabase) এবং ফোন (লোকাল স্টোরেজ) থেকে সকল পণ্য, বিক্রি, কাস্টমার, বাকি খাতা ও খরচের সমস্ত হিসাব সম্পূর্ণ মুছে ফ্রেশ করুন। এটি নিশ্চিত করতে পাসওয়ার্ড প্রয়োজন হবে।",
+                            text = "ক্লাউড এবং ফোন (লোকাল স্টোরেজ) থেকে সকল পণ্য, বিক্রি, কাস্টমার, বাকি খাতা ও খরচের সমস্ত হিসাব সম্পূর্ণ মুছে ফ্রেশ করুন। এটি নিশ্চিত করতে পাসওয়ার্ড প্রয়োজন হবে।",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -962,72 +1013,6 @@ fun SettingsScreen(
             viewModel = viewModel,
             initialTab = initialManageTab,
             onDismiss = { showCategoryUnitManager = false }
-        )
-    }
-
-    if (showCloudRestoreConfirmDialog) {
-        DokanConfirmDialog(
-            title = "ক্লাউড থেকে রিস্টোর করতে চান?",
-            message = "আপনার Supabase ক্লাউডে সংরক্ষিত পণ্য, বিক্রি, বাকি খাতা ও খরচের হিসাব বর্তমান ফোনে লোড ও সিঙ্ক হবে। আপনি কি রিস্টোর করতে চান?",
-            confirmLabel = "হ্যাঁ, রিস্টোর করুন",
-            onConfirm = {
-                showCloudRestoreConfirmDialog = false
-                viewModel.restoreFromCustomerCloud { _, _ -> }
-            },
-            onDismiss = { showCloudRestoreConfirmDialog = false }
-        )
-    }
-
-    if (showSqlSchemaDialog) {
-        val schemaSql = """
-CREATE TABLE IF NOT EXISTS public.categories (id BIGINT PRIMARY KEY, name_bn TEXT NOT NULL, name_en TEXT DEFAULT '', icon_name TEXT DEFAULT 'category', sort_order INT DEFAULT 0);
-CREATE TABLE IF NOT EXISTS public.products (id BIGINT PRIMARY KEY, name_bn TEXT NOT NULL, name_en TEXT DEFAULT '', category_id BIGINT, unit_name TEXT DEFAULT 'পিস', barcode TEXT DEFAULT '', purchase_price_poisha BIGINT DEFAULT 0, sale_price_poisha BIGINT DEFAULT 0, wholesale_price_poisha BIGINT DEFAULT 0, stock_qty NUMERIC DEFAULT 0, min_stock NUMERIC DEFAULT 5, expiry_date BIGINT, supplier_id BIGINT, is_active BOOLEAN DEFAULT TRUE, created_at BIGINT NOT NULL, updated_at BIGINT);
-CREATE TABLE IF NOT EXISTS public.customers (id BIGINT PRIMARY KEY, name TEXT NOT NULL, phone TEXT NOT NULL, address TEXT, credit_limit_poisha BIGINT DEFAULT 0, is_active BOOLEAN DEFAULT TRUE, created_at BIGINT NOT NULL);
-CREATE TABLE IF NOT EXISTS public.sales (id BIGINT PRIMARY KEY, invoice_no TEXT NOT NULL, customer_id BIGINT, customer_name TEXT, sale_date BIGINT NOT NULL, subtotal_poisha BIGINT NOT NULL, discount_poisha BIGINT DEFAULT 0, vat_poisha BIGINT DEFAULT 0, total_poisha BIGINT NOT NULL, paid_amount_poisha BIGINT NOT NULL, due_amount_poisha BIGINT DEFAULT 0, payment_method TEXT DEFAULT 'cash', user_id TEXT DEFAULT 'owner', note TEXT, is_returned BOOLEAN DEFAULT FALSE, created_at BIGINT NOT NULL);
-CREATE TABLE IF NOT EXISTS public.sale_items (id BIGINT PRIMARY KEY, sale_id BIGINT, product_id BIGINT, product_name TEXT NOT NULL, unit_name TEXT DEFAULT 'পিস', qty NUMERIC NOT NULL, unit_price_poisha BIGINT NOT NULL, purchase_price_at_sale_poisha BIGINT DEFAULT 0, discount_poisha BIGINT DEFAULT 0, line_total_poisha BIGINT NOT NULL);
-CREATE TABLE IF NOT EXISTS public.customer_ledger (id BIGINT PRIMARY KEY, customer_id BIGINT, ref_type TEXT NOT NULL, ref_id BIGINT, debit_poisha BIGINT DEFAULT 0, credit_poisha BIGINT DEFAULT 0, note TEXT, entry_date BIGINT NOT NULL, created_at BIGINT NOT NULL);
-CREATE TABLE IF NOT EXISTS public.expenses (id BIGINT PRIMARY KEY, category_id BIGINT DEFAULT 1, category_name TEXT NOT NULL, amount_poisha BIGINT NOT NULL, note TEXT, expense_date BIGINT NOT NULL, created_at BIGINT NOT NULL);
-CREATE TABLE IF NOT EXISTS public.suppliers (id BIGINT PRIMARY KEY, name TEXT NOT NULL, phone TEXT NOT NULL, company TEXT, address TEXT, is_active BOOLEAN DEFAULT TRUE, created_at BIGINT NOT NULL);
-CREATE TABLE IF NOT EXISTS public.purchases (id BIGINT PRIMARY KEY, invoice_no TEXT NOT NULL, supplier_id BIGINT, supplier_name TEXT, purchase_date BIGINT NOT NULL, total_poisha BIGINT NOT NULL, paid_amount_poisha BIGINT NOT NULL, due_amount_poisha BIGINT DEFAULT 0, note TEXT, created_at BIGINT NOT NULL);
-CREATE TABLE IF NOT EXISTS public.purchase_items (id BIGINT PRIMARY KEY, purchase_id BIGINT, product_id BIGINT, product_name TEXT NOT NULL, qty NUMERIC NOT NULL, unit_price_poisha BIGINT NOT NULL, line_total_poisha BIGINT NOT NULL);
-CREATE TABLE IF NOT EXISTS public.stock_adjustments (id BIGINT PRIMARY KEY, product_id BIGINT, product_name TEXT NOT NULL, qty_change NUMERIC NOT NULL, reason TEXT NOT NULL, note TEXT, created_at BIGINT NOT NULL);
-CREATE TABLE IF NOT EXISTS public.app_config (config_key TEXT PRIMARY KEY, config_value TEXT NOT NULL, updated_at BIGINT);
-        """.trimIndent()
-
-        AlertDialog(
-            onDismissRequest = { showSqlSchemaDialog = false },
-            icon = { Icon(Icons.Default.Terminal, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-            title = { Text("সুপাবেস ডাটাবেস স্ক্রিপ্ট", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    Text(
-                        "আপনার ব্যক্তিগত Supabase ড্যাশবোর্ডে গিয়ে SQL Editor-এ নিচের স্ক্রিপ্টটি রান করুন।",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Surface(
-                        color = MaterialTheme.dokanColors.surfaceAlt,
-                        shape = RoundedCornerShape(Radius.sm),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(text = schemaSql, fontSize = 10.sp, maxLines = 8, modifier = Modifier.padding(Spacing.sm))
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        copyToClipboard(context, schemaSql, "SQL স্ক্রিপ্ট কপি করা হয়েছে!")
-                        showSqlSchemaDialog = false
-                    },
-                    shape = RoundedCornerShape(Radius.md)
-                ) {
-                    Text("স্ক্রিপ্ট কপি করুন")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSqlSchemaDialog = false }) { Text("বন্ধ করুন") }
-            }
         )
     }
 

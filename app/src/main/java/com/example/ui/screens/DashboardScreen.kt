@@ -291,7 +291,7 @@ fun DashboardScreen(
         onRefresh = {
             isManualRefreshing = true
             coroutineScope.launch {
-                viewModel.syncToSupabase(silent = true)
+                viewModel.pushAllDataToFirebase()
                 delay(600)
                 isManualRefreshing = false
             }
@@ -307,7 +307,11 @@ fun DashboardScreen(
                 config = config,
                 onOpenMoreMenu = onNavigate,
                 isSyncing = isSyncing,
-                onSyncNow = { viewModel.syncToSupabase(silent = false) },
+                onSyncNow = {
+                    viewModel.pushAllDataToFirebase {
+                        viewModel.showToast("গুগল ক্লাউডে সফলভাবে সিঙ্ক সম্পন্ন হয়েছে ✓")
+                    }
+                },
                 onToggleTheme = { viewModel.toggleThemeMode() },
                 isDemoMode = isDemoMode,
                 remainingDemoMillis = remainingDemoMillis,

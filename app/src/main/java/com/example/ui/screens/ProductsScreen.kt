@@ -115,7 +115,7 @@ fun ProductsScreen(
             onRefresh = {
                 isManualRefreshing = true
                 coroutineScope.launch {
-                    viewModel.syncToSupabase(silent = true)
+                    viewModel.pushAllDataToFirebase()
                     kotlinx.coroutines.delay(600)
                     isManualRefreshing = false
                 }

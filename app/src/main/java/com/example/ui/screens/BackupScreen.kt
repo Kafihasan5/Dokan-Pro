@@ -45,10 +45,6 @@ fun BackupScreen(
     val backupLogs by viewModel.backupLogs.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
     val lastSyncTime by viewModel.lastSyncTime.collectAsState()
-    val customerUrl by viewModel.customerSupabaseUrl.collectAsState()
-    val customerKey by viewModel.customerSupabaseKey.collectAsState()
-    val isCustomerCloudConfigured by viewModel.isCustomerCloudConfigured.collectAsState()
-
     val firebaseSyncStatus by viewModel.firebaseSyncStatus.collectAsState()
     val clipboardManager = LocalClipboardManager.current
     var shopCodeInput by remember(config.firebaseShopCode) {
@@ -62,8 +58,6 @@ fun BackupScreen(
     var showClearDummyConfirmDialog by remember { mutableStateOf(false) }
     var showSelectiveDeleteDialog by remember { mutableStateOf(false) }
     var showRestoreDialog by remember { mutableStateOf(false) }
-    var showCloudConfigDialog by remember { mutableStateOf(false) }
-    var showCloudRestoreConfirmDialog by remember { mutableStateOf(false) }
     var restoreJsonText by remember { mutableStateOf("") }
 
     // Selective Deletion Filters
@@ -426,134 +420,6 @@ fun BackupScreen(
             }
 
             // ==============================================================
-            // CARD 2: অনলাইন ক্লাউড ব্যাকআপ (Customer Supabase)
-            // ==============================================================
-            item {
-                Surface(
-                    shape = RoundedCornerShape(Radius.lg),
-                    color = MaterialTheme.colorScheme.surface,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .softShadow(1, RoundedCornerShape(Radius.lg))
-                ) {
-                    Column(
-                        modifier = Modifier.padding(Spacing.lg),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.md)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            if (isCustomerCloudConfigured) MaterialTheme.dokanColors.successContainer
-                                            else MaterialTheme.dokanColors.surfaceAlt
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = if (isCustomerCloudConfigured) Icons.Default.CloudDone else Icons.Default.CloudOff,
-                                        contentDescription = null,
-                                        tint = if (isCustomerCloudConfigured) MaterialTheme.dokanColors.success else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(Spacing.md))
-                                Column {
-                                    Text(
-                                        text = "অনলাইন ক্লাউড ব্যাকআপ",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = if (isCustomerCloudConfigured) "সুপাবেস ক্লাউড সংযুক্ত" else "ক্লাউড সেটআপ করা নেই",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = if (isCustomerCloudConfigured) MaterialTheme.dokanColors.success else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-
-                            Surface(
-                                shape = RoundedCornerShape(Radius.pill),
-                                color = if (isCustomerCloudConfigured) MaterialTheme.dokanColors.successContainer else MaterialTheme.dokanColors.surfaceAlt,
-                                border = BorderStroke(1.dp, if (isCustomerCloudConfigured) MaterialTheme.dokanColors.success.copy(alpha = 0.3f) else MaterialTheme.dokanColors.border)
-                            ) {
-                                Text(
-                                    text = if (isCustomerCloudConfigured) "সংযুক্ত ✓" else "অফলাইন",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isCustomerCloudConfigured) MaterialTheme.dokanColors.success else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
-                            }
-                        }
-
-                        if (isCustomerCloudConfigured) {
-                            Text(
-                                text = "প্রজেক্ট: $customerUrl",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            if (lastSyncTime != null) {
-                                Text(
-                                    text = "সর্বশেষ ক্লাউড ব্যাকআপ: ${Formatters.formatBengaliTime(lastSyncTime!!)}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-
-                            DokanPrimaryButton(
-                                text = "এখনই ক্লাউডে ব্যাকআপ নিন (Cloud Push)",
-                                onClick = { viewModel.backupToCustomerCloud { _, _ -> } },
-                                isLoading = isSyncing,
-                                enabled = !isSyncing
-                            )
-
-                            DokanSecondaryButton(
-                                text = "ক্লাউড থেকে রিস্টোর করুন (Cloud Pull)",
-                                onClick = { showCloudRestoreConfirmDialog = true },
-                                enabled = !isSyncing
-                            )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-                            ) {
-                                DokanSecondaryButton(
-                                    text = "কানেকশন টেস্ট",
-                                    onClick = { viewModel.testCustomerCloudConnection(customerUrl, customerKey) { _, _ -> } },
-                                    modifier = Modifier.weight(1f)
-                                )
-
-                                DokanSecondaryButton(
-                                    text = "ক্লাউড সেটিংস",
-                                    onClick = { showCloudConfigDialog = true },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        } else {
-                            Text(
-                                text = "আপনার নিজস্ব Supabase প্রজেক্ট কানেক্ট করে অনলাইনে সমস্ত পণ্য, বিক্রি, বাকি ও খরচের হিসাব ক্লাউডে ব্যাকআপ রাখুন এবং যেকোনো ফোন থেকে রিস্টোর করুন।",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            DokanPrimaryButton(
-                                text = "Supabase ক্লাউড সেটআপ করুন",
-                                onClick = { showCloudConfigDialog = true }
-                            )
-                        }
-                    }
-                }
-            }
-
-            // ==============================================================
             // AUTO BACKUP CARD (Visually unchanged per Prompt 11 note)
             // ==============================================================
             item {
@@ -879,121 +745,6 @@ fun BackupScreen(
             dismissButton = {
                 TextButton(onClick = { showRestoreDialog = false }) { Text("বাতিল") }
             }
-        )
-    }
-
-    if (showCloudConfigDialog) {
-        var inputUrl by remember { mutableStateOf(customerUrl) }
-        var inputKey by remember { mutableStateOf(customerKey) }
-        var isKeyVisible by remember { mutableStateOf(false) }
-        var testMsg by remember { mutableStateOf<String?>(null) }
-        var isTesting by remember { mutableStateOf(false) }
-
-        AlertDialog(
-            onDismissRequest = { showCloudConfigDialog = false },
-            icon = { Icon(Icons.Default.CloudQueue, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-            title = { Text("সুপাবেস ক্লাউড সেটিংস", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                    Text(
-                        "আপনার ব্যক্তিগত Supabase প্রজেক্টের URL ও API Key দিন:",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    DokanTextField(
-                        value = inputUrl,
-                        onValueChange = { inputUrl = it },
-                        label = "Supabase Project URL",
-                        placeholder = "https://xxxx.supabase.co"
-                    )
-
-                    DokanTextField(
-                        value = inputKey,
-                        onValueChange = { inputKey = it },
-                        label = "Supabase API / Secret Key",
-                        placeholder = "eyJhbGciOi...",
-                        keyboardType = KeyboardType.Password,
-                        trailingIcon = {
-                            IconButton(onClick = { isKeyVisible = !isKeyVisible }) {
-                                Icon(
-                                    if (isKeyVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = null
-                                )
-                            }
-                        }
-                    )
-
-                    if (testMsg != null) {
-                        Text(
-                            text = testMsg ?: "",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Medium,
-                            color = if (testMsg?.contains("সফল") == true) MaterialTheme.dokanColors.success else MaterialTheme.dokanColors.danger
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-                    ) {
-                        DokanSecondaryButton(
-                            text = if (isTesting) "পরীক্ষা হচ্ছে..." else "কানেকশন টেস্ট",
-                            onClick = {
-                                isTesting = true
-                                testMsg = "টেস্ট করা হচ্ছে..."
-                                viewModel.testCustomerCloudConnection(inputUrl, inputKey) { _, msg ->
-                                    isTesting = false
-                                    testMsg = msg
-                                }
-                            },
-                            enabled = !isTesting && inputUrl.isNotBlank() && inputKey.isNotBlank(),
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        if (isCustomerCloudConfigured) {
-                            DokanDangerButton(
-                                text = "ডিসকানেক্ট",
-                                onClick = {
-                                    viewModel.clearCustomerCloudConfig {
-                                        showCloudConfigDialog = false
-                                    }
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.saveCustomerCloudConfig(inputUrl, inputKey) {
-                            showCloudConfigDialog = false
-                        }
-                    },
-                    enabled = inputUrl.isNotBlank() && inputKey.isNotBlank(),
-                    shape = RoundedCornerShape(Radius.md)
-                ) {
-                    Text("সংরক্ষণ করুন")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCloudConfigDialog = false }) { Text("বাতিল") }
-            }
-        )
-    }
-
-    if (showCloudRestoreConfirmDialog) {
-        DokanConfirmDialog(
-            title = "ক্লাউড থেকে রিস্টোর করতে চান?",
-            message = "আপনার Supabase ক্লাউডে সংরক্ষিত পণ্য, বিক্রি, বাকি খাতা ও খরচের হিসাব বর্তমান ফোনে লোড ও সিঙ্ক হবে। এতে অফলাইনে করা কোনো অমিল ডেটা ক্লাউডের সাথে সমন্বয় হবে। আপনি কি রিস্টোর করতে চান?",
-            confirmLabel = "হ্যাঁ, ক্লাউড থেকে রিস্টোর করুন",
-            onConfirm = {
-                showCloudRestoreConfirmDialog = false
-                viewModel.restoreFromCustomerCloud { _, _ -> }
-            },
-            onDismiss = { showCloudRestoreConfirmDialog = false }
         )
     }
 }
