@@ -1,6 +1,6 @@
 {
-  "versionCode": 56,
-  "versionName": "1.0.56",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v56/app-debug.apk",
-  "releaseNotes": "fix: prevent quantity auto-increment on duplicate barcode scan and ensure manual quantity entry"
+  "versionCode": 57,
+  "versionName": "1.0.57",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v57/app-debug.apk",
+  "releaseNotes": "fix: compact purchase sheet, visible barcode scanner, product dropdown with multi-add, keep screen on during update, bypass play protect"
 }
