@@ -162,7 +162,8 @@ class FirebaseSyncManager(private val dao: PaponDao) {
     /**
      * Push all local Room DB data to Firebase (Zero data loss for existing users).
      */
-    suspend fun pushAllLocalDataToCloud(shopRef: DatabaseReference = currentShopRef ?: return) = withContext(Dispatchers.IO) {
+    suspend fun pushAllLocalDataToCloud(targetRef: DatabaseReference? = null) = withContext(Dispatchers.IO) {
+        val shopRef = targetRef ?: currentShopRef ?: return@withContext
         try {
             // 1. Products
             val products = dao.getAllActiveProducts().first()
