@@ -527,8 +527,13 @@ fun PosScreen(
             onBarcodeScanned = { barcode ->
                 val found = products.find { it.barcode == barcode }
                 if (found != null) {
-                    viewModel.addProductToCart(found, 1.0)
-                    viewModel.showToast("${found.nameBn} কার্টে যোগ করা হয়েছে")
+                    val alreadyInCart = cartItems.any { it.productId == found.id }
+                    if (alreadyInCart) {
+                        viewModel.showToast("⚠️ ${found.nameBn} ইতিমধ্যেই কার্টে আছে (পরিমাণ নিচে লিখুন বা পরিবর্তন করুন)")
+                    } else {
+                        viewModel.addProductToCart(found, 1.0)
+                        viewModel.showToast("✓ ${found.nameBn} কার্টে যোগ করা হয়েছে")
+                    }
                 } else {
                     viewModel.showToast("বারকোড খুঁজে পাওয়া যায়নি: $barcode")
                 }

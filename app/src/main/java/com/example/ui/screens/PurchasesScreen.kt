@@ -395,10 +395,10 @@ private fun PurchaseDraftItemRow(
     onPriceChange: (Long) -> Unit,
     onRemove: () -> Unit
 ) {
-    var qtyString by remember(item.qty) {
+    var qtyString by remember(item.product.id) {
         mutableStateOf(if (item.qty % 1.0 == 0.0) item.qty.toInt().toString() else item.qty.toString())
     }
-    var priceString by remember(item.unitPricePoisha) {
+    var priceString by remember(item.product.id) {
         mutableStateOf(
             if (item.unitPricePoisha % 100 == 0L) (item.unitPricePoisha / 100).toString()
             else String.format(java.util.Locale.US, "%.2f", item.unitPricePoisha / 100.0)
@@ -482,7 +482,7 @@ private fun PurchaseDraftItemRow(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Quantity input with +/- buttons
+                // Quantity input with +/- buttons (Direct manual entry)
                 Column(modifier = Modifier.weight(1.2f)) {
                     Text(
                         text = "পরিমাণ (${item.product.unitName})",
@@ -497,7 +497,9 @@ private fun PurchaseDraftItemRow(
                                 val currentQ = item.qty
                                 val step = if (currentQ <= 1.0) 0.1 else 1.0
                                 val newQ = (currentQ - step).coerceAtLeast(0.001)
-                                onQtyChange(newQ)
+                                val rounded = kotlin.math.round(newQ * 1000) / 1000.0
+                                qtyString = if (rounded % 1.0 == 0.0) rounded.toInt().toString() else rounded.toString()
+                                onQtyChange(rounded)
                             },
                             shape = RoundedCornerShape(Radius.xs),
                             color = MaterialTheme.dokanColors.surfaceAlt,
@@ -513,8 +515,12 @@ private fun PurchaseDraftItemRow(
                             value = qtyString,
                             onValueChange = { newVal ->
                                 val clean = newVal.filter { it.isDigit() || it == '.' }
-                                qtyString = clean
-                                clean.toDoubleOrNull()?.let { onQtyChange(it) }
+                                val parts = clean.split(".")
+                                val sanitized = if (parts.size > 2) parts[0] + "." + parts.drop(1).joinToString("") else clean
+                                qtyString = sanitized
+                                sanitized.toDoubleOrNull()?.let { parsed ->
+                                    if (parsed > 0.0) onQtyChange(parsed)
+                                }
                             },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -535,7 +541,9 @@ private fun PurchaseDraftItemRow(
                                 val currentQ = item.qty
                                 val step = if (currentQ < 1.0) 0.1 else 1.0
                                 val newQ = currentQ + step
-                                onQtyChange(newQ)
+                                val rounded = kotlin.math.round(newQ * 1000) / 1000.0
+                                qtyString = if (rounded % 1.0 == 0.0) rounded.toInt().toString() else rounded.toString()
+                                onQtyChange(rounded)
                             },
                             shape = RoundedCornerShape(Radius.xs),
                             color = MaterialTheme.dokanColors.surfaceAlt,
@@ -549,7 +557,7 @@ private fun PurchaseDraftItemRow(
                     }
                 }
 
-                // Purchase price input
+                // Purchase price input (Manual entry)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "ক্রয় দর (৳)",
@@ -562,8 +570,12 @@ private fun PurchaseDraftItemRow(
                         value = priceString,
                         onValueChange = { newVal ->
                             val clean = newVal.filter { it.isDigit() || it == '.' }
-                            priceString = clean
-                            clean.toDoubleOrNull()?.let { onPriceChange((it * 100).toLong()) }
+                            val parts = clean.split(".")
+                            val sanitized = if (parts.size > 2) parts[0] + "." + parts.drop(1).joinToString("") else clean
+                            priceString = sanitized
+                            sanitized.toDoubleOrNull()?.let { dbl ->
+                                onPriceChange((dbl * 100).toLong())
+                            }
                         },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -631,30 +643,25 @@ private fun AddPurchaseBottomSheet(
     var scanFeedbackMessage by remember { mutableStateOf<String?>(null) }
     var paidAmountText by remember { mutableStateOf("") }
 
-    fun addOrIncrementProduct(product: Product, addQty: Double = 1.0) {
+    fun addOrSelectProduct(product: Product) {
         val existingIdx = draftItems.indexOfFirst { it.product.id == product.id }
         if (existingIdx >= 0) {
-            val existing = draftItems[existingIdx]
-            val updated = draftItems.toMutableList()
-            updated[existingIdx] = existing.copy(qty = existing.qty + addQty)
-            draftItems = updated
-        } else {
-            draftItems = draftItems + PurchaseDraftItem(
-                product = product,
-                qty = addQty,
-                unitPricePoisha = product.purchasePricePoisha
-            )
+            scanFeedbackMessage = "⚠️ ${product.nameBn} ইতিমধ্যেই চালানে যোগ করা আছে (পরিমাণ নিচে লিখুন)"
+            return
         }
+        draftItems = draftItems + PurchaseDraftItem(
+            product = product,
+            qty = 1.0,
+            unitPricePoisha = product.purchasePricePoisha
+        )
+        scanFeedbackMessage = "✓ ${product.nameBn} চালানে যুক্ত হয়েছে (পরিমাণ নিচে লিখুন)"
     }
 
     fun updateQty(index: Int, newQty: Double) {
         if (index !in draftItems.indices) return
         val updated = draftItems.toMutableList()
-        if (newQty <= 0.0) {
-            updated.removeAt(index)
-        } else {
-            updated[index] = updated[index].copy(qty = kotlin.math.round(newQty * 1000) / 1000.0)
-        }
+        val safeQty = newQty.coerceAtLeast(0.0)
+        updated[index] = updated[index].copy(qty = kotlin.math.round(safeQty * 1000) / 1000.0)
         draftItems = updated
     }
 
@@ -899,8 +906,7 @@ private fun AddPurchaseBottomSheet(
                             onBarcodeScanned = { barcode ->
                                 val found = products.find { it.barcode == barcode }
                                 if (found != null) {
-                                    addOrIncrementProduct(found, 1.0)
-                                    scanFeedbackMessage = "✓ ${found.nameBn} যোগ করা হয়েছে"
+                                    addOrSelectProduct(found)
                                 } else {
                                     scanFeedbackMessage = "বারকোড: $barcode (তালিকায় নেই)"
                                     quickAddBarcode = barcode
@@ -910,10 +916,15 @@ private fun AddPurchaseBottomSheet(
                         )
 
                         scanFeedbackMessage?.let { msg ->
+                            val isSuccess = msg.startsWith("✓")
+                            val isWarning = msg.startsWith("⚠️")
                             Surface(
                                 shape = RoundedCornerShape(Radius.xs),
-                                color = if (msg.startsWith("✓")) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                                        else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                                color = when {
+                                    isSuccess -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                    isWarning -> MaterialTheme.dokanColors.warning.copy(alpha = 0.15f)
+                                    else -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                                },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -925,9 +936,14 @@ private fun AddPurchaseBottomSheet(
                                         text = msg,
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (msg.startsWith("✓")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                        color = when {
+                                            isSuccess -> MaterialTheme.colorScheme.primary
+                                            isWarning -> MaterialTheme.dokanColors.warning
+                                            else -> MaterialTheme.colorScheme.error
+                                        },
+                                        modifier = Modifier.weight(1f, fill = false)
                                     )
-                                    if (!msg.startsWith("✓") && quickAddBarcode.isNotBlank()) {
+                                    if (!isSuccess && !isWarning && quickAddBarcode.isNotBlank()) {
                                         TextButton(
                                             onClick = { showQuickAddProduct = true },
                                             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
@@ -994,7 +1010,7 @@ private fun AddPurchaseBottomSheet(
                                     matches.forEach { prod ->
                                         Surface(
                                             onClick = {
-                                                addOrIncrementProduct(prod, 1.0)
+                                                addOrSelectProduct(prod)
                                                 searchQuery = ""
                                             },
                                             shape = RoundedCornerShape(Radius.xs),
@@ -1255,10 +1271,12 @@ private fun AddPurchaseBottomSheet(
                         modifier = Modifier.weight(1f)
                     )
 
+                    val validItems = draftItems.filter { it.qty > 0.0 }
+
                     DokanPrimaryButton(
-                        text = if (draftItems.isEmpty()) "চালান সংরক্ষণ" else "চালান সংরক্ষণ (${draftItems.size}টি)",
+                        text = if (validItems.isEmpty()) "চালান সংরক্ষণ" else "চালান সংরক্ষণ (${validItems.size}টি)",
                         onClick = {
-                            if (selectedSupplier != null && draftItems.isNotEmpty() && totalPoisha > 0) {
+                            if (selectedSupplier != null && validItems.isNotEmpty() && totalPoisha > 0) {
                                 val paid = (paidAmountText.toDoubleOrNull()?.times(100))?.toLong() ?: totalPoisha
                                 val due = (totalPoisha - paid).coerceAtLeast(0L)
 
@@ -1271,7 +1289,7 @@ private fun AddPurchaseBottomSheet(
                                     dueAmountPoisha = due
                                 )
 
-                                val items = draftItems.map { draft ->
+                                val items = validItems.map { draft ->
                                     PurchaseItem(
                                         purchaseId = 0,
                                         productId = draft.product.id,
@@ -1285,7 +1303,7 @@ private fun AddPurchaseBottomSheet(
                                 onSave(purchase, items)
                             }
                         },
-                        enabled = totalPoisha > 0 && selectedSupplier != null && draftItems.isNotEmpty(),
+                        enabled = totalPoisha > 0 && selectedSupplier != null && validItems.isNotEmpty(),
                         modifier = Modifier.weight(1.5f)
                     )
                 }
@@ -1313,7 +1331,7 @@ private fun AddPurchaseBottomSheet(
                 },
                 onSave = { newProd ->
                     onQuickCreateProduct(newProd) { created ->
-                        addOrIncrementProduct(created, 1.0)
+                        addOrSelectProduct(created)
                         showQuickAddProduct = false
                         quickAddBarcode = ""
                     }
