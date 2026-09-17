@@ -1,6 +1,6 @@
 {
-  "versionCode": 50,
-  "versionName": "1.0.50",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v50/app-debug.apk",
-  "releaseNotes": "feat: 1-gram precision selling system, top live barcode scanner, and removed english name"
+  "versionCode": 52,
+  "versionName": "1.0.52",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v52/app-debug.apk",
+  "releaseNotes": "fix: resolve CameraBarcodeScannerDialog syntax and pass products/config to ProductFormBottomSheet"
 }
