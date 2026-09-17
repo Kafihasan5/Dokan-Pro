@@ -64,6 +64,7 @@ fun ProductsScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedCatId by remember { mutableStateOf(1L) }
     var showOnlyLowStock by remember { mutableStateOf(false) }
+    var showSearchBarcodeScanner by remember { mutableStateOf(false) }
 
     var productToEdit by remember { mutableStateOf<Product?>(null) }
     var isAddingNew by remember { mutableStateOf(false) }
@@ -146,7 +147,8 @@ fun ProductsScreen(
                     onOpenCategoryManager = {
                         initialManageTab = 0
                         showCategoryUnitManager = true
-                    }
+                    },
+                    onScanBarcode = { showSearchBarcodeScanner = true }
                 )
 
                 // Category Chips Row (Preserved for seamless category filtering)
@@ -285,6 +287,19 @@ fun ProductsScreen(
             onDismiss = { showCategoryUnitManager = false }
         )
     }
+
+    // Barcode Search Scanner Dialog
+    if (showSearchBarcodeScanner) {
+        CameraBarcodeScannerDialog(
+            title = "পণ্য খুঁজুন",
+            confirmText = "খুঁজুন",
+            onDismiss = { showSearchBarcodeScanner = false },
+            onBarcodeScanned = { code ->
+                searchQuery = code
+                showSearchBarcodeScanner = false
+            }
+        )
+    }
 }
 
 // ==============================================================================
@@ -367,7 +382,8 @@ private fun ProductFilterHeader(
     onSearchQueryChange: (String) -> Unit,
     showOnlyLowStock: Boolean,
     onToggleLowStock: (Boolean) -> Unit,
-    onOpenCategoryManager: () -> Unit
+    onOpenCategoryManager: () -> Unit,
+    onScanBarcode: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -428,6 +444,18 @@ private fun ProductFilterHeader(
                             imageVector = Icons.Default.Close,
                             contentDescription = "মুছুন",
                             modifier = Modifier.size(18.dp)
+                        )
+                    }
+                } else {
+                    IconButton(
+                        onClick = onScanBarcode,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.QrCodeScanner,
+                            contentDescription = "ক্যামেরা দিয়ে বারকোড স্ক্যান করুন",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
@@ -763,8 +791,21 @@ private fun ProductFormBottomSheet(
     var barcode by remember {
         mutableStateOf(initialProduct?.barcode ?: "")
     }
+    var showBarcodeScanner by remember { mutableStateOf(false) }
 
     val isValid = nameBn.isNotBlank() && (salePrice.toDoubleOrNull() ?: 0.0) > 0
+
+    if (showBarcodeScanner) {
+        CameraBarcodeScannerDialog(
+            title = "বারকোড স্ক্যান করুন",
+            confirmText = "কোড ব্যবহার করুন",
+            onDismiss = { showBarcodeScanner = false },
+            onBarcodeScanned = { scannedCode ->
+                barcode = scannedCode
+                showBarcodeScanner = false
+            }
+        )
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -1090,7 +1131,16 @@ private fun ProductFormBottomSheet(
                         onValueChange = { barcode = it },
                         label = "বারকোড / কোড (ঐচ্ছিক)",
                         placeholder = "স্ক্যান বা টাইপ করুন",
-                        keyboardType = KeyboardType.Text
+                        keyboardType = KeyboardType.Text,
+                        trailingIcon = {
+                            IconButton(onClick = { showBarcodeScanner = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.QrCodeScanner,
+                                    contentDescription = "ক্যামেরা দিয়ে স্ক্যান করুন",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
                     )
                 }
             }

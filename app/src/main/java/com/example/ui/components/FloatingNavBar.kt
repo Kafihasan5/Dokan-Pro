@@ -219,22 +219,22 @@ private fun NavSlot(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
 
-    val pillColor by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
-        label = "nav_pill_color"
-    )
-
     val iconTint by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
-        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+        animationSpec = tween(durationMillis = 200),
         label = "nav_icon_tint"
     )
 
-    val pillPaddingHorizontal by animateDpAsState(
-        targetValue = if (isSelected) 10.dp else 4.dp,
-        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
-        label = "nav_pill_padding"
+    val textColor by animateColorAsState(
+        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+        animationSpec = tween(durationMillis = 200),
+        label = "nav_text_color"
+    )
+
+    val pillBackground by animateColorAsState(
+        targetValue = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent,
+        animationSpec = tween(durationMillis = 200),
+        label = "nav_pill_bg"
     )
 
     Box(
@@ -243,38 +243,32 @@ private fun NavSlot(
             .clickable(interactionSource = interactionSource, indication = null) { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Row(
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
             modifier = Modifier
-                .clip(RoundedCornerShape(Radius.pill))
-                .background(pillColor)
-                .padding(horizontal = pillPaddingHorizontal, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+                .clip(RoundedCornerShape(Radius.sm))
+                .background(pillBackground)
+                .padding(horizontal = 4.dp, vertical = 4.dp)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = label,
                 tint = iconTint,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(22.dp)
             )
 
-            AnimatedVisibility(
-                visible = isSelected,
-                enter = fadeIn(animationSpec = tween(durationMillis = 220)),
-                exit = fadeOut(animationSpec = tween(durationMillis = 150))
-            ) {
-                Row {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = label,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1
-                    )
-                }
-            }
+            Spacer(modifier = Modifier.height(2.dp))
+
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = textColor,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                softWrap = false
+            )
         }
     }
 }

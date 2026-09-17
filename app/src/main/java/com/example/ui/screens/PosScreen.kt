@@ -126,6 +126,7 @@ import com.example.ui.CartItem
 import com.example.ui.PaponViewModel
 import com.example.ui.ShopConfig
 import com.example.ui.components.AnimatedAmount
+import com.example.ui.components.CameraBarcodeScannerDialog
 import com.example.ui.components.DokanPrimaryButton
 import com.example.ui.components.DokanTextField
 import com.example.ui.components.EmptyState
@@ -479,15 +480,15 @@ fun PosScreen(
         )
     }
 
-    // Modal: Barcode Entry / Scanner
+    // Modal: Barcode Entry / Camera Scanner
     if (showBarcodeDialog) {
-        BarcodeEntryDialog(
+        CameraBarcodeScannerDialog(
             onDismiss = { showBarcodeDialog = false },
             onBarcodeScanned = { barcode ->
                 val found = products.find { it.barcode == barcode }
                 if (found != null) {
                     viewModel.addProductToCart(found, 1.0)
-                    viewModel.showToast("${found.nameBn} যোগ করা হয়েছে")
+                    viewModel.showToast("${found.nameBn} কার্টে যোগ করা হয়েছে")
                 } else {
                     viewModel.showToast("বারকোড খুঁজে পাওয়া যায়নি: $barcode")
                 }
