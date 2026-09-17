@@ -1,6 +1,6 @@
 {
-  "versionCode": 53,
-  "versionName": "1.0.53",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v53/app-debug.apk",
-  "releaseNotes": "feat: separate QR sale and POS sale in floating bar, prevent auto-increment on held QR code"
+  "versionCode": 55,
+  "versionName": "1.0.55",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v55/app-debug.apk",
+  "releaseNotes": "fix: pass non-null barcode string to Product entity in QuickAddProductDialog"
 }
