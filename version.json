@@ -1,6 +1,6 @@
 {
-  "versionCode": 57,
-  "versionName": "1.0.57",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v57/app-debug.apk",
-  "releaseNotes": "fix: compact purchase sheet, visible barcode scanner, product dropdown with multi-add, keep screen on during update, bypass play protect"
+  "versionCode": 59,
+  "versionName": "1.0.59",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v59/app-debug.apk",
+  "releaseNotes": "fix: resolve return expression in pushAllLocalDataToCloud default parameter"
 }
