@@ -1,6 +1,6 @@
 {
-  "versionCode": 60,
-  "versionName": "1.0.60",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v60/app-debug.apk",
-  "releaseNotes": "100% zero-touch auto cloud backup on launch, 24-hour demo, hide price"
+  "versionCode": 62,
+  "versionName": "1.0.62",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v62/app-debug.apk",
+  "releaseNotes": "fix(ui): correct DokanButton and DokanTextField parameters in SettingsScreen"
 }
