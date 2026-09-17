@@ -29,7 +29,7 @@ data class CartItem(
     val discountPoisha: Long = 0
 ) {
     val lineTotalPoisha: Long
-        get() = ((qty * unitPricePoisha).toLong() - discountPoisha).coerceAtLeast(0)
+        get() = (kotlin.math.round(qty * unitPricePoisha).toLong() - discountPoisha).coerceAtLeast(0)
 }
 
 data class ShopConfig(
@@ -687,6 +687,30 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                     purchasePricePoisha = product.purchasePricePoisha,
                     unitName = product.unitName,
                     qty = quantityToAdd
+                )
+            )
+        }
+        _cartItems.value = current
+    }
+
+    fun setProductInCart(product: Product, exactQty: Double) {
+        if (exactQty <= 0.0) {
+            removeCartItem(product.id)
+            return
+        }
+        val current = _cartItems.value.toMutableList()
+        val index = current.indexOfFirst { it.productId == product.id }
+        if (index >= 0) {
+            current[index] = current[index].copy(qty = exactQty)
+        } else {
+            current.add(
+                CartItem(
+                    productId = product.id,
+                    productName = product.nameBn,
+                    unitPricePoisha = product.salePricePoisha,
+                    purchasePricePoisha = product.purchasePricePoisha,
+                    unitName = product.unitName,
+                    qty = exactQty
                 )
             )
         }

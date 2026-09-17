@@ -57,10 +57,21 @@ object Formatters {
         val str = if (qty % 1.0 == 0.0) {
             qty.toLong().toString()
         } else {
-            String.format(Locale.US, "%.2f", qty).trimEnd('0').trimEnd('.')
+            // Support up to 3 decimal places for 1-gram precision (0.001 kg)
+            String.format(Locale.US, "%.3f", qty).trimEnd('0').trimEnd('.')
         }
         val displayNum = if (useBn) toBengaliDigits(str) else str
-        return "$displayNum $unit"
+        return if (unit.isBlank()) displayNum else "$displayNum $unit"
+    }
+
+    fun formatWeightDetailed(qty: Double, unit: String, useBn: Boolean = true): String {
+        if (unit.trim() == "কেজি" && qty < 1.0 && qty > 0.0) {
+            val grams = kotlin.math.round(qty * 1000).toLong()
+            val kgStr = formatQty(qty, unit, useBn)
+            val gmStr = if (useBn) toBengaliDigits(grams.toString()) else grams.toString()
+            return "$kgStr ($gmStr গ্রাম)"
+        }
+        return formatQty(qty, unit, useBn)
     }
 
     fun formatBengaliDate(timestamp: Long): String {

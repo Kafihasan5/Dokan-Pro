@@ -693,3 +693,287 @@ private fun CameraPreviewWithAnalyzer(
         modifier = Modifier.fillMaxSize()
     )
 }
+
+/**
+ * Compact, always-on camera barcode scanner frame designed to sit right at the top
+ * of product addition forms.
+ */
+@Composable
+fun CompactCameraBarcodeScanner(
+    currentBarcode: String,
+    onBarcodeScanned: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val view = LocalView.current
+
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasCameraPermission = granted
+    }
+
+    LaunchedEffect(Unit) {
+        if (!hasCameraPermission) {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    var isTorchOn by remember { mutableStateOf(false) }
+    var cameraInstance by remember { mutableStateOf<Camera?>(null) }
+    var lastCode by remember { mutableStateOf("") }
+    var lastScannedTimestamp by remember { mutableLongStateOf(0L) }
+    var lastScannedBarcode by remember { mutableStateOf<String?>(null) }
+    var isCameraActive by remember { mutableStateOf(true) }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        if (!hasCameraPermission) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(130.dp),
+                shape = RoundedCornerShape(Radius.md),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(Spacing.sm),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CameraAlt,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "বারকোড স্ক্যান করতে ক্যামেরা ব্যবহারের অনুমতি দিন",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Button(
+                        onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
+                        shape = RoundedCornerShape(Radius.pill),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text("অনুমতি দিন", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+        } else if (!isCameraActive) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(85.dp),
+                shape = RoundedCornerShape(Radius.md),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = Spacing.md),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.VideocamOff,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(Spacing.sm))
+                        Column {
+                            Text(
+                                text = "ক্যামেরা স্ক্যানার পজ করা আছে",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "ক্যামেরা চালু করতে ডানপাশের বাটনে চাপুন",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    IconButton(onClick = { isCameraActive = true }) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "চালু করুন",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+        } else {
+            // Live Compact Camera Frame (140dp)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .clip(RoundedCornerShape(Radius.md))
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center
+            ) {
+                CameraPreviewWithAnalyzer(
+                    onBarcodeFound = { code ->
+                        val currentTime = System.currentTimeMillis()
+                        val isSameCode = (code == lastCode)
+                        val cooldown = if (isSameCode) 1800L else 700L
+
+                        if (currentTime - lastScannedTimestamp >= cooldown) {
+                            lastScannedTimestamp = currentTime
+                            lastCode = code
+                            lastScannedBarcode = code
+
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            try {
+                                val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+                                toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 130)
+                            } catch (_: Exception) {}
+
+                            onBarcodeScanned(code)
+                        }
+                    },
+                    onCameraReady = { cam ->
+                        cameraInstance = cam
+                    }
+                )
+
+                // Compact Reticle Overlay
+                ScannerReticleOverlay()
+
+                // Top Floating Status & Control Strip
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Live Status Pill
+                    Surface(
+                        shape = RoundedCornerShape(Radius.pill),
+                        color = Color.Black.copy(alpha = 0.55f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF22C55E))
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "লাইভ স্ক্যানার",
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // Torch & Pause Controls
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        IconButton(
+                            onClick = {
+                                val newState = !isTorchOn
+                                isTorchOn = newState
+                                cameraInstance?.cameraControl?.enableTorch(newState)
+                            },
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.55f))
+                        ) {
+                            Icon(
+                                imageVector = if (isTorchOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
+                                contentDescription = "টর্চ",
+                                tint = if (isTorchOn) Color.Yellow else Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { isCameraActive = false },
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.55f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Pause,
+                                contentDescription = "পজ",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Success Badge
+                val displayedBarcode = lastScannedBarcode ?: if (currentBarcode.isNotBlank()) currentBarcode else null
+                if (displayedBarcode != null) {
+                    Surface(
+                        shape = RoundedCornerShape(Radius.pill),
+                        color = Color(0xFF16A34A),
+                        shadowElevation = 4.dp,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "✓ বারকোড: $displayedBarcode",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "💡 পণ্যের বারকোডটি ফ্রেমের সামনে ধরলে কোডটি নিজে থেকেই বসে যাবে",
+            style = MaterialTheme.typography.labelSmall,
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}

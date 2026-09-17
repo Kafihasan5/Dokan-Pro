@@ -791,21 +791,8 @@ private fun ProductFormBottomSheet(
     var barcode by remember {
         mutableStateOf(initialProduct?.barcode ?: "")
     }
-    var showBarcodeScanner by remember { mutableStateOf(false) }
 
     val isValid = nameBn.isNotBlank() && (salePrice.toDoubleOrNull() ?: 0.0) > 0
-
-    if (showBarcodeScanner) {
-        CameraBarcodeScannerDialog(
-            title = "বারকোড স্ক্যান করুন",
-            confirmText = "কোড ব্যবহার করুন",
-            onDismiss = { showBarcodeScanner = false },
-            onBarcodeScanned = { scannedCode ->
-                barcode = scannedCode
-                showBarcodeScanner = false
-            }
-        )
-    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -847,6 +834,40 @@ private fun ProductFormBottomSheet(
                     .padding(horizontal = Spacing.lg, vertical = Spacing.md),
                 verticalArrangement = Arrangement.spacedBy(Spacing.lg)
             ) {
+                // --------------------------------------------------------------
+                // TOP SECTION: বারকোড স্ক্যানার (লাইভ ক্যামেরা)
+                // --------------------------------------------------------------
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    SectionHeader(title = "বারকোড স্ক্যানার ও কোড")
+
+                    CompactCameraBarcodeScanner(
+                        currentBarcode = barcode,
+                        onBarcodeScanned = { scannedCode ->
+                            barcode = scannedCode
+                        }
+                    )
+
+                    DokanTextField(
+                        value = barcode,
+                        onValueChange = { barcode = it },
+                        label = "বারকোড নম্বর",
+                        placeholder = "ক্যামেরায় স্ক্যান করুন বা লিখুন",
+                        keyboardType = KeyboardType.Text,
+                        leadingIcon = Icons.Default.QrCodeScanner,
+                        trailingIcon = if (barcode.isNotEmpty()) {
+                            {
+                                IconButton(onClick = { barcode = "" }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "মুছুন",
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        } else null
+                    )
+                }
+
                 // --------------------------------------------------------------
                 // SECTION 1: পণ্যের পরিচয়
                 // --------------------------------------------------------------
@@ -978,13 +999,6 @@ private fun ProductFormBottomSheet(
                         placeholder = "যেমন: মিনিকেট চাল"
                     )
 
-                    // English Name
-                    DokanTextField(
-                        value = nameEn,
-                        onValueChange = { nameEn = it },
-                        label = "ইংরেজি নাম (ঐচ্ছিক)",
-                        placeholder = "e.g. Miniket Rice"
-                    )
 
                     // Category Selection
                     Column {
@@ -1120,29 +1134,6 @@ private fun ProductFormBottomSheet(
                     }
                 }
 
-                // --------------------------------------------------------------
-                // SECTION 3: অন্যান্য
-                // --------------------------------------------------------------
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                    SectionHeader(title = "অন্যান্য")
-
-                    DokanTextField(
-                        value = barcode,
-                        onValueChange = { barcode = it },
-                        label = "বারকোড / কোড (ঐচ্ছিক)",
-                        placeholder = "স্ক্যান বা টাইপ করুন",
-                        keyboardType = KeyboardType.Text,
-                        trailingIcon = {
-                            IconButton(onClick = { showBarcodeScanner = true }) {
-                                Icon(
-                                    imageVector = Icons.Default.QrCodeScanner,
-                                    contentDescription = "ক্যামেরা দিয়ে স্ক্যান করুন",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                    )
-                }
             }
 
             // Bottom Action Strip
