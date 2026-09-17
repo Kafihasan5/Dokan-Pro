@@ -243,6 +243,8 @@ fun ProductsScreen(
     if (isAddingNew || productToEdit != null) {
         ProductFormBottomSheet(
             initialProduct = productToEdit,
+            products = products,
+            config = config,
             categories = categories,
             units = units,
             onDismiss = {
@@ -747,6 +749,8 @@ private fun SwipeableProductCard(
 @Composable
 private fun ProductFormBottomSheet(
     initialProduct: Product?,
+    products: List<Product> = emptyList(),
+    config: ShopConfig = ShopConfig(),
     categories: List<Category>,
     units: List<String>,
     onDismiss: () -> Unit,

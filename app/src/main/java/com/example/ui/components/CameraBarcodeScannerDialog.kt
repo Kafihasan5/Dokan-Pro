@@ -252,21 +252,13 @@ fun CameraBarcodeScannerDialog(
                                 contentDescription = null,
                                 tint = if (isManualMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(16.dp)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Switch between Camera & Manual Keypad
-                        IconButton(onClick = { isManualMode = !isManualMode }) {
-                            Icon(
-                                imageVector = if (isManualMode) Icons.Default.CameraAlt else Icons.Default.Keyboard,
-                                contentDescription = if (isManualMode) "ক্যামেরা মোড" else "টাইপ মোড",
-                                tint = MaterialTheme.colorScheme.primary
                             )
-                        }
-
-                        IconButton(onClick = onDismiss) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "বন্ধ করুন",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "সরাসরি লিখুন",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (isManualMode) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isManualMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -1020,6 +1012,7 @@ fun CompactCameraBarcodeScanner(
     var lastScannedTimestamp by remember { mutableLongStateOf(0L) }
     var lastScannedBarcode by remember { mutableStateOf<String?>(null) }
     var isCameraActive by remember { mutableStateOf(true) }
+    val displayedBarcode = lastScannedBarcode ?: if (currentBarcode.isNotBlank()) currentBarcode else null
 
     Column(modifier = modifier.fillMaxWidth()) {
         if (!hasCameraPermission) {
@@ -1223,7 +1216,6 @@ fun CompactCameraBarcodeScanner(
                 }
 
                 // Success Badge
-                val displayedBarcode = lastScannedBarcode ?: if (currentBarcode.isNotBlank()) currentBarcode else null
                 if (displayedBarcode != null) {
                     Surface(
                         shape = RoundedCornerShape(Radius.pill),
