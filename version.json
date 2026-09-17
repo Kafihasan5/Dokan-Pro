@@ -1,6 +1,6 @@
 {
-  "versionCode": 52,
-  "versionName": "1.0.52",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v52/app-debug.apk",
-  "releaseNotes": "fix: resolve CameraBarcodeScannerDialog syntax and pass products/config to ProductFormBottomSheet"
+  "versionCode": 53,
+  "versionName": "1.0.53",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v53/app-debug.apk",
+  "releaseNotes": "feat: separate QR sale and POS sale in floating bar, prevent auto-increment on held QR code"
 }
