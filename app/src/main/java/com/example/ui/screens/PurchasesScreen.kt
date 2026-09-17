@@ -1739,7 +1739,7 @@ private fun QuickAddProductDialog(
                     onSave(
                         Product(
                             nameBn = nameBn.trim(),
-                            barcode = barcodeText.trim().ifBlank { null },
+                            barcode = barcodeText.trim(),
                             purchasePricePoisha = (pPriceTaka * 100).toLong(),
                             salePricePoisha = (sPriceTaka * 100).toLong(),
                             categoryId = 1,
