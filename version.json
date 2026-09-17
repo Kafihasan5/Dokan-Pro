@@ -1,6 +1,6 @@
 {
-  "versionCode": 49,
-  "versionName": "1.0.49",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v49/app-debug.apk",
-  "releaseNotes": "fix: scope issue in CameraBarcodeScannerDialog and cartTotal reference in PosScreen"
+  "versionCode": 50,
+  "versionName": "1.0.50",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v50/app-debug.apk",
+  "releaseNotes": "feat: 1-gram precision selling system, top live barcode scanner, and removed english name"
 }
