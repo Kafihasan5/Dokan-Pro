@@ -56,12 +56,24 @@ import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import android.media.AudioManager
+import android.media.ToneGenerator
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.draw.scale
 import java.util.concurrent.Executors
 
 @Composable
 fun CameraBarcodeScannerDialog(
     title: String = "বারকোড স্ক্যানার",
     confirmText: String = "কার্টে যোগ করুন",
+    enableContinuousScan: Boolean = false,
+    cartItemCount: Int? = null,
+    cartTotalText: String? = null,
     onDismiss: () -> Unit,
     onBarcodeScanned: (String) -> Unit
 ) {
@@ -90,7 +102,10 @@ fun CameraBarcodeScannerDialog(
     var manualBarcodeText by remember { mutableStateOf("") }
     var isTorchOn by remember { mutableStateOf(false) }
     var cameraInstance by remember { mutableStateOf<Camera?>(null) }
-    var isScanned by remember { mutableStateOf(false) }
+    var isContinuousMode by remember { mutableStateOf(enableContinuousScan) }
+    var lastScannedBarcode by remember { mutableStateOf<String?>(null) }
+    var lastScannedTimestamp by remember { mutableLongStateOf(0L) }
+    var lastCode by remember { mutableStateOf("") }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -278,10 +293,26 @@ fun CameraBarcodeScannerDialog(
                         ) {
                             CameraPreviewWithAnalyzer(
                                 onBarcodeFound = { code ->
-                                    if (!isScanned) {
-                                        isScanned = true
+                                    val currentTime = System.currentTimeMillis()
+                                    val isSameCode = (code == lastCode)
+                                    val cooldown = if (isSameCode) 1600L else 700L
+
+                                    if (currentTime - lastScannedTimestamp >= cooldown) {
+                                        lastScannedTimestamp = currentTime
+                                        lastCode = code
+                                        lastScannedBarcode = code
+
                                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                        try {
+                                            val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+                                            toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 130)
+                                        } catch (_: Exception) {}
+
                                         onBarcodeScanned(code)
+
+                                        if (!isContinuousMode) {
+                                            onDismiss()
+                                        }
                                     }
                                 },
                                 onCameraReady = { cam ->
@@ -318,6 +349,41 @@ fun CameraBarcodeScannerDialog(
                                     )
                                 }
                             }
+
+                            // Success Overlay Badge for Scanned Barcode
+                            AnimatedVisibility(
+                                visible = lastScannedBarcode != null,
+                                enter = fadeIn() + expandVertically(),
+                                exit = fadeOut() + shrinkVertically(),
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(bottom = 10.dp)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(Radius.pill),
+                                    color = Color(0xFF16A34A),
+                                    shadowElevation = 6.dp
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "✓ স্ক্যান সম্পন্ন: $lastScannedBarcode",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(Spacing.xs))
@@ -326,6 +392,51 @@ fun CameraBarcodeScannerDialog(
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+
+                    // Continuous Mode Toggle Switch (when enabled for this dialog)
+                    if (enableContinuousScan) {
+                        Spacer(modifier = Modifier.height(Spacing.xs))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(Radius.sm))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                                .padding(horizontal = Spacing.sm, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AllInclusive,
+                                    contentDescription = null,
+                                    tint = if (isContinuousMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(Spacing.xs))
+                                Column {
+                                    Text(
+                                        text = "একটানা অটো-স্ক্যান মোড",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = if (isContinuousMode) "ক্যামেরা চালু থাকবে, পরপর পণ্য স্ক্যান করুন" else "একটি স্ক্যান করার পর বন্ধ হবে",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            Switch(
+                                checked = isContinuousMode,
+                                onCheckedChange = { isContinuousMode = it },
+                                modifier = Modifier.scale(0.8f)
+                            )
+                        }
                     }
                 } else {
                     // MANUAL BARCODE ENTRY VIEW
@@ -368,8 +479,18 @@ fun CameraBarcodeScannerDialog(
                         Button(
                             onClick = {
                                 if (manualBarcodeText.isNotBlank()) {
+                                    val code = manualBarcodeText.trim()
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    onBarcodeScanned(manualBarcodeText.trim())
+                                    try {
+                                        val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+                                        toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 120)
+                                    } catch (_: Exception) {}
+                                    onBarcodeScanned(code)
+                                    lastScannedBarcode = code
+                                    manualBarcodeText = ""
+                                    if (!isContinuousMode) {
+                                        onDismiss()
+                                    }
                                 }
                             },
                             enabled = manualBarcodeText.isNotBlank(),
@@ -379,6 +500,54 @@ fun CameraBarcodeScannerDialog(
                             Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(Spacing.xs))
                             Text(confirmText)
+                        }
+                    }
+                }
+
+                // Live Cart Summary Strip (shown in continuous mode when cart details are provided)
+                if (isContinuousMode && cartItemCount != null) {
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                    Surface(
+                        shape = RoundedCornerShape(Radius.md),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "কার্টে মোট: $cartItemCount টি আইটেম",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                if (!cartTotalText.isNullOrBlank()) {
+                                    Text(
+                                        text = "মোট মূল্য: $cartTotalText",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            Button(
+                                onClick = onDismiss,
+                                shape = RoundedCornerShape(Radius.pill),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Icon(Icons.Default.DoneAll, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("সম্পন্ন")
+                            }
                         }
                     }
                 }

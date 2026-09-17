@@ -483,6 +483,11 @@ fun PosScreen(
     // Modal: Barcode Entry / Camera Scanner
     if (showBarcodeDialog) {
         CameraBarcodeScannerDialog(
+            title = "বারকোড স্ক্যানার",
+            confirmText = "কার্টে যোগ করুন",
+            enableContinuousScan = true,
+            cartItemCount = cartItems.size,
+            cartTotalText = Formatters.formatMoney(cartTotal, config.useBengaliNumerals, config.currencySymbol),
             onDismiss = { showBarcodeDialog = false },
             onBarcodeScanned = { barcode ->
                 val found = products.find { it.barcode == barcode }
@@ -492,7 +497,6 @@ fun PosScreen(
                 } else {
                     viewModel.showToast("বারকোড খুঁজে পাওয়া যায়নি: $barcode")
                 }
-                showBarcodeDialog = false
             }
         )
     }
