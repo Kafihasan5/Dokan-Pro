@@ -351,18 +351,14 @@ fun CameraBarcodeScannerDialog(
                             }
 
                             // Success Overlay Badge for Scanned Barcode
-                            AnimatedVisibility(
-                                visible = lastScannedBarcode != null,
-                                enter = fadeIn() + expandVertically(),
-                                exit = fadeOut() + shrinkVertically(),
-                                modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .padding(bottom = 10.dp)
-                            ) {
+                            if (lastScannedBarcode != null) {
                                 Surface(
                                     shape = RoundedCornerShape(Radius.pill),
                                     color = Color(0xFF16A34A),
-                                    shadowElevation = 6.dp
+                                    shadowElevation = 6.dp,
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .padding(bottom = 10.dp)
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),

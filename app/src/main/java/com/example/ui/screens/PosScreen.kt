@@ -487,7 +487,7 @@ fun PosScreen(
             confirmText = "কার্টে যোগ করুন",
             enableContinuousScan = true,
             cartItemCount = cartItems.size,
-            cartTotalText = Formatters.formatMoney(cartTotal, config.useBengaliNumerals, config.currencySymbol),
+            cartTotalText = Formatters.formatMoney(grandTotal, config.useBengaliNumerals, config.currencySymbol),
             onDismiss = { showBarcodeDialog = false },
             onBarcodeScanned = { barcode ->
                 val found = products.find { it.barcode == barcode }
