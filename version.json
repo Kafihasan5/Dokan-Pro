@@ -1,6 +1,6 @@
 {
-  "versionCode": 55,
-  "versionName": "1.0.55",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v55/app-debug.apk",
-  "releaseNotes": "fix: pass non-null barcode string to Product entity in QuickAddProductDialog"
+  "versionCode": 56,
+  "versionName": "1.0.56",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v56/app-debug.apk",
+  "releaseNotes": "fix: prevent quantity auto-increment on duplicate barcode scan and ensure manual quantity entry"
 }
