@@ -91,4 +91,18 @@ object AppNotificationHelper {
             // Android 13+ notification permission not granted yet
         } catch (_: Exception) {}
     }
+
+    fun cancelNotification(context: Context, notificationId: Int) {
+        try {
+            val manager = NotificationManagerCompat.from(context)
+            manager.cancel(notificationId)
+        } catch (_: Exception) {}
+    }
+
+    fun clearAllNotifications(context: Context) {
+        try {
+            val manager = NotificationManagerCompat.from(context)
+            manager.cancelAll()
+        } catch (_: Exception) {}
+    }
 }

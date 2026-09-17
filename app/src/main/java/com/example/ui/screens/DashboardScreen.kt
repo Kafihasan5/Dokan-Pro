@@ -329,6 +329,9 @@ fun DashboardScreen(
                     },
                     onClearAll = {
                         viewModel.clearAllNotifications()
+                    },
+                    onDeleteNotification = { id ->
+                        viewModel.dismissNotification(id)
                     }
                 )
             }

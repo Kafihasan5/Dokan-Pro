@@ -34,7 +34,8 @@ fun NotificationBottomSheet(
     onDismiss: () -> Unit,
     onOpenSupportChat: () -> Unit,
     onMarkAllRead: () -> Unit,
-    onClearAll: () -> Unit = {}
+    onClearAll: () -> Unit = {},
+    onDeleteNotification: (String) -> Unit = {}
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -218,6 +219,20 @@ fun NotificationBottomSheet(
                                             fontWeight = FontWeight.SemiBold
                                         )
                                     }
+                                }
+
+                                IconButton(
+                                    onClick = { onDeleteNotification(notif.id) },
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .align(Alignment.CenterVertically)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "মুছুন",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
                                 }
                             }
                         }

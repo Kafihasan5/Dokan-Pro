@@ -266,6 +266,10 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         showToast("সকল বিজ্ঞপ্তি মুছে ফেলা হয়েছে")
     }
 
+    fun dismissNotification(id: String) {
+        TelegramSupportManager.dismissNotification(getApplication(), id)
+    }
+
     fun triggerNewUserSetupNotification(config: ShopConfig = shopConfig.value) {
         viewModelScope.launch {
             val statusStr = when {

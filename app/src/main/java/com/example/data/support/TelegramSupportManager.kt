@@ -63,6 +63,10 @@ object TelegramSupportManager {
     private const val PREFS_NAME = "dokan_telegram_support_prefs"
     private const val KEY_SUPPORT_CHAT_ID = "support_group_chat_id"
     private const val KEY_TOPIC_PREFIX = "topic_id_"
+    private const val KEY_DISMISSED_NOTIF_IDS = "dismissed_notification_ids"
+    private const val KEY_NOTIFS_LAST_CLEARED_AT = "notifications_last_cleared_at"
+
+    private val dismissedNotificationIds = mutableSetOf<String>()
 
     // Default Support Supergroup Chat ID
     const val DEFAULT_SUPPORT_CHAT_ID = "-1003954086612"
@@ -93,6 +97,13 @@ object TelegramSupportManager {
         val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val saved = prefs.getString(KEY_SUPPORT_CHAT_ID, "") ?: ""
         _configuredChatId.value = if (saved.isNotBlank()) saved else DEFAULT_SUPPORT_CHAT_ID
+
+        val savedDismissed = prefs.getStringSet(KEY_DISMISSED_NOTIF_IDS, emptySet()) ?: emptySet()
+        synchronized(dismissedNotificationIds) {
+            dismissedNotificationIds.clear()
+            dismissedNotificationIds.addAll(savedDismissed)
+        }
+
         loadLocalMessages(appContext)
         loadLocalNotifications(appContext)
         startBackgroundPolling(appContext)
@@ -455,12 +466,17 @@ object TelegramSupportManager {
 
                             val rawMsgId = message.optInt("message_id", 1)
                             val bId = "broadcast_${message.optLong("message_id")}"
-                            if (cleanNotice.isNotEmpty() && !existingNotifIds.contains(bId)) {
+                            val msgTimeMs = dateSec * 1000L
+                            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                            val lastClearedAt = prefs.getLong(KEY_NOTIFS_LAST_CLEARED_AT, 0L)
+                            val isDismissed = isNotificationDismissed(bId) || (msgTimeMs <= lastClearedAt)
+
+                            if (cleanNotice.isNotEmpty() && !existingNotifIds.contains(bId) && !isDismissed) {
                                 val notif = SupportNotification(
                                     id = bId,
                                     title = "📢 সার্বজনীন নোটিশ",
                                     message = cleanNotice,
-                                    timestamp = dateSec * 1000L,
+                                    timestamp = msgTimeMs,
                                     isBroadcast = true,
                                     isRead = false
                                 )
@@ -470,7 +486,7 @@ object TelegramSupportManager {
                                         id = bId,
                                         sender = "support",
                                         text = "📢 [সার্বজনীন নোটিশ]\n$cleanNotice",
-                                        timestamp = dateSec * 1000L,
+                                        timestamp = msgTimeMs,
                                         isSending = false,
                                         isFailed = false
                                     )
@@ -494,25 +510,30 @@ object TelegramSupportManager {
                         if (!isOurTopic) continue
 
                         val msgId = "tg_${message.optLong("message_id")}"
+                        val msgTimeMs = dateSec * 1000L
+                        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                        val lastClearedAt = prefs.getLong(KEY_NOTIFS_LAST_CLEARED_AT, 0L)
+                        val isTopicNotifDismissed = isNotificationDismissed(msgId) || (msgTimeMs <= lastClearedAt)
+
                         val isNew = !existingMsgIds.contains(msgId)
 
                         val chatMsg = SupportChatMessage(
                             id = msgId,
                             sender = "support",
                             text = text,
-                            timestamp = dateSec * 1000L,
+                            timestamp = msgTimeMs,
                             isSending = false,
                             isFailed = false
                         )
                         incomingReplies.add(chatMsg)
 
-                        if (isNew) {
+                        if (isNew && !isTopicNotifDismissed && !existingNotifIds.contains(msgId)) {
                             hasNewIncoming = true
                             val notif = SupportNotification(
                                 id = msgId,
                                 title = "দোকান প্রো কাস্টমার সাপোর্ট",
                                 message = text,
-                                timestamp = dateSec * 1000L,
+                                timestamp = msgTimeMs,
                                 isBroadcast = false,
                                 isRead = false
                             )
@@ -757,6 +778,28 @@ object TelegramSupportManager {
         saveLocalNotifications(context)
     }
 
+    fun isNotificationDismissed(id: String): Boolean {
+        return synchronized(dismissedNotificationIds) {
+            dismissedNotificationIds.contains(id)
+        }
+    }
+
+    fun dismissNotification(context: Context, id: String) {
+        val appContext = context.applicationContext
+        synchronized(dismissedNotificationIds) {
+            dismissedNotificationIds.add(id)
+        }
+        val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putStringSet(KEY_DISMISSED_NOTIF_IDS, HashSet(dismissedNotificationIds)).apply()
+
+        _notifications.value = _notifications.value.filter { it.id != id }
+        _unreadNotificationCount.value = _notifications.value.count { !it.isRead }
+        saveLocalNotifications(appContext)
+
+        val rawMsgId = id.substringAfter("_").toIntOrNull() ?: 1
+        AppNotificationHelper.cancelNotification(appContext, rawMsgId)
+    }
+
     fun markAllNotificationsRead(context: Context) {
         _notifications.value = _notifications.value.map { it.copy(isRead = true) }
         _unreadNotificationCount.value = 0
@@ -764,9 +807,22 @@ object TelegramSupportManager {
     }
 
     fun clearAllNotifications(context: Context) {
+        val appContext = context.applicationContext
+        val currentIds = _notifications.value.map { it.id }
+        synchronized(dismissedNotificationIds) {
+            dismissedNotificationIds.addAll(currentIds)
+        }
+        val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putStringSet(KEY_DISMISSED_NOTIF_IDS, HashSet(dismissedNotificationIds))
+            .putLong(KEY_NOTIFS_LAST_CLEARED_AT, System.currentTimeMillis())
+            .apply()
+
         _notifications.value = emptyList()
         _unreadNotificationCount.value = 0
-        saveLocalNotifications(context)
+        saveLocalNotifications(appContext)
+
+        AppNotificationHelper.clearAllNotifications(appContext)
     }
 
     private fun appendLocalMessage(context: Context, msg: SupportChatMessage) {
