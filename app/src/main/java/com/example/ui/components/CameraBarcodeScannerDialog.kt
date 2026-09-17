@@ -76,6 +76,11 @@ import com.example.ui.theme.amountTextStyle
 import com.example.ui.theme.dokanColors
 import com.example.util.Formatters
 import java.util.concurrent.Executors
+import android.os.Handler
+import android.os.Looper
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
+import androidx.compose.ui.graphics.drawscope.Stroke
 
 @Composable
 fun CameraBarcodeScannerDialog(
@@ -122,6 +127,7 @@ fun CameraBarcodeScannerDialog(
     var lastScannedTimestamp by remember { mutableLongStateOf(0L) }
     var lastCode by remember { mutableStateOf("") }
     var scannedHistory by remember { mutableStateOf<List<Long>>(emptyList()) }
+    var resetScanTrigger by remember { mutableIntStateOf(0) }
 
     val scannedProduct = remember(lastScannedBarcode, products) {
         if (!lastScannedBarcode.isNullOrBlank()) {
@@ -320,15 +326,10 @@ fun CameraBarcodeScannerDialog(
                             contentAlignment = Alignment.Center
                         ) {
                             CameraPreviewWithAnalyzer(
+                                resetTrigger = resetScanTrigger,
                                 onBarcodeFound = { code ->
-                                    // CRITICAL: When camera is held over the same QR/barcode, DO NOT add repeatedly!
-                                    // Exactly 1 item must be added per scan event.
-                                    if (code == lastCode) {
-                                        return@CameraPreviewWithAnalyzer
-                                    }
-
                                     val currentTime = System.currentTimeMillis()
-                                    if (currentTime - lastScannedTimestamp >= 600L) {
+                                    if (currentTime - lastScannedTimestamp >= 500L) {
                                         lastScannedTimestamp = currentTime
                                         lastCode = code
                                         lastScannedBarcode = code
@@ -570,6 +571,7 @@ fun CameraBarcodeScannerDialog(
                                                 Surface(
                                                     onClick = {
                                                         lastCode = ""
+                                                        resetScanTrigger++
                                                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                                     },
                                                     shape = RoundedCornerShape(Radius.xs),
@@ -888,6 +890,25 @@ private fun ScannerReticleOverlay() {
         val strokeWidth = 3.dp.toPx()
         val cornerColor = Color(0xFF22C55E) // Bright Green
 
+        // Dimmed mask outside the reticle box so the user clearly sees that only the center frame is active
+        val scrimColor = Color.Black.copy(alpha = 0.45f)
+        // Top darkened strip
+        drawRect(scrimColor, Offset(0f, 0f), Size(size.width, top))
+        // Bottom darkened strip
+        drawRect(scrimColor, Offset(0f, top + reticleHeight), Size(size.width, size.height - (top + reticleHeight)))
+        // Left darkened strip
+        drawRect(scrimColor, Offset(0f, top), Size(left, reticleHeight))
+        // Right darkened strip
+        drawRect(scrimColor, Offset(left + reticleWidth, top), Size(size.width - (left + reticleWidth), reticleHeight))
+
+        // Guide border around the reticle box
+        drawRect(
+            color = Color.White.copy(alpha = 0.25f),
+            topLeft = Offset(left, top),
+            size = Size(reticleWidth, reticleHeight),
+            style = Stroke(width = 1.dp.toPx())
+        )
+
         // Corner 1: Top-Left
         drawLine(cornerColor, Offset(left, top), Offset(left + cornerLength, top), strokeWidth)
         drawLine(cornerColor, Offset(left, top), Offset(left, top + cornerLength), strokeWidth)
@@ -902,7 +923,7 @@ private fun ScannerReticleOverlay() {
 
         // Corner 4: Bottom-Right
         drawLine(cornerColor, Offset(left + reticleWidth, top + reticleHeight), Offset(left + reticleWidth - cornerLength, top + reticleHeight), strokeWidth)
-        drawLine(cornerColor, Offset(left + reticleWidth, top + reticleHeight), Offset(left + reticleWidth, top + reticleHeight - cornerLength), strokeWidth)
+        drawLine(cornerColor, Offset(left + reticleWidth, top + reticleHeight), Offset(left + reticleWidth, top + cornerLength), strokeWidth)
 
         // Animated red/green laser line
         val laserY = top + (reticleHeight * laserProgress)
@@ -922,11 +943,25 @@ private fun ScannerReticleOverlay() {
 @androidx.annotation.OptIn(ExperimentalGetImage::class)
 @Composable
 private fun CameraPreviewWithAnalyzer(
+    resetTrigger: Int = 0,
     onBarcodeFound: (String) -> Unit,
     onCameraReady: (Camera) -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val mainHandler = remember { Handler(Looper.getMainLooper()) }
+    val currentOnBarcodeFound by rememberUpdatedState(onBarcodeFound)
+
+    // Lock to enforce:
+    // 1) Exactly 1 beep + 1 cart entry per barcode presentation
+    // 2) Never continuously add while held pointing at the same barcode
+    val activeBarcodeLock = remember { AtomicReference<String?>(null) }
+    val emptyFrameCounter = remember { AtomicInteger(0) }
+
+    LaunchedEffect(resetTrigger) {
+        activeBarcodeLock.set(null)
+        emptyFrameCounter.set(0)
+    }
 
     AndroidView(
         factory = { ctx ->
@@ -968,18 +1003,70 @@ private fun CameraPreviewWithAnalyzer(
                 imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
                     val mediaImage = imageProxy.image
                     if (mediaImage != null) {
+                        val rotationDegrees = imageProxy.imageInfo.rotationDegrees
                         val inputImage = InputImage.fromMediaImage(
                             mediaImage,
-                            imageProxy.imageInfo.rotationDegrees
+                            rotationDegrees
                         )
+                        val imgWidth = inputImage.width
+                        val imgHeight = inputImage.height
+
+                        if (imgWidth <= 0 || imgHeight <= 0) {
+                            imageProxy.close()
+                            return@setAnalyzer
+                        }
+
                         barcodeScanner.process(inputImage)
                             .addOnSuccessListener { barcodes ->
-                                for (barcode in barcodes) {
-                                    val raw = barcode.rawValue
-                                    if (!raw.isNullOrBlank()) {
-                                        onBarcodeFound(raw)
-                                        break
+                                // STRICT REGION OF INTEREST (ROI) FILTERING:
+                                // Only accept barcodes located inside the center reticle frame!
+                                // Reject adjacent barcodes outside the target frame completely.
+                                val reticleBarcodes = barcodes.filter { b ->
+                                    val raw = b.rawValue
+                                    if (raw.isNullOrBlank()) return@filter false
+                                    val box = b.boundingBox ?: return@filter false
+                                    val normX = box.centerX().toFloat() / imgWidth.toFloat()
+                                    val normY = box.centerY().toFloat() / imgHeight.toFloat()
+                                    // Visual reticle corresponds to center region:
+                                    // normX in 0.15f..0.85f and normY in 0.18f..0.82f
+                                    normX in 0.15f..0.85f && normY in 0.18f..0.82f
+                                }
+
+                                if (reticleBarcodes.isEmpty()) {
+                                    val empties = emptyFrameCounter.incrementAndGet()
+                                    // After ~25 empty frames (~1 sec of camera moved away), unlock scanner
+                                    if (empties >= 25) {
+                                        activeBarcodeLock.set(null)
                                     }
+                                    return@addOnSuccessListener
+                                }
+
+                                // Barcode found inside reticle: reset empty counter
+                                emptyFrameCounter.set(0)
+
+                                // If multiple barcodes are in the reticle, select the one closest to center
+                                val bestBarcode = reticleBarcodes.minByOrNull { b ->
+                                    val box = b.boundingBox!!
+                                    val normX = box.centerX().toFloat() / imgWidth.toFloat()
+                                    val normY = box.centerY().toFloat() / imgHeight.toFloat()
+                                    val dx = normX - 0.5f
+                                    val dy = normY - 0.5f
+                                    dx * dx + dy * dy
+                                } ?: return@addOnSuccessListener
+
+                                val raw = bestBarcode.rawValue ?: return@addOnSuccessListener
+
+                                // ATOMIC REPEATED SCAN LOCK:
+                                // If camera is currently pointed at this same barcode, DO NOT fire again!
+                                val currentLocked = activeBarcodeLock.get()
+                                if (currentLocked == raw) {
+                                    return@addOnSuccessListener
+                                }
+
+                                // New barcode entered: lock it and dispatch callback on main thread
+                                activeBarcodeLock.set(raw)
+                                mainHandler.post {
+                                    currentOnBarcodeFound(raw)
                                 }
                             }
                             .addOnCompleteListener {
@@ -1046,6 +1133,7 @@ fun CompactCameraBarcodeScanner(
     var lastCode by remember { mutableStateOf("") }
     var lastScannedTimestamp by remember { mutableLongStateOf(0L) }
     var lastScannedBarcode by remember { mutableStateOf<String?>(null) }
+    var resetScanTrigger by remember { mutableIntStateOf(0) }
     var isCameraActive by remember { mutableStateOf(true) }
     val displayedBarcode = lastScannedBarcode ?: if (currentBarcode.isNotBlank()) currentBarcode else null
 
@@ -1151,13 +1239,10 @@ fun CompactCameraBarcodeScanner(
                 contentAlignment = Alignment.Center
             ) {
                 CameraPreviewWithAnalyzer(
+                    resetTrigger = resetScanTrigger,
                     onBarcodeFound = { code ->
-                        if (code == lastCode) {
-                            return@CameraPreviewWithAnalyzer
-                        }
-
                         val currentTime = System.currentTimeMillis()
-                        if (currentTime - lastScannedTimestamp >= 600L) {
+                        if (currentTime - lastScannedTimestamp >= 500L) {
                             lastScannedTimestamp = currentTime
                             lastCode = code
                             lastScannedBarcode = code

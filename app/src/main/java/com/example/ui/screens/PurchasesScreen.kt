@@ -20,6 +20,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.entity.Product
@@ -372,7 +375,237 @@ private fun PurchaseCard(
 }
 
 // ==============================================================================
-// ADD PURCHASE BOTTOM SHEET (ModalBottomSheet with sections)
+// PURCHASE DRAFT ITEM DATA CLASS & ROW COMPONENT
+// ==============================================================================
+private data class PurchaseDraftItem(
+    val product: Product,
+    val qty: Double = 1.0,
+    val unitPricePoisha: Long = product.purchasePricePoisha
+) {
+    val lineTotalPoisha: Long
+        get() = (qty * unitPricePoisha).toLong()
+}
+
+@Composable
+private fun PurchaseDraftItemRow(
+    index: Int,
+    item: PurchaseDraftItem,
+    config: ShopConfig,
+    onQtyChange: (Double) -> Unit,
+    onPriceChange: (Long) -> Unit,
+    onRemove: () -> Unit
+) {
+    var qtyString by remember(item.qty) {
+        mutableStateOf(if (item.qty % 1.0 == 0.0) item.qty.toInt().toString() else item.qty.toString())
+    }
+    var priceString by remember(item.unitPricePoisha) {
+        mutableStateOf(
+            if (item.unitPricePoisha % 100 == 0L) (item.unitPricePoisha / 100).toString()
+            else String.format(java.util.Locale.US, "%.2f", item.unitPricePoisha / 100.0)
+        )
+    }
+
+    Surface(
+        shape = RoundedCornerShape(Radius.sm),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        border = BorderStroke(1.dp, MaterialTheme.dokanColors.border),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.sm)
+        ) {
+            // Row 1: Item # + Product Name + Unit + Delete
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "${index + 1}",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                    Column {
+                        Text(
+                            text = item.product.nameBn,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (!item.product.barcode.isNullOrBlank()) {
+                            Text(
+                                text = "বারকোড: ${item.product.barcode}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                IconButton(
+                    onClick = onRemove,
+                    modifier = Modifier.size(30.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DeleteOutline,
+                        contentDescription = "মুছুন",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Row 2: Quantity Controls + Price Controls + Subtotal
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Quantity input with +/- buttons
+                Column(modifier = Modifier.weight(1.2f)) {
+                    Text(
+                        text = "পরিমাণ (${item.product.unitName})",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            onClick = {
+                                val currentQ = item.qty
+                                val step = if (currentQ <= 1.0) 0.1 else 1.0
+                                val newQ = (currentQ - step).coerceAtLeast(0.001)
+                                onQtyChange(newQ)
+                            },
+                            shape = RoundedCornerShape(Radius.xs),
+                            color = MaterialTheme.dokanColors.surfaceAlt,
+                            border = BorderStroke(1.dp, MaterialTheme.dokanColors.border),
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Remove, contentDescription = "কমান", modifier = Modifier.size(14.dp))
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = qtyString,
+                            onValueChange = { newVal ->
+                                val clean = newVal.filter { it.isDigit() || it == '.' }
+                                qtyString = clean
+                                clean.toDoubleOrNull()?.let { onQtyChange(it) }
+                            },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp)
+                                .padding(horizontal = 4.dp),
+                            shape = RoundedCornerShape(Radius.xs),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                            )
+                        )
+
+                        Surface(
+                            onClick = {
+                                val currentQ = item.qty
+                                val step = if (currentQ < 1.0) 0.1 else 1.0
+                                val newQ = currentQ + step
+                                onQtyChange(newQ)
+                            },
+                            shape = RoundedCornerShape(Radius.xs),
+                            color = MaterialTheme.dokanColors.surfaceAlt,
+                            border = BorderStroke(1.dp, MaterialTheme.dokanColors.border),
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Add, contentDescription = "বাড়ান", modifier = Modifier.size(14.dp))
+                            }
+                        }
+                    }
+                }
+
+                // Purchase price input
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "ক্রয় দর (৳)",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    OutlinedTextField(
+                        value = priceString,
+                        onValueChange = { newVal ->
+                            val clean = newVal.filter { it.isDigit() || it == '.' }
+                            priceString = clean
+                            clean.toDoubleOrNull()?.let { onPriceChange((it * 100).toLong()) }
+                        },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(Radius.xs),
+                        prefix = { Text("৳ ", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                        )
+                    )
+                }
+
+                // Line Total
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    modifier = Modifier.weight(0.9f)
+                ) {
+                    Text(
+                        text = "মোট",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = Formatters.formatMoney(item.lineTotalPoisha, config.useBengaliNumerals, config.currencySymbol),
+                        style = amountTextStyle(14.sp),
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ==============================================================================
+// ADD PURCHASE BOTTOM SHEET (ModalBottomSheet with Multi-Product Cart & Scanner)
 // ==============================================================================
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -388,20 +621,59 @@ private fun AddPurchaseBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var selectedSupplier by remember { mutableStateOf(suppliers.firstOrNull()) }
-    var selectedProduct by remember { mutableStateOf(products.firstOrNull()) }
     var showQuickAddSupplier by remember { mutableStateOf(false) }
     var showQuickAddProduct by remember { mutableStateOf(false) }
+    var quickAddBarcode by remember { mutableStateOf("") }
 
-    var qtyText by remember { mutableStateOf("10") }
-    var unitPriceText by remember {
-        mutableStateOf(if (products.isNotEmpty()) (products.first().purchasePricePoisha / 100.0).toString() else "50")
-    }
+    var draftItems by remember { mutableStateOf<List<PurchaseDraftItem>>(emptyList()) }
+    var searchQuery by remember { mutableStateOf("") }
+    var isScannerOpen by remember { mutableStateOf(false) }
+    var scanFeedbackMessage by remember { mutableStateOf<String?>(null) }
     var paidAmountText by remember { mutableStateOf("") }
 
-    val totalPoisha = remember(qtyText, unitPriceText) {
-        val q = qtyText.toDoubleOrNull() ?: 0.0
-        val p = unitPriceText.toDoubleOrNull() ?: 0.0
-        ((q * p) * 100).toLong()
+    fun addOrIncrementProduct(product: Product, addQty: Double = 1.0) {
+        val existingIdx = draftItems.indexOfFirst { it.product.id == product.id }
+        if (existingIdx >= 0) {
+            val existing = draftItems[existingIdx]
+            val updated = draftItems.toMutableList()
+            updated[existingIdx] = existing.copy(qty = existing.qty + addQty)
+            draftItems = updated
+        } else {
+            draftItems = draftItems + PurchaseDraftItem(
+                product = product,
+                qty = addQty,
+                unitPricePoisha = product.purchasePricePoisha
+            )
+        }
+    }
+
+    fun updateQty(index: Int, newQty: Double) {
+        if (index !in draftItems.indices) return
+        val updated = draftItems.toMutableList()
+        if (newQty <= 0.0) {
+            updated.removeAt(index)
+        } else {
+            updated[index] = updated[index].copy(qty = kotlin.math.round(newQty * 1000) / 1000.0)
+        }
+        draftItems = updated
+    }
+
+    fun updatePrice(index: Int, newPricePoisha: Long) {
+        if (index !in draftItems.indices) return
+        val updated = draftItems.toMutableList()
+        updated[index] = updated[index].copy(unitPricePoisha = newPricePoisha.coerceAtLeast(0L))
+        draftItems = updated
+    }
+
+    fun removeItem(index: Int) {
+        if (index !in draftItems.indices) return
+        val updated = draftItems.toMutableList()
+        updated.removeAt(index)
+        draftItems = updated
+    }
+
+    val totalPoisha = remember(draftItems) {
+        draftItems.sumOf { it.lineTotalPoisha }
     }
 
     ModalBottomSheet(
@@ -414,7 +686,7 @@ private fun AddPurchaseBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.9f)
+                .fillMaxHeight(0.92f)
         ) {
             // Header
             Row(
@@ -424,11 +696,36 @@ private fun AddPurchaseBottomSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "নতুন পণ্য ক্রয় এন্ট্রি",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ShoppingCartCheckout,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                    Column {
+                        Text(
+                            text = "নতুন পণ্য ক্রয় এন্ট্রি",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "একই চালানে একাধিক পণ্য যুক্ত করুন",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
                 IconButton(onClick = onDismiss) {
                     Icon(Icons.Default.Close, contentDescription = "বাতিল")
                 }
@@ -441,18 +738,16 @@ private fun AddPurchaseBottomSheet(
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = Spacing.lg, vertical = Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(Spacing.lg)
+                verticalArrangement = Arrangement.spacedBy(Spacing.md)
             ) {
-                // Section 1: সাপ্লায়ার ও পণ্য
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    SectionHeader(title = "সাপ্লায়ার ও পণ্য")
-
+                // Section 1: সাপ্লায়ার নির্বাচন
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("সাপ্লায়ার নির্বাচন:", style = MaterialTheme.typography.labelSmall)
+                        SectionHeader(title = "১. সাপ্লায়ার নির্বাচন")
                         TextButton(
                             onClick = { showQuickAddSupplier = true },
                             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
@@ -462,6 +757,7 @@ private fun AddPurchaseBottomSheet(
                             Text("+ নতুন সাপ্লায়ার", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                         }
                     }
+
                     var supMenuExpanded by remember { mutableStateOf(false) }
                     Surface(
                         shape = RoundedCornerShape(Radius.sm),
@@ -474,15 +770,33 @@ private fun AddPurchaseBottomSheet(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(Spacing.md),
+                                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = selectedSupplier?.name ?: "সাপ্লায়ার নেই",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Storefront,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(Spacing.xs))
+                                Column {
+                                    Text(
+                                        text = selectedSupplier?.name ?: "সাপ্লায়ার নির্বাচন করুন",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    selectedSupplier?.company?.let {
+                                        Text(
+                                            text = it,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
                             Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                         }
                         DropdownMenu(
@@ -491,7 +805,12 @@ private fun AddPurchaseBottomSheet(
                         ) {
                             suppliers.forEach { sup ->
                                 DropdownMenuItem(
-                                    text = { Text(sup.name) },
+                                    text = {
+                                        Column {
+                                            Text(sup.name, fontWeight = FontWeight.Bold)
+                                            sup.company?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
+                                        }
+                                    },
                                     onClick = {
                                         selectedSupplier = sup
                                         supMenuExpanded = false
@@ -500,118 +819,372 @@ private fun AddPurchaseBottomSheet(
                             }
                         }
                     }
+                }
 
+                // Section 2: পণ্য অনুসন্ধান ও বারকোড স্ক্যান
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("পণ্য নির্বাচন:", style = MaterialTheme.typography.labelSmall)
-                        TextButton(
-                            onClick = { showQuickAddProduct = true },
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                        ) {
-                            Icon(Icons.Default.AddCircleOutline, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("+ নতুন পণ্য", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        SectionHeader(title = "২. চালানে পণ্য যোগ করুন")
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                            // Barcode camera toggle
+                            Surface(
+                                onClick = { isScannerOpen = !isScannerOpen },
+                                shape = RoundedCornerShape(Radius.pill),
+                                color = if (isScannerOpen) MaterialTheme.colorScheme.primary else MaterialTheme.dokanColors.surfaceAlt,
+                                border = BorderStroke(1.dp, if (isScannerOpen) MaterialTheme.colorScheme.primary else MaterialTheme.dokanColors.border)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = if (isScannerOpen) Icons.Default.VideocamOff else Icons.Default.QrCodeScanner,
+                                        contentDescription = "স্ক্যানার",
+                                        tint = if (isScannerOpen) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = if (isScannerOpen) "ক্যামেরা বন্ধ" else "বারকোড স্ক্যান",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isScannerOpen) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+
+                            // Quick add product
+                            Surface(
+                                onClick = {
+                                    quickAddBarcode = ""
+                                    showQuickAddProduct = true
+                                },
+                                shape = RoundedCornerShape(Radius.pill),
+                                color = MaterialTheme.dokanColors.surfaceAlt,
+                                border = BorderStroke(1.dp, MaterialTheme.dokanColors.border)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AddCircleOutline,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "+ নতুন পণ্য",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
                         }
                     }
-                    var prodMenuExpanded by remember { mutableStateOf(false) }
-                    Surface(
-                        shape = RoundedCornerShape(Radius.sm),
-                        color = MaterialTheme.dokanColors.surfaceAlt,
-                        border = BorderStroke(1.dp, MaterialTheme.dokanColors.border),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { prodMenuExpanded = true }
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(Spacing.md),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = selectedProduct?.nameBn ?: "পণ্য নেই",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                        }
-                        DropdownMenu(
-                            expanded = prodMenuExpanded,
-                            onDismissRequest = { prodMenuExpanded = false }
-                        ) {
-                            products.forEach { prod ->
-                                DropdownMenuItem(
-                                    text = { Text(prod.nameBn) },
-                                    onClick = {
-                                        selectedProduct = prod
-                                        unitPriceText = (prod.purchasePricePoisha / 100.0).toString()
-                                        prodMenuExpanded = false
+
+                    // Compact camera scanner frame
+                    if (isScannerOpen) {
+                        CompactCameraBarcodeScanner(
+                            currentBarcode = "",
+                            existingProducts = products,
+                            config = config,
+                            onBarcodeScanned = { barcode ->
+                                val found = products.find { it.barcode == barcode }
+                                if (found != null) {
+                                    addOrIncrementProduct(found, 1.0)
+                                    scanFeedbackMessage = "✓ ${found.nameBn} যোগ করা হয়েছে"
+                                } else {
+                                    scanFeedbackMessage = "বারকোড: $barcode (তালিকায় নেই)"
+                                    quickAddBarcode = barcode
+                                }
+                            },
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+
+                        scanFeedbackMessage?.let { msg ->
+                            Surface(
+                                shape = RoundedCornerShape(Radius.xs),
+                                color = if (msg.startsWith("✓")) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                        else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = msg,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (msg.startsWith("✓")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                    )
+                                    if (!msg.startsWith("✓") && quickAddBarcode.isNotBlank()) {
+                                        TextButton(
+                                            onClick = { showQuickAddProduct = true },
+                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                        ) {
+                                            Text("+ নতুন তৈরি করুন", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                        }
                                     }
+                                }
+                            }
+                        }
+                    }
+
+                    // Product Search Bar
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("পণ্য খুঁজুন (নাম বা বারকোড দিয়ে)...", style = MaterialTheme.typography.bodySmall) },
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = "সার্চ", tint = MaterialTheme.colorScheme.primary)
+                        },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "মুছুন", modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(Radius.sm),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.dokanColors.surfaceAlt,
+                            unfocusedContainerColor = MaterialTheme.dokanColors.surfaceAlt
+                        )
+                    )
+
+                    // Search Results List
+                    if (searchQuery.isNotBlank()) {
+                        val matches = remember(searchQuery, products) {
+                            val q = searchQuery.trim()
+                            products.filter {
+                                it.nameBn.contains(q, ignoreCase = true) ||
+                                it.nameEn.contains(q, ignoreCase = true) ||
+                                it.barcode?.contains(q) == true
+                            }.take(5)
+                        }
+
+                        if (matches.isNotEmpty()) {
+                            Surface(
+                                shape = RoundedCornerShape(Radius.sm),
+                                color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                                shadowElevation = 4.dp,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(Spacing.xs)) {
+                                    Text(
+                                        text = "পণ্য নির্বাচন করুন (ট্যাপ করলে চালানে যুক্ত হবে):",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                    matches.forEach { prod ->
+                                        Surface(
+                                            onClick = {
+                                                addOrIncrementProduct(prod, 1.0)
+                                                searchQuery = ""
+                                            },
+                                            shape = RoundedCornerShape(Radius.xs),
+                                            color = MaterialTheme.dokanColors.surfaceAlt,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 2.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = prod.nameBn,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(
+                                                        text = "মজুদ: ${Formatters.formatQty(prod.stockQty, prod.unitName, config.useBengaliNumerals)} • পূর্বের ক্রয়দর: ${Formatters.formatMoney(prod.purchasePricePoisha, config.useBengaliNumerals, config.currencySymbol)}",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontSize = 10.sp,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                                Icon(
+                                                    imageVector = Icons.Default.AddCircle,
+                                                    contentDescription = "যোগ",
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            Surface(
+                                shape = RoundedCornerShape(Radius.xs),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "\"$searchQuery\" নামে কোনো পণ্য পাওয়া যায়নি",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    TextButton(
+                                        onClick = {
+                                            showQuickAddProduct = true
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                    ) {
+                                        Text("+ নতুন তৈরি করুন", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Section 3: চালানে যুক্ত পণ্যসমূহ
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "৩. চালানের মালামাল (${draftItems.size}টি আইটেম):",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (draftItems.isNotEmpty()) {
+                            TextButton(
+                                onClick = { draftItems = emptyList() },
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                            ) {
+                                Text("সব মুছুন", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+
+                    if (draftItems.isEmpty()) {
+                        Surface(
+                            shape = RoundedCornerShape(Radius.sm),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                            border = BorderStroke(1.dp, MaterialTheme.dokanColors.border),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(Spacing.lg),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AddShoppingCart,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(36.dp)
+                                )
+                                Spacer(modifier = Modifier.height(Spacing.xs))
+                                Text(
+                                    text = "চালানে এখনও কোনো পণ্য যোগ করা হয়নি",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "উপরের সার্চবার বা বারকোড স্ক্যানার দিয়ে চালানের পণ্যগুলো এক এক করে যোগ করুন।",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                            draftItems.forEachIndexed { idx, item ->
+                                PurchaseDraftItemRow(
+                                    index = idx,
+                                    item = item,
+                                    config = config,
+                                    onQtyChange = { newQ -> updateQty(idx, newQ) },
+                                    onPriceChange = { newP -> updatePrice(idx, newP) },
+                                    onRemove = { removeItem(idx) }
                                 )
                             }
                         }
                     }
                 }
 
-                // Section 2: পরিমাণ ও দর
+                // Section 4: চালান বিল ও পেমেন্ট
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    SectionHeader(title = "পরিমাণ ও দর")
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.md)
-                    ) {
-                        DokanTextField(
-                            value = qtyText,
-                            onValueChange = { qtyText = it.filter { c -> c.isDigit() || c == '.' } },
-                            label = "ক্রয় পরিমাণ",
-                            keyboardType = KeyboardType.Decimal,
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        DokanTextField(
-                            value = unitPriceText,
-                            onValueChange = { unitPriceText = it.filter { c -> c.isDigit() || c == '.' } },
-                            label = "ক্রয় দর (৳)",
-                            keyboardType = KeyboardType.Decimal,
-                            prefix = { Text("৳ ", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                    SectionHeader(title = "৪. চালান বিল ও পরিশোধ বিবরণ")
 
                     Surface(
                         shape = RoundedCornerShape(Radius.sm),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(Spacing.md),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "মোট চালানের মূল্য:",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = Formatters.formatMoney(totalPoisha, config.useBengaliNumerals, config.currencySymbol),
-                                style = amountTextStyle(18.sp),
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                        Column(modifier = Modifier.padding(Spacing.md)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "মোট পণ্য সংখ্যা:",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(draftItems.size.toString()) else draftItems.size} টি আইটেম",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "চালানের মোট বিল:",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = Formatters.formatMoney(totalPoisha, config.useBengaliNumerals, config.currencySymbol),
+                                    style = amountTextStyle(18.sp),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
-                }
-
-                // Section 3: পেমেন্ট
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    SectionHeader(title = "পেমেন্ট")
 
                     DokanTextField(
                         value = paidAmountText,
@@ -621,6 +1194,46 @@ private fun AddPurchaseBottomSheet(
                         keyboardType = KeyboardType.Decimal,
                         prefix = { Text("৳ ", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
                     )
+
+                    val paidAmountVal = (paidAmountText.toDoubleOrNull()?.times(100))?.toLong() ?: totalPoisha
+                    val dueAmountVal = (totalPoisha - paidAmountVal).coerceAtLeast(0L)
+
+                    if (dueAmountVal > 0) {
+                        Surface(
+                            shape = RoundedCornerShape(Radius.sm),
+                            color = MaterialTheme.dokanColors.warning.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, MaterialTheme.dokanColors.warning.copy(alpha = 0.3f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(Spacing.sm),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.dokanColors.warning,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "সাপ্লায়ারের বকেয়া হিসেবে জমা হবে:",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.dokanColors.warning,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                                Text(
+                                    text = Formatters.formatMoney(dueAmountVal, config.useBengaliNumerals, config.currencySymbol),
+                                    style = amountTextStyle(14.sp),
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.dokanColors.warning
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -643,14 +1256,14 @@ private fun AddPurchaseBottomSheet(
                     )
 
                     DokanPrimaryButton(
-                        text = "চালান সংরক্ষণ",
+                        text = if (draftItems.isEmpty()) "চালান সংরক্ষণ" else "চালান সংরক্ষণ (${draftItems.size}টি)",
                         onClick = {
-                            if (selectedSupplier != null && selectedProduct != null && totalPoisha > 0) {
-                                val paid = ((paidAmountText.toDoubleOrNull() ?: (totalPoisha / 100.0)) * 100).toLong()
-                                val due = (totalPoisha - paid).coerceAtLeast(0)
+                            if (selectedSupplier != null && draftItems.isNotEmpty() && totalPoisha > 0) {
+                                val paid = (paidAmountText.toDoubleOrNull()?.times(100))?.toLong() ?: totalPoisha
+                                val due = (totalPoisha - paid).coerceAtLeast(0L)
 
                                 val purchase = Purchase(
-                                    invoiceNo = "PUR-${System.currentTimeMillis() % 100000}",
+                                    invoiceNo = "PUR-${System.currentTimeMillis() % 1000000}",
                                     supplierId = selectedSupplier!!.id,
                                     supplierName = selectedSupplier!!.name,
                                     totalPoisha = totalPoisha,
@@ -658,19 +1271,21 @@ private fun AddPurchaseBottomSheet(
                                     dueAmountPoisha = due
                                 )
 
-                                val item = PurchaseItem(
-                                    purchaseId = 0,
-                                    productId = selectedProduct!!.id,
-                                    productName = selectedProduct!!.nameBn,
-                                    qty = qtyText.toDoubleOrNull() ?: 1.0,
-                                    unitPricePoisha = ((unitPriceText.toDoubleOrNull() ?: 0.0) * 100).toLong(),
-                                    lineTotalPoisha = totalPoisha
-                                )
+                                val items = draftItems.map { draft ->
+                                    PurchaseItem(
+                                        purchaseId = 0,
+                                        productId = draft.product.id,
+                                        productName = draft.product.nameBn,
+                                        qty = draft.qty,
+                                        unitPricePoisha = draft.unitPricePoisha,
+                                        lineTotalPoisha = draft.lineTotalPoisha
+                                    )
+                                }
 
-                                onSave(purchase, listOf(item))
+                                onSave(purchase, items)
                             }
                         },
-                        enabled = totalPoisha > 0 && selectedSupplier != null && selectedProduct != null,
+                        enabled = totalPoisha > 0 && selectedSupplier != null && draftItems.isNotEmpty(),
                         modifier = Modifier.weight(1.5f)
                     )
                 }
@@ -691,12 +1306,16 @@ private fun AddPurchaseBottomSheet(
 
         if (showQuickAddProduct) {
             QuickAddProductDialog(
-                onDismiss = { showQuickAddProduct = false },
+                initialBarcode = quickAddBarcode,
+                onDismiss = {
+                    showQuickAddProduct = false
+                    quickAddBarcode = ""
+                },
                 onSave = { newProd ->
                     onQuickCreateProduct(newProd) { created ->
-                        selectedProduct = created
-                        unitPriceText = (created.purchasePricePoisha / 100.0).toString()
+                        addOrIncrementProduct(created, 1.0)
                         showQuickAddProduct = false
+                        quickAddBarcode = ""
                     }
                 }
             )
@@ -1026,10 +1645,12 @@ private fun QuickAddSupplierDialog(
 // ==============================================================================
 @Composable
 private fun QuickAddProductDialog(
+    initialBarcode: String = "",
     onDismiss: () -> Unit,
     onSave: (Product) -> Unit
 ) {
     var nameBn by remember { mutableStateOf("") }
+    var barcodeText by remember { mutableStateOf(initialBarcode) }
     var purchasePriceText by remember { mutableStateOf("") }
     var salePriceText by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("") }
@@ -1056,6 +1677,15 @@ private fun QuickAddProductDialog(
                     label = "পণ্যের নাম (বাংলা) *",
                     isError = nameError,
                     errorText = if (nameError) "পণ্যের নাম আবশ্যক" else null
+                )
+
+                DokanTextField(
+                    value = barcodeText,
+                    onValueChange = { barcodeText = it },
+                    label = "বারকোড (ঐচ্ছিক)",
+                    placeholder = "যেমন: 890123456",
+                    keyboardType = KeyboardType.Text,
+                    leadingIcon = Icons.Default.QrCode
                 )
 
                 Row(
@@ -1109,6 +1739,7 @@ private fun QuickAddProductDialog(
                     onSave(
                         Product(
                             nameBn = nameBn.trim(),
+                            barcode = barcodeText.trim().ifBlank { null },
                             purchasePricePoisha = (pPriceTaka * 100).toLong(),
                             salePricePoisha = (sPriceTaka * 100).toLong(),
                             categoryId = 1,
