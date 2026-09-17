@@ -293,6 +293,8 @@ fun ProductsScreen(
         CameraBarcodeScannerDialog(
             title = "পণ্য খুঁজুন",
             confirmText = "খুঁজুন",
+            products = products,
+            config = config,
             onDismiss = { showSearchBarcodeScanner = false },
             onBarcodeScanned = { code ->
                 searchQuery = code
@@ -842,6 +844,8 @@ private fun ProductFormBottomSheet(
 
                     CompactCameraBarcodeScanner(
                         currentBarcode = barcode,
+                        existingProducts = products,
+                        config = config,
                         onBarcodeScanned = { scannedCode ->
                             barcode = scannedCode
                         }

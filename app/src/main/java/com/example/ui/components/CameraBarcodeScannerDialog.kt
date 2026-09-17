@@ -64,7 +64,17 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.text.style.TextOverflow
+import com.example.data.entity.Product
+import com.example.ui.CartItem
+import com.example.ui.ShopConfig
+import com.example.ui.theme.amountTextStyle
+import com.example.ui.theme.dokanColors
+import com.example.util.Formatters
 import java.util.concurrent.Executors
 
 @Composable
@@ -74,8 +84,13 @@ fun CameraBarcodeScannerDialog(
     enableContinuousScan: Boolean = false,
     cartItemCount: Int? = null,
     cartTotalText: String? = null,
+    products: List<Product> = emptyList(),
+    cartItems: List<CartItem> = emptyList(),
+    config: ShopConfig = ShopConfig(),
     onDismiss: () -> Unit,
-    onBarcodeScanned: (String) -> Unit
+    onBarcodeScanned: (String) -> Unit,
+    onQtyChange: ((productId: Long, newQty: Double) -> Unit)? = null,
+    onOpenWeightDialog: ((Product) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -106,6 +121,19 @@ fun CameraBarcodeScannerDialog(
     var lastScannedBarcode by remember { mutableStateOf<String?>(null) }
     var lastScannedTimestamp by remember { mutableLongStateOf(0L) }
     var lastCode by remember { mutableStateOf("") }
+    var scannedHistory by remember { mutableStateOf<List<Long>>(emptyList()) }
+
+    val scannedProduct = remember(lastScannedBarcode, products) {
+        if (!lastScannedBarcode.isNullOrBlank()) {
+            products.find { it.barcode == lastScannedBarcode }
+        } else null
+    }
+
+    val inCartItem = remember(scannedProduct, cartItems) {
+        if (scannedProduct != null) {
+            cartItems.find { it.productId == scannedProduct.id }
+        } else null
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -117,7 +145,7 @@ fun CameraBarcodeScannerDialog(
     ) {
         Surface(
             modifier = Modifier
-                .fillMaxWidth(0.92f)
+                .fillMaxWidth(0.95f)
                 .wrapContentHeight()
                 .padding(vertical = 16.dp),
             shape = RoundedCornerShape(Radius.lg),
@@ -128,6 +156,7 @@ fun CameraBarcodeScannerDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(Spacing.md),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -223,30 +252,37 @@ fun CameraBarcodeScannerDialog(
                                 contentDescription = null,
                                 tint = if (isManualMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(16.dp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Switch between Camera & Manual Keypad
+                        IconButton(onClick = { isManualMode = !isManualMode }) {
+                            Icon(
+                                imageVector = if (isManualMode) Icons.Default.CameraAlt else Icons.Default.Keyboard,
+                                contentDescription = if (isManualMode) "ক্যামেরা মোড" else "টাইপ মোড",
+                                tint = MaterialTheme.colorScheme.primary
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "সরাসরি লিখুন",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (isManualMode) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isManualMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+
+                        IconButton(onClick = onDismiss) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "বন্ধ করুন",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.md))
+                Spacer(modifier = Modifier.height(Spacing.xs))
 
                 if (!isManualMode) {
-                    // CAMERA SCANNER VIEW
+                    // LIVE CAMERA SCANNER VIEW
                     if (!hasCameraPermission) {
-                        // Permission Request Card
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(260.dp)
+                                .height(200.dp)
                                 .clip(RoundedCornerShape(Radius.md))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                                 .padding(Spacing.lg),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
@@ -286,7 +322,7 @@ fun CameraBarcodeScannerDialog(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(260.dp)
+                                .height(210.dp)
                                 .clip(RoundedCornerShape(Radius.md))
                                 .background(Color.Black),
                             contentAlignment = Alignment.Center
@@ -302,6 +338,11 @@ fun CameraBarcodeScannerDialog(
                                         lastCode = code
                                         lastScannedBarcode = code
 
+                                        val found = products.find { it.barcode == code }
+                                        if (found != null && !scannedHistory.contains(found.id)) {
+                                            scannedHistory = listOf(found.id) + scannedHistory
+                                        }
+
                                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                         try {
                                             val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
@@ -311,7 +352,7 @@ fun CameraBarcodeScannerDialog(
                                         onBarcodeScanned(code)
 
                                         if (!isContinuousMode) {
-                                            onDismiss()
+                                            // Non-continuous mode: user can still see and confirm before dismiss
                                         }
                                     }
                                 },
@@ -347,37 +388,6 @@ fun CameraBarcodeScannerDialog(
                                         tint = if (isTorchOn) Color.Yellow else Color.White,
                                         modifier = Modifier.size(20.dp)
                                     )
-                                }
-                            }
-
-                            // Success Overlay Badge for Scanned Barcode
-                            if (lastScannedBarcode != null) {
-                                Surface(
-                                    shape = RoundedCornerShape(Radius.pill),
-                                    color = Color(0xFF16A34A),
-                                    shadowElevation = 6.dp,
-                                    modifier = Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .padding(bottom = 10.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.CheckCircle,
-                                            contentDescription = null,
-                                            tint = Color.White,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = "✓ স্ক্যান সম্পন্ন: $lastScannedBarcode",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
-                                        )
-                                    }
                                 }
                             }
                         }
@@ -481,11 +491,17 @@ fun CameraBarcodeScannerDialog(
                                         val toneGen = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
                                         toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 120)
                                     } catch (_: Exception) {}
+
+                                    val found = products.find { it.barcode == code }
+                                    if (found != null && !scannedHistory.contains(found.id)) {
+                                        scannedHistory = listOf(found.id) + scannedHistory
+                                    }
+
                                     onBarcodeScanned(code)
                                     lastScannedBarcode = code
                                     manualBarcodeText = ""
                                     if (!isContinuousMode) {
-                                        onDismiss()
+                                        // let user see scanned product
                                     }
                                 }
                             },
@@ -496,6 +512,277 @@ fun CameraBarcodeScannerDialog(
                             Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(Spacing.xs))
                             Text(confirmText)
+                        }
+                    }
+                }
+
+                // --------------------------------------------------------------
+                // SCANNED PRODUCT & QUANTITY CARD (সাথে সাথে পণ্য ও পরিমাণ প্রদর্শন)
+                // --------------------------------------------------------------
+                if (scannedProduct != null) {
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                    Card(
+                        shape = RoundedCornerShape(Radius.md),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                        ),
+                        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(Spacing.sm)) {
+                            // Header: Checkmark + Name + Line Total in Cart
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF16A34A)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            text = scannedProduct.nameBn,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "বারকোড: ${scannedProduct.barcode ?: lastScannedBarcode}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                val displayTotalPoisha = inCartItem?.lineTotalPoisha ?: scannedProduct.salePricePoisha
+                                Text(
+                                    text = Formatters.formatMoney(
+                                        displayTotalPoisha,
+                                        config.useBengaliNumerals,
+                                        config.currencySymbol
+                                    ),
+                                    style = amountTextStyle(17.sp),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            // Unit price & Stock Available
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "একক মূল্য: ${Formatters.formatMoney(scannedProduct.salePricePoisha, config.useBengaliNumerals, config.currencySymbol)} / ${scannedProduct.unitName}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "মজুদ স্টক: ${Formatters.formatQty(scannedProduct.stockQty, scannedProduct.unitName, config.useBengaliNumerals)}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (scannedProduct.stockQty <= scannedProduct.minStock) MaterialTheme.dokanColors.warning else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = if (scannedProduct.stockQty <= scannedProduct.minStock) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(Spacing.xs))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                            Spacer(modifier = Modifier.height(Spacing.xs))
+
+                            // QUANTITY CONTROLLER ROW RIGHT HERE!
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "কার্টে পরিমাণ:",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    // Minus button
+                                    Surface(
+                                        onClick = {
+                                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                            val currentQ = inCartItem?.qty ?: 1.0
+                                            val step = if (currentQ <= 0.05) 0.001 else if (currentQ <= 0.25) 0.05 else if (currentQ <= 1.0) 0.25 else 1.0
+                                            val newQ = (currentQ - step).coerceAtLeast(0.0)
+                                            val rounded = kotlin.math.round(newQ * 1000) / 1000.0
+                                            onQtyChange?.invoke(scannedProduct.id, rounded)
+                                        },
+                                        shape = RoundedCornerShape(Radius.xs),
+                                        color = MaterialTheme.dokanColors.surfaceAlt,
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.Remove, contentDescription = "কমান", modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+
+                                    // Quantity pill
+                                    Surface(
+                                        onClick = {
+                                            if (onOpenWeightDialog != null) {
+                                                onOpenWeightDialog(scannedProduct)
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(Radius.xs),
+                                        color = MaterialTheme.colorScheme.surface,
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                                        modifier = Modifier.padding(horizontal = 6.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                        ) {
+                                            Text(
+                                                text = inCartItem?.let {
+                                                    Formatters.formatWeightDetailed(it.qty, it.unitName, config.useBengaliNumerals)
+                                                } ?: "১ ${scannedProduct.unitName}",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            if (scannedProduct.unitName.trim() == "কেজি") {
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Icon(
+                                                    imageVector = Icons.Default.Edit,
+                                                    contentDescription = "ওজন পরিবর্তন",
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(12.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // Plus button
+                                    Surface(
+                                        onClick = {
+                                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                            val currentQ = inCartItem?.qty ?: 1.0
+                                            val step = if (currentQ < 0.05) 0.001 else if (currentQ < 0.25) 0.05 else if (currentQ < 1.0) 0.25 else 1.0
+                                            val newQ = currentQ + step
+                                            val rounded = kotlin.math.round(newQ * 1000) / 1000.0
+                                            onQtyChange?.invoke(scannedProduct.id, rounded)
+                                        },
+                                        shape = RoundedCornerShape(Radius.xs),
+                                        color = MaterialTheme.dokanColors.surfaceAlt,
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.Add, contentDescription = "বাড়ান", modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if (lastScannedBarcode != null && products.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                    Surface(
+                        shape = RoundedCornerShape(Radius.md),
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.sm),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(Spacing.xs))
+                            Column {
+                                Text(
+                                    text = "বারকোড: $lastScannedBarcode",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                Text(
+                                    text = "দোকানের তালিকায় এই বারকোডের কোনো পণ্য পাওয়া যায়নি!",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Recent Scanned Items in Continuous Session
+                val otherScannedProducts = remember(scannedHistory, products, scannedProduct) {
+                    scannedHistory.filter { it != scannedProduct?.id }.mapNotNull { id -> products.find { it.id == id } }
+                }
+                if (otherScannedProducts.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "পূর্ববর্তী স্ক্যানকৃত পণ্যসমূহ:",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                    ) {
+                        otherScannedProducts.forEach { prevProd ->
+                            val prevCartItem = cartItems.find { it.productId == prevProd.id }
+                            Surface(
+                                onClick = {
+                                    lastScannedBarcode = prevProd.barcode
+                                },
+                                shape = RoundedCornerShape(Radius.pill),
+                                color = MaterialTheme.dokanColors.surfaceAlt,
+                                border = BorderStroke(1.dp, MaterialTheme.dokanColors.border)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "${prevProd.nameBn}: ${prevCartItem?.let { Formatters.formatWeightDetailed(it.qty, it.unitName, config.useBengaliNumerals) } ?: "১টি"}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -525,7 +812,7 @@ fun CameraBarcodeScannerDialog(
                                 )
                                 if (!cartTotalText.isNullOrBlank()) {
                                     Text(
-                                        text = "মোট মূল্য: $cartTotalText",
+                                        text = "মোট বিল: $cartTotalText",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.Bold
@@ -701,6 +988,8 @@ private fun CameraPreviewWithAnalyzer(
 @Composable
 fun CompactCameraBarcodeScanner(
     currentBarcode: String,
+    existingProducts: List<Product> = emptyList(),
+    config: ShopConfig = ShopConfig(),
     onBarcodeScanned: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -975,5 +1264,46 @@ fun CompactCameraBarcodeScanner(
             fontSize = 11.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
+        val existingProduct = remember(displayedBarcode, existingProducts) {
+            if (!displayedBarcode.isNullOrBlank()) {
+                existingProducts.find { it.barcode == displayedBarcode }
+            } else null
+        }
+        if (existingProduct != null) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Surface(
+                shape = RoundedCornerShape(Radius.sm),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(Spacing.sm),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Inventory2,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Column {
+                        Text(
+                            text = "দোকানে বিদ্যমান: ${existingProduct.nameBn}",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "বর্তমান মজুদ: ${Formatters.formatQty(existingProduct.stockQty, existingProduct.unitName, config.useBengaliNumerals)} • মূল্য: ${Formatters.formatMoney(existingProduct.salePricePoisha, config.useBengaliNumerals, config.currencySymbol)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
     }
 }

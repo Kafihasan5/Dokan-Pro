@@ -178,7 +178,7 @@ fun DokanProApp(
                     QuickActionBottomSheet(
                         onDismiss = { viewModel.closeQuickActions() },
                         onQuickSale = { viewModel.navigateTo(AppScreen.POS) },
-                        onBarcodeScan = { viewModel.navigateTo(AppScreen.POS) },
+                        onBarcodeScan = { viewModel.triggerPosQrScanner() },
                         onCollectDue = { viewModel.navigateTo(AppScreen.DUE_KHATA) },
                         onAddExpense = { viewModel.navigateTo(AppScreen.EXPENSES) },
                         onAddProduct = { viewModel.navigateTo(AppScreen.PRODUCTS) }
@@ -204,6 +204,7 @@ fun DokanProApp(
                         FloatingNavBar(
                             currentScreen = currentScreen,
                             onNavigate = { viewModel.navigateTo(it) },
+                            onQrScanClick = { viewModel.triggerPosQrScanner() },
                             onFabLongPress = { viewModel.toggleQuickActions() }
                         )
                     }

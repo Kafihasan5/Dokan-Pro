@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.PointOfSale
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -69,6 +70,7 @@ fun FloatingNavBar(
     currentScreen: AppScreen,
     onNavigate: (AppScreen) -> Unit,
     onFabLongPress: () -> Unit,
+    onQrScanClick: () -> Unit = { onNavigate(AppScreen.POS) },
     modifier: Modifier = Modifier
 ) {
     val view = LocalView.current
@@ -190,7 +192,7 @@ fun FloatingNavBar(
                     indication = null,
                     onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        onNavigate(AppScreen.POS)
+                        onQrScanClick()
                     },
                     onLongClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
@@ -200,12 +202,24 @@ fun FloatingNavBar(
                 .testTag("pos_center_fab"),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.PointOfSale,
-                contentDescription = "বিক্রয়",
-                tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(28.dp)
-            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.QrCodeScanner,
+                    contentDescription = "QR স্ক্যান করে বিক্রি",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Text(
+                    text = "QR সেল",
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+            }
         }
     }
 }

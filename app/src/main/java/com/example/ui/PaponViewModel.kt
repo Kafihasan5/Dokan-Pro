@@ -671,6 +671,19 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         _quickActionsOpen.value = false
     }
 
+    private val _openPosQrScanner = MutableStateFlow(false)
+    val openPosQrScanner: StateFlow<Boolean> = _openPosQrScanner.asStateFlow()
+
+    fun triggerPosQrScanner() {
+        _currentScreen.value = AppScreen.POS
+        _quickActionsOpen.value = false
+        _openPosQrScanner.value = true
+    }
+
+    fun consumePosQrScanner() {
+        _openPosQrScanner.value = false
+    }
+
     // --- CART ACTIONS ---
     fun addProductToCart(product: Product, quantityToAdd: Double = 1.0) {
         val current = _cartItems.value.toMutableList()

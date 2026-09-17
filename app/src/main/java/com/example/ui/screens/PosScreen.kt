@@ -165,6 +165,14 @@ fun PosScreen(
     var productForQuantityDialog by remember { mutableStateOf<Product?>(null) }
     var showHeldCartsDialog by remember { mutableStateOf(false) }
 
+    val triggerScanner by viewModel.openPosQrScanner.collectAsState()
+    LaunchedEffect(triggerScanner) {
+        if (triggerScanner) {
+            showBarcodeDialog = true
+            viewModel.consumePosQrScanner()
+        }
+    }
+
     val filteredProducts = remember(products, selectedCatId, searchQuery) {
         products.filter { prod ->
             val matchCat = (selectedCatId == 1L || prod.categoryId == selectedCatId)
@@ -498,11 +506,23 @@ fun PosScreen(
     // Modal: Barcode Entry / Camera Scanner
     if (showBarcodeDialog) {
         CameraBarcodeScannerDialog(
-            title = "বারকোড স্ক্যানার",
+            title = "বারকোড / QR স্ক্যানার",
             confirmText = "কার্টে যোগ করুন",
             enableContinuousScan = true,
             cartItemCount = cartItems.size,
             cartTotalText = Formatters.formatMoney(grandTotal, config.useBengaliNumerals, config.currencySymbol),
+            products = products,
+            cartItems = cartItems,
+            config = config,
+            onQtyChange = { productId, newQty ->
+                val prod = products.find { it.id == productId }
+                if (prod != null) {
+                    viewModel.setProductInCart(prod, newQty)
+                }
+            },
+            onOpenWeightDialog = { prod ->
+                productForQuantityDialog = prod
+            },
             onDismiss = { showBarcodeDialog = false },
             onBarcodeScanned = { barcode ->
                 val found = products.find { it.barcode == barcode }
