@@ -1,39 +1,27 @@
 package com.example.ui.components
 
 import android.view.HapticFeedbackConstants
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
@@ -52,12 +40,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -74,38 +60,28 @@ fun FloatingNavBar(
     modifier: Modifier = Modifier
 ) {
     val view = LocalView.current
-    val fabInteractionSource = remember { MutableInteractionSource() }
-    val isFabPressed by fabInteractionSource.collectIsPressedAsState()
-    val fabScale by animateFloatAsState(
-        targetValue = if (isFabPressed) 0.94f else 1.0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "fab_press_scale"
-    )
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.navigationBars)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 8.dp, vertical = 8.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
-        // Pill container: 68dp tall with Radius.pill, 1dp border, soft shadow (24dp, black 10%)
+        // Pill container: 66dp tall with Radius.pill, soft shadow & subtle border
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(68.dp)
+                .height(66.dp)
                 .shadow(
-                    elevation = 24.dp,
+                    elevation = 20.dp,
                     shape = RoundedCornerShape(Radius.pill),
                     ambientColor = Color.Black.copy(alpha = 0.05f),
                     spotColor = Color.Black.copy(alpha = 0.10f)
                 )
                 .border(
                     width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
                     shape = RoundedCornerShape(Radius.pill)
                 ),
             shape = RoundedCornerShape(Radius.pill),
@@ -115,11 +91,11 @@ fun FloatingNavBar(
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 8.dp),
+                    .padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Slot 1: Home
+                // 1. হোম (Dashboard)
                 NavSlot(
                     icon = Icons.Default.Home,
                     label = "হোম",
@@ -131,7 +107,7 @@ fun FloatingNavBar(
                     modifier = Modifier.weight(1f)
                 )
 
-                // Slot 2: Products
+                // 2. পণ্য (Products)
                 NavSlot(
                     icon = Icons.Default.Inventory2,
                     label = "পণ্য",
@@ -143,10 +119,40 @@ fun FloatingNavBar(
                     modifier = Modifier.weight(1f)
                 )
 
-                // Spacer for Center Raised FAB
-                Spacer(modifier = Modifier.weight(1.1f))
+                // 3. বিক্রয় (Regular POS Cash Counter)
+                NavSlot(
+                    icon = Icons.Default.PointOfSale,
+                    label = "বিক্রয়",
+                    isSelected = currentScreen == AppScreen.POS,
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        onNavigate(AppScreen.POS)
+                    },
+                    onLongClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        onFabLongPress()
+                    },
+                    modifier = Modifier.weight(1f)
+                )
 
-                // Slot 4: Due Khata
+                // 4. QR সেল (Dedicated QR & Barcode Scan Sale)
+                NavSlot(
+                    icon = Icons.Default.QrCodeScanner,
+                    label = "QR সেল",
+                    isSelected = false,
+                    isFeatured = true,
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        onQrScanClick()
+                    },
+                    onLongClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        onFabLongPress()
+                    },
+                    modifier = Modifier.weight(1.05f)
+                )
+
+                // 5. খাতা (Due Khata)
                 NavSlot(
                     icon = Icons.Default.MenuBook,
                     label = "খাতা",
@@ -158,7 +164,7 @@ fun FloatingNavBar(
                     modifier = Modifier.weight(1f)
                 )
 
-                // Slot 5: Reports
+                // 6. রিপোর্ট (Reports)
                 NavSlot(
                     icon = Icons.Default.BarChart,
                     label = "রিপোর্ট",
@@ -171,91 +177,61 @@ fun FloatingNavBar(
                 )
             }
         }
-
-        // Slot 3: Center Raised Point of Sale FAB (60dp circle raised 14dp above the bar with 2dp surface ring)
-        Box(
-            modifier = Modifier
-                .offset(y = (-14).dp)
-                .size(60.dp)
-                .scale(fabScale)
-                .shadow(
-                    elevation = 14.dp,
-                    shape = CircleShape,
-                    ambientColor = Color.Black.copy(alpha = 0.12f),
-                    spotColor = Color.Black.copy(alpha = 0.20f)
-                )
-                .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary)
-                .combinedClickable(
-                    interactionSource = fabInteractionSource,
-                    indication = null,
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        onQrScanClick()
-                    },
-                    onLongClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                        onFabLongPress()
-                    }
-                )
-                .testTag("pos_center_fab"),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.QrCodeScanner,
-                    contentDescription = "QR স্ক্যান করে বিক্রি",
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(24.dp)
-                )
-                Text(
-                    text = "QR সেল",
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
-                )
-            }
-        }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun NavSlot(
     icon: ImageVector,
     label: String,
     isSelected: Boolean,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+    isFeatured: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val interactionSource = remember { MutableInteractionSource() }
 
     val iconTint by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+        targetValue = when {
+            isFeatured -> MaterialTheme.colorScheme.primary
+            isSelected -> MaterialTheme.colorScheme.primary
+            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+        },
         animationSpec = tween(durationMillis = 200),
         label = "nav_icon_tint"
     )
 
     val textColor by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+        targetValue = when {
+            isFeatured -> MaterialTheme.colorScheme.primary
+            isSelected -> MaterialTheme.colorScheme.primary
+            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+        },
         animationSpec = tween(durationMillis = 200),
         label = "nav_text_color"
     )
 
     val pillBackground by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent,
+        targetValue = when {
+            isFeatured -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+            isSelected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+            else -> Color.Transparent
+        },
         animationSpec = tween(durationMillis = 200),
         label = "nav_pill_bg"
     )
 
     Box(
         modifier = modifier
-            .fillMaxSize()
-            .clickable(interactionSource = interactionSource, indication = null) { onClick() },
+            .fillMaxHeight()
+            .combinedClickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -264,21 +240,30 @@ private fun NavSlot(
             modifier = Modifier
                 .clip(RoundedCornerShape(Radius.sm))
                 .background(pillBackground)
-                .padding(horizontal = 4.dp, vertical = 4.dp)
+                .then(
+                    if (isFeatured) {
+                        Modifier.border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                            shape = RoundedCornerShape(Radius.sm)
+                        )
+                    } else Modifier
+                )
+                .padding(horizontal = 3.dp, vertical = 3.dp)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = label,
                 tint = iconTint,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(if (isFeatured) 22.dp else 21.dp)
             )
 
             Spacer(modifier = Modifier.height(2.dp))
 
             Text(
                 text = label,
-                fontSize = 11.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                fontSize = 10.5.sp,
+                fontWeight = if (isSelected || isFeatured) FontWeight.Bold else FontWeight.Medium,
                 color = textColor,
                 style = MaterialTheme.typography.labelSmall,
                 maxLines = 1,

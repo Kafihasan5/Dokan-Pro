@@ -321,11 +321,14 @@ fun CameraBarcodeScannerDialog(
                         ) {
                             CameraPreviewWithAnalyzer(
                                 onBarcodeFound = { code ->
-                                    val currentTime = System.currentTimeMillis()
-                                    val isSameCode = (code == lastCode)
-                                    val cooldown = if (isSameCode) 1600L else 700L
+                                    // CRITICAL: When camera is held over the same QR/barcode, DO NOT add repeatedly!
+                                    // Exactly 1 item must be added per scan event.
+                                    if (code == lastCode) {
+                                        return@CameraPreviewWithAnalyzer
+                                    }
 
-                                    if (currentTime - lastScannedTimestamp >= cooldown) {
+                                    val currentTime = System.currentTimeMillis()
+                                    if (currentTime - lastScannedTimestamp >= 600L) {
                                         lastScannedTimestamp = currentTime
                                         lastCode = code
                                         lastScannedBarcode = code
@@ -556,11 +559,43 @@ fun CameraBarcodeScannerDialog(
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
-                                        Text(
-                                            text = "বারকোড: ${scannedProduct.barcode ?: lastScannedBarcode}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "বারকোড: ${scannedProduct.barcode ?: lastScannedBarcode}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            if (lastCode.isNotEmpty()) {
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Surface(
+                                                    onClick = {
+                                                        lastCode = ""
+                                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                                    },
+                                                    shape = RoundedCornerShape(Radius.xs),
+                                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Refresh,
+                                                            contentDescription = "পুনরায় স্ক্যান",
+                                                            tint = MaterialTheme.colorScheme.primary,
+                                                            modifier = Modifier.size(11.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(2.dp))
+                                                        Text(
+                                                            text = "পুনরায় স্ক্যান",
+                                                            fontSize = 9.sp,
+                                                            color = MaterialTheme.colorScheme.primary,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
 
@@ -1117,11 +1152,12 @@ fun CompactCameraBarcodeScanner(
             ) {
                 CameraPreviewWithAnalyzer(
                     onBarcodeFound = { code ->
-                        val currentTime = System.currentTimeMillis()
-                        val isSameCode = (code == lastCode)
-                        val cooldown = if (isSameCode) 1800L else 700L
+                        if (code == lastCode) {
+                            return@CameraPreviewWithAnalyzer
+                        }
 
-                        if (currentTime - lastScannedTimestamp >= cooldown) {
+                        val currentTime = System.currentTimeMillis()
+                        if (currentTime - lastScannedTimestamp >= 600L) {
                             lastScannedTimestamp = currentTime
                             lastCode = code
                             lastScannedBarcode = code
