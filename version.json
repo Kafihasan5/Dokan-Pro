@@ -1,6 +1,6 @@
 {
-  "versionCode": 45,
-  "versionName": "1.0.45",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v45/app-debug.apk",
-  "releaseNotes": "fix: prevent cleared or dismissed notifications from re-appearing via persistent dismissed tracking and last-cleared timestamp"
+  "versionCode": 47,
+  "versionName": "1.0.47",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v47/app-debug.apk",
+  "releaseNotes": "fix: import Column in FloatingNavBar"
 }
