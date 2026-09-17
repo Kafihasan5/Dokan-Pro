@@ -351,13 +351,31 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         repository = PaponRepository(db.paponDao())
         firebaseSyncManager = com.example.data.firebase.FirebaseSyncManager(db.paponDao())
 
-        // Auto-connect Firebase live sync if enabled
-        val savedFirebaseCode = prefs.getString("firebase_shop_code", "") ?: ""
-        val isFirebaseSyncOn = prefs.getBoolean("firebase_sync_enabled", false)
+        // 100% Zero-Touch Auto Cloud Backup for Owners (No buttons needed!)
         val savedRole = prefs.getString("user_role", "owner") ?: "owner"
-        if (isFirebaseSyncOn && savedFirebaseCode.isNotBlank()) {
-            firebaseSyncManager.connectShop(savedFirebaseCode, savedRole)
+        var currentShopCode = prefs.getString("firebase_shop_code", "") ?: ""
+
+        if (savedRole == "owner") {
+            if (currentShopCode.isBlank()) {
+                currentShopCode = getDefaultShopCode()
+                prefs.edit()
+                    .putString("firebase_shop_code", currentShopCode)
+                    .putBoolean("firebase_sync_enabled", true)
+                    .apply()
+                _shopConfig.value = _shopConfig.value.copy(
+                    firebaseShopCode = currentShopCode,
+                    firebaseSyncEnabled = true
+                )
+            }
+            // Auto-connect and auto-push everything to cloud on startup with zero user interaction!
+            firebaseSyncManager.connectShop(currentShopCode, "owner")
+        } else {
+            val isFirebaseSyncOn = prefs.getBoolean("firebase_sync_enabled", false)
+            if (isFirebaseSyncOn && currentShopCode.isNotBlank()) {
+                firebaseSyncManager.connectShop(currentShopCode, savedRole)
+            }
         }
+
 
 
         if (licenseManager.isDemoMode()) {
