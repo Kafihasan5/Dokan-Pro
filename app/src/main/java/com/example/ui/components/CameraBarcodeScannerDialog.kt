@@ -82,7 +82,6 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.TimeUnit
-import android.util.Size
 import android.view.MotionEvent
 import androidx.camera.core.FocusMeteringAction
 import androidx.compose.ui.draw.clipToBounds
@@ -1027,13 +1026,13 @@ private fun CameraPreviewWithAnalyzer(
 
                 // Target 720p resolution for high definition, crystal clear QR/barcode recognition
                 val preview = Preview.Builder()
-                    .setTargetResolution(Size(1280, 720))
+                    .setTargetResolution(android.util.Size(1280, 720))
                     .build().also {
                         it.setSurfaceProvider(previewView.surfaceProvider)
                     }
 
                 val imageAnalysis = ImageAnalysis.Builder()
-                    .setTargetResolution(Size(1280, 720))
+                    .setTargetResolution(android.util.Size(1280, 720))
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
 
