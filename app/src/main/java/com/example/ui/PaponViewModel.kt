@@ -51,6 +51,8 @@ data class ShopConfig(
     val staffPin: String = "0000", // Staff Access PIN
     val userRole: String = "owner", // "owner" or "staff"
     val staffName: String = "",
+    val staffEmail: String = "",
+    val staffMembersJson: String = "[]",
     val allowNegativeStock: Boolean = true,
     val isOnboardingCompleted: Boolean = false,
     val noticeMessage: String = "",
@@ -935,7 +937,8 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 val currentConfig = _shopConfig.value
                 val staffTag = if (currentConfig.userRole == "staff") {
                     val sName = currentConfig.staffName.ifBlank { "Staff" }
-                    "staff:$sName"
+                    val sEmail = currentConfig.staffEmail.trim().lowercase()
+                    if (sEmail.isNotBlank()) "staff:$sEmail:$sName" else "staff:$sName"
                 } else null
 
                 val now = System.currentTimeMillis()
@@ -1456,6 +1459,8 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
             val staffPin = prefs.getString("staff_pin", "0000") ?: "0000"
             val userRole = prefs.getString("user_role", "owner") ?: "owner"
             val staffName = prefs.getString("staff_name", "") ?: ""
+            val staffEmail = prefs.getString("staff_email", "") ?: ""
+            val staffMembersJson = prefs.getString("staff_members_json", "[]") ?: "[]"
             val allowNegativeStock = prefs.getBoolean("allow_negative_stock", true)
             val isOnboardingCompleted = prefs.getBoolean("is_onboarding_completed", false)
             val noticeMessage = prefs.getString("notice_message", "") ?: ""
@@ -1478,6 +1483,8 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 staffPin = staffPin,
                 userRole = userRole,
                 staffName = staffName,
+                staffEmail = staffEmail,
+                staffMembersJson = staffMembersJson,
                 allowNegativeStock = allowNegativeStock,
                 isOnboardingCompleted = isOnboardingCompleted,
                 noticeMessage = noticeMessage,
@@ -1505,6 +1512,8 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 putString("staff_pin", config.staffPin)
                 putString("user_role", config.userRole)
                 putString("staff_name", config.staffName)
+                putString("staff_email", config.staffEmail)
+                putString("staff_members_json", config.staffMembersJson)
                 putBoolean("allow_negative_stock", config.allowNegativeStock)
                 putBoolean("is_onboarding_completed", config.isOnboardingCompleted)
                 putString("notice_message", config.noticeMessage)
@@ -1516,6 +1525,10 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 val code = config.firebaseShopCode.ifBlank { getDefaultShopCode() }
                 viewModelScope.launch {
                     firebaseSyncManager.saveShopSecurity(code, config.ownerEmail, config.pinCode, config.staffPin)
+                    val staffList = getStaffMembers()
+                    if (staffList.isNotEmpty()) {
+                        firebaseSyncManager.saveStaffMembers(code, staffList)
+                    }
                 }
             }
         } catch (_: Exception) {}
@@ -1736,11 +1749,14 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                     return@launch
                 }
 
-                // Verify staff pin
-                val isPinValid = firebaseSyncManager.verifyStaffPin(resolvedCode, cleanPin) ||
-                                 firebaseSyncManager.verifyStaffPin(resolvedCode, rawPin)
+                // Verify specific staff pin
+                val (isPinValid, matchedStaff) = firebaseSyncManager.verifySpecificStaffPin(
+                    resolvedCode,
+                    staffEmailOrName = cleanInput,
+                    pinInput = cleanPin
+                )
                 if (!isPinValid) {
-                    val msg = "ভুল কর্মচারী পিন! মালিকের দেওয়া সঠিক ৪-ডিজিট পিন লিখুন।"
+                    val msg = "ভুল কর্মচারী পিন! মালিকের দেওয়া সঠিক পিন লিখুন।"
                     showToast(msg)
                     withContext(Dispatchers.Main) {
                         onComplete(false, msg)
@@ -1761,6 +1777,8 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
                 val cloudInfo = firebaseSyncManager.fetchShopInfo(resolvedCode)
                 val shopName = cloudInfo?.get("shopName")?.takeIf { it.isNotBlank() } ?: _shopConfig.value.shopName
+                val finalStaffName = matchedStaff?.name?.takeIf { it.isNotBlank() } ?: assignedName
+                val finalStaffEmail = matchedStaff?.email?.takeIf { it.isNotBlank() } ?: (if (cleanInput.contains("@")) cleanInput else "")
 
                 val updated = _shopConfig.value.copy(
                     shopName = shopName,
@@ -1768,14 +1786,15 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                     firebaseSyncEnabled = true,
                     userRole = "staff",
                     staffPin = cleanPin,
-                    staffName = assignedName,
+                    staffName = finalStaffName,
+                    staffEmail = finalStaffEmail,
                     isOnboardingCompleted = true
                 )
                 _shopConfig.value = updated
                 saveShopConfig(updated)
 
                 // Activate locally as staff so license screen is bypassed forever!
-                licenseManager.activateAsStaff(resolvedCode, assignedName)
+                licenseManager.activateAsStaff(resolvedCode, finalStaffName)
                 _licenseInfo.value = licenseManager.getLicenseInfo()
 
                 // Connect live syncing for staff
@@ -1786,7 +1805,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 _isAppActivated.value = true
                 _currentScreen.value = AppScreen.DASHBOARD
 
-                showToast("কর্মচারী হিসেবে সফলভাবে যুক্ত হয়েছেন!")
+                showToast("কর্মচারী ($finalStaffName) হিসেবে সফলভাবে যুক্ত হয়েছেন!")
                 withContext(Dispatchers.Main) {
                     onComplete(true, "কর্মচারী হিসেবে যুক্ত সম্পন্ন!")
                 }
@@ -1803,6 +1822,123 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                     onComplete(false, msg)
                 }
             }
+        }
+    }
+
+    // =========================================================================
+    // MULTI-STAFF MANAGEMENT (একাধিক কর্মচারী ব্যবস্থাপনা)
+    // =========================================================================
+
+    fun getStaffMembers(): List<com.example.data.entity.StaffMember> {
+        val jsonStr = _shopConfig.value.staffMembersJson
+        if (jsonStr.isBlank() || jsonStr == "[]") return emptyList()
+        return try {
+            val arr = org.json.JSONArray(jsonStr)
+            val list = mutableListOf<com.example.data.entity.StaffMember>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                list.add(
+                    com.example.data.entity.StaffMember(
+                        id = obj.optString("id", java.util.UUID.randomUUID().toString()),
+                        name = obj.optString("name", ""),
+                        email = obj.optString("email", ""),
+                        pin = obj.optString("pin", "0000"),
+                        phone = obj.optString("phone", ""),
+                        role = obj.optString("role", "staff"),
+                        isActive = obj.optBoolean("isActive", true),
+                        createdAt = obj.optLong("createdAt", System.currentTimeMillis())
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun saveStaffMember(staff: com.example.data.entity.StaffMember, onComplete: ((Boolean, String) -> Unit)? = null) {
+        val current = getStaffMembers().toMutableList()
+        val idx = current.indexOfFirst { it.id == staff.id || (it.email.isNotBlank() && it.email.equals(staff.email, ignoreCase = true)) }
+        if (idx != -1) {
+            current[idx] = staff
+        } else {
+            current.add(staff)
+        }
+        val arr = org.json.JSONArray()
+        current.forEach { s ->
+            arr.put(org.json.JSONObject().apply {
+                put("id", s.id)
+                put("name", s.name)
+                put("email", s.email)
+                put("pin", s.pin)
+                put("phone", s.phone)
+                put("role", s.role)
+                put("isActive", s.isActive)
+                put("createdAt", s.createdAt)
+            })
+        }
+        val updated = _shopConfig.value.copy(staffMembersJson = arr.toString())
+        updateShopConfig(updated)
+        val shopCode = updated.firebaseShopCode.ifBlank { getDefaultShopCode() }
+        viewModelScope.launch {
+            firebaseSyncManager.saveStaffMembers(shopCode, current)
+            showToast("কর্মচারী (${staff.name}) সফলভাবে সংরক্ষিত হয়েছে!")
+            withContext(Dispatchers.Main) {
+                onComplete?.invoke(true, "কর্মচারী সংরক্ষিত হয়েছে")
+            }
+        }
+    }
+
+    fun deleteStaffMember(staffId: String, onComplete: ((Boolean) -> Unit)? = null) {
+        val current = getStaffMembers().filter { it.id != staffId }
+        val arr = org.json.JSONArray()
+        current.forEach { s ->
+            arr.put(org.json.JSONObject().apply {
+                put("id", s.id)
+                put("name", s.name)
+                put("email", s.email)
+                put("pin", s.pin)
+                put("phone", s.phone)
+                put("role", s.role)
+                put("isActive", s.isActive)
+                put("createdAt", s.createdAt)
+            })
+        }
+        val updated = _shopConfig.value.copy(staffMembersJson = arr.toString())
+        updateShopConfig(updated)
+        val shopCode = updated.firebaseShopCode.ifBlank { getDefaultShopCode() }
+        viewModelScope.launch {
+            firebaseSyncManager.saveStaffMembers(shopCode, current)
+            showToast("কর্মচারী মুছে ফেলা হয়েছে")
+            withContext(Dispatchers.Main) {
+                onComplete?.invoke(true)
+            }
+        }
+    }
+
+    fun syncStaffMembersFromCloud() {
+        val shopCode = _shopConfig.value.firebaseShopCode.ifBlank { getDefaultShopCode() }
+        viewModelScope.launch {
+            try {
+                val cloudStaff = firebaseSyncManager.fetchStaffMembers(shopCode)
+                if (cloudStaff.isNotEmpty()) {
+                    val arr = org.json.JSONArray()
+                    cloudStaff.forEach { s ->
+                        arr.put(org.json.JSONObject().apply {
+                            put("id", s.id)
+                            put("name", s.name)
+                            put("email", s.email)
+                            put("pin", s.pin)
+                            put("phone", s.phone)
+                            put("role", s.role)
+                            put("isActive", s.isActive)
+                            put("createdAt", s.createdAt)
+                        })
+                    }
+                    val updated = _shopConfig.value.copy(staffMembersJson = arr.toString())
+                    updateShopConfig(updated)
+                }
+            } catch (_: Exception) {}
         }
     }
 

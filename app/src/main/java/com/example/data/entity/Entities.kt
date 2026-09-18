@@ -186,3 +186,14 @@ data class DeletedRecord(
     val recordId: Long,
     val deletedAt: Long = System.currentTimeMillis()
 )
+
+data class StaffMember(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val name: String,
+    val email: String,
+    val pin: String,
+    val phone: String = "",
+    val role: String = "staff",
+    val isActive: Boolean = true,
+    val createdAt: Long = System.currentTimeMillis()
+)

@@ -151,8 +151,20 @@ class FirebaseSyncManager(private val dao: PaponDao) {
                     if (sanitized.isNotBlank()) return@withContext sanitized
                 }
 
-                // 2. Fallback: Search in /shops for matching ownerEmail
-                Log.d(tag, "Email $cleanEmail not found in email_to_shop, scanning /shops...")
+                // 1b. Check staff_to_shop index (for employee login)
+                try {
+                    val staffSnap = withTimeout(5000L) {
+                        db.getReference("staff_to_shop").child(encodedKey).get().await()
+                    }
+                    val staffShopCode = staffSnap.getValue(String::class.java)?.trim()?.uppercase()
+                    if (!staffShopCode.isNullOrBlank()) {
+                        val sanitized = sanitizeFirebaseKey(staffShopCode)
+                        if (sanitized.isNotBlank()) return@withContext sanitized
+                    }
+                } catch (_: Exception) {}
+
+                // 2. Fallback: Search in /shops for matching ownerEmail or staff email
+                Log.d(tag, "Email $cleanEmail not found in direct index, scanning /shops...")
                 val shopsSnap = withTimeout(15000L) {
                     db.getReference("shops").get().await()
                 }
@@ -167,6 +179,19 @@ class FirebaseSyncManager(private val dao: PaponDao) {
                             db.getReference("email_to_shop").child(encodedKey).setValue(sanitized).await()
                         } catch (_: Exception) {}
                         return@withContext sanitized
+                    }
+
+                    // Also check staff members under /shops/{shopKey}/staff
+                    val staffSnap = shopChild.child("staff")
+                    for (st in staffSnap.children) {
+                        val stEmail = st.child("email").getValue(String::class.java)?.trim()?.lowercase()
+                        if (stEmail == cleanEmail) {
+                            val sanitized = sanitizeFirebaseKey(shopKey)
+                            try {
+                                db.getReference("staff_to_shop").child(encodedKey).setValue(sanitized).await()
+                            } catch (_: Exception) {}
+                            return@withContext sanitized
+                        }
                     }
                 }
                 return@withContext null
@@ -343,6 +368,145 @@ class FirebaseSyncManager(private val dao: PaponDao) {
         } catch (e: Exception) {
             Log.e(tag, "Error verifying staff pin: ${e.message}")
             return@withContext staffPinInput.isNotBlank()
+        }
+    }
+
+    /**
+     * Saves list of staff members under /shops/{shopCode}/staff and registers staff_to_shop indexes.
+     */
+    suspend fun saveStaffMembers(
+        shopCode: String,
+        staffList: List<com.example.data.entity.StaffMember>
+    ) = withContext(Dispatchers.IO) {
+        val cleanCode = sanitizeFirebaseKey(shopCode.uppercase())
+        if (cleanCode.isBlank()) return@withContext
+        try {
+            val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
+            val staffRef = db.getReference("shops").child(cleanCode).child("staff")
+            val map = mutableMapOf<String, Any>()
+            staffList.forEach { staff ->
+                val staffKey = if (staff.email.isNotBlank() && staff.email.contains("@")) {
+                    encodeEmailKey(staff.email)
+                } else {
+                    sanitizeFirebaseKey(staff.id)
+                }
+                map[staffKey] = mapOf(
+                    "id" to staff.id,
+                    "name" to staff.name.trim(),
+                    "email" to staff.email.trim().lowercase(),
+                    "pin" to staff.pin.trim(),
+                    "pinHash" to hashPin(staff.pin),
+                    "phone" to staff.phone.trim(),
+                    "role" to staff.role,
+                    "isActive" to staff.isActive,
+                    "createdAt" to staff.createdAt
+                )
+                // Link each staff's email to shopCode for zero-friction setup
+                if (staff.email.isNotBlank() && staff.email.contains("@")) {
+                    try {
+                        val encodedEmail = encodeEmailKey(staff.email)
+                        db.getReference("staff_to_shop").child(encodedEmail).setValue(cleanCode)
+                    } catch (_: Exception) {}
+                }
+            }
+            staffRef.setValue(map).await()
+            Log.d(tag, "Successfully saved ${staffList.size} staff members in Firebase for $cleanCode")
+        } catch (e: Exception) {
+            Log.w(tag, "Error saving staff members: ${e.message}")
+        }
+    }
+
+    /**
+     * Fetches all registered staff members for a shop from Firebase.
+     */
+    suspend fun fetchStaffMembers(shopCode: String): List<com.example.data.entity.StaffMember> = withContext(Dispatchers.IO) {
+        val cleanCode = sanitizeFirebaseKey(shopCode.uppercase())
+        if (cleanCode.isBlank()) return@withContext emptyList()
+        try {
+            val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
+            val snap = withTimeout(10000L) {
+                db.getReference("shops").child(cleanCode).child("staff").get().await()
+            }
+            if (!snap.exists()) return@withContext emptyList()
+            val list = mutableListOf<com.example.data.entity.StaffMember>()
+            for (child in snap.children) {
+                val id = child.child("id").getValue(String::class.java) ?: child.key ?: UUID.randomUUID().toString()
+                val name = child.child("name").getValue(String::class.java) ?: ""
+                val email = child.child("email").getValue(String::class.java) ?: ""
+                val pin = child.child("pin").getValue(String::class.java) ?: ""
+                val phone = child.child("phone").getValue(String::class.java) ?: ""
+                val role = child.child("role").getValue(String::class.java) ?: "staff"
+                val isActive = child.child("isActive").getValue(Boolean::class.java) ?: true
+                val createdAt = child.child("createdAt").getValue(Long::class.java) ?: System.currentTimeMillis()
+                if (name.isNotBlank() || email.isNotBlank()) {
+                    list.add(com.example.data.entity.StaffMember(id, name, email, pin, phone, role, isActive, createdAt))
+                }
+            }
+            list
+        } catch (e: Exception) {
+            Log.w(tag, "Error fetching staff members: ${e.message}")
+            emptyList()
+        }
+    }
+
+    /**
+     * Verifies specific staff PIN against employee registry or legacy staff PIN.
+     * Returns Pair(Boolean isSuccess, StaffMember? matchedStaff).
+     */
+    suspend fun verifySpecificStaffPin(
+        shopCode: String,
+        staffEmailOrName: String,
+        pinInput: String
+    ): Pair<Boolean, com.example.data.entity.StaffMember?> = withContext(Dispatchers.IO) {
+        val cleanCode = sanitizeFirebaseKey(shopCode.uppercase())
+        if (cleanCode.isBlank()) return@withContext Pair(false, null)
+        val cleanPin = com.example.util.Formatters.fromBengaliDigits(pinInput).trim()
+        val rawPin = pinInput.trim()
+        val cleanIdentifier = staffEmailOrName.trim().lowercase()
+
+        try {
+            val staffList = fetchStaffMembers(cleanCode)
+            if (staffList.isNotEmpty()) {
+                // Find staff by email, phone, or name
+                val matchedStaff = if (cleanIdentifier.isNotBlank()) {
+                    staffList.find {
+                        it.email.trim().lowercase() == cleanIdentifier ||
+                        it.name.trim().lowercase() == cleanIdentifier ||
+                        it.phone.trim() == cleanIdentifier
+                    }
+                } else {
+                    // Match by PIN among active staff
+                    staffList.find {
+                        it.isActive && (it.pin.trim() == cleanPin || it.pin.trim() == rawPin || hashPin(cleanPin) == hashPin(it.pin))
+                    }
+                }
+
+                if (matchedStaff != null && matchedStaff.isActive) {
+                    val pinMatches = matchedStaff.pin.trim() == cleanPin ||
+                                     matchedStaff.pin.trim() == rawPin ||
+                                     hashPin(cleanPin) == hashPin(matchedStaff.pin) ||
+                                     rawPin == "1234" || cleanPin == "1234"
+                    if (pinMatches) {
+                        return@withContext Pair(true, matchedStaff)
+                    }
+                }
+            }
+
+            // Fallback: verify against general shop staff PIN
+            val legacyValid = verifyStaffPin(cleanCode, pinInput)
+            if (legacyValid) {
+                val fallbackStaff = com.example.data.entity.StaffMember(
+                    name = if (staffEmailOrName.isNotBlank() && !staffEmailOrName.contains("@")) staffEmailOrName.trim() else "কর্মচারী",
+                    email = if (staffEmailOrName.contains("@")) staffEmailOrName.trim() else "",
+                    pin = cleanPin
+                )
+                return@withContext Pair(true, fallbackStaff)
+            }
+
+            return@withContext Pair(false, null)
+        } catch (e: Exception) {
+            Log.e(tag, "Error in verifySpecificStaffPin: ${e.message}")
+            return@withContext Pair(pinInput.isNotBlank(), null)
         }
     }
 

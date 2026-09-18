@@ -33,6 +33,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.entity.StaffMember
 import com.example.ui.PaponViewModel
 import com.example.ui.AppScreen
 import com.example.ui.ShopConfig
@@ -59,10 +60,20 @@ fun SettingsScreen(
     var themeMode by remember { mutableStateOf(config.themeMode) }
     var vatEnabled by remember { mutableStateOf(config.vatEnabled) }
     var vatPercentageText by remember { mutableStateOf(config.vatPercentage.toString()) }
+    var allowNegativeStock by remember { mutableStateOf(config.allowNegativeStock) }
+    var printInvoiceAfterSale by remember { mutableStateOf(config.printInvoiceAfterSale) }
+    var bluetoothPrinterAddress by remember { mutableStateOf(config.bluetoothPrinterAddress) }
+    var bluetoothPrinterName by remember { mutableStateOf(config.bluetoothPrinterName) }
+    var lowStockThreshold by remember { mutableStateOf(config.lowStockThreshold.toString()) }
     var pinEnabled by remember { mutableStateOf(config.pinEnabled) }
     var pinCode by remember { mutableStateOf(config.pinCode) }
-    var userRole by remember { mutableStateOf(config.userRole) } // "owner" or "staff"
-    var allowNegativeStock by remember { mutableStateOf(config.allowNegativeStock) }
+    var userRole by remember { mutableStateOf(config.userRole) }
+    var staffName by remember { mutableStateOf(config.staffName) }
+    var invoiceTemplate by remember { mutableStateOf(config.invoiceTemplate) }
+
+    var isSaving by remember { mutableStateOf(false) }
+    var saveSuccess by remember { mutableStateOf(false) }
+
     var showWipeAllDataDialog by remember { mutableStateOf(false) }
     var showCategoryUnitManager by remember { mutableStateOf(false) }
     var initialManageTab by remember { mutableStateOf(0) }
@@ -89,6 +100,11 @@ fun SettingsScreen(
     var masterPinEditInput by remember { mutableStateOf(config.pinCode) }
     var staffPinEditInput by remember { mutableStateOf(config.staffPin.ifBlank { "0000" }) }
     var isSavingSecurityPins by remember { mutableStateOf(false) }
+
+    var staffMembers by remember(config.staffMembersJson) { mutableStateOf(viewModel.getStaffMembers()) }
+    var showAddStaffDialog by remember { mutableStateOf(false) }
+    var editingStaffMember by remember { mutableStateOf<StaffMember?>(null) }
+    var staffMemberToDelete by remember { mutableStateOf<StaffMember?>(null) }
 
     DokanScreenScaffold(
         title = "দোকান ও অ্যাপ সেটিংস",
@@ -424,51 +440,141 @@ fun SettingsScreen(
                             }
                         }
 
-                        // Staff Access PIN display
+                        // Staff Management Section
                         Surface(
                             shape = RoundedCornerShape(Radius.md),
                             color = MaterialTheme.dokanColors.surfaceAlt,
                             border = BorderStroke(1.dp, MaterialTheme.dokanColors.border),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                            Column(modifier = Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.People, contentDescription = null, tint = MaterialTheme.dokanColors.gold, modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Default.People, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                                         Spacer(modifier = Modifier.width(Spacing.xs))
                                         Text(
-                                            text = "কর্মচারী অ্যাক্সেস পিন",
+                                            text = "কর্মচারী ব্যবস্থাপনা (${staffMembers.size} জন)",
                                             style = MaterialTheme.typography.titleSmall,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
                                     Surface(
                                         shape = RoundedCornerShape(Radius.pill),
-                                        color = MaterialTheme.dokanColors.goldContainer
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        modifier = Modifier.clickable {
+                                            showAddStaffDialog = true
+                                        }
                                     ) {
-                                        Text(
-                                            text = staffPinInput,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = MaterialTheme.dokanColors.gold,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                        ) {
+                                            Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(2.dp))
+                                            Text(
+                                                text = "নতুন যোগ করুন",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                        }
                                     }
                                 }
+
                                 Text(
-                                    text = "কর্মচারীরা তাদের ফোন থেকে দোকান কোড এবং এই ৪ ডিজিটের পিন দিয়ে স্টাফ মোডে যুক্ত হতে পারবে। স্টাফরা আপনার লাভ, খরচ বা পূর্বের ইনভয়েস দেখতে পারবে না।",
+                                    text = "কর্মচারীরা তাদের নিজস্ব ইমেইল এবং পিন দিয়ে অ্যাপে যুক্ত হয়ে বিক্রি করতে পারবে।",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+
+                                if (staffMembers.isEmpty()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(Radius.sm))
+                                            .background(MaterialTheme.colorScheme.surface)
+                                            .padding(Spacing.md),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "এখনো কোনো নির্দিষ্ট কর্মচারী যোগ করা হয়নি। ডিফল্ট স্টাফ পিন ($staffPinInput) দিয়ে কর্মচারীরা যুক্ত হতে পারবে।",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                } else {
+                                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                                        staffMembers.forEach { staff ->
+                                            Surface(
+                                                shape = RoundedCornerShape(Radius.sm),
+                                                color = MaterialTheme.colorScheme.surface,
+                                                border = BorderStroke(0.5.dp, MaterialTheme.dokanColors.border),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(Spacing.sm),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            Text(
+                                                                text = staff.name.ifBlank { "নামহীন কর্মী" },
+                                                                style = MaterialTheme.typography.bodyMedium,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = MaterialTheme.colorScheme.onSurface
+                                                            )
+                                                            Spacer(modifier = Modifier.width(Spacing.xs))
+                                                            Surface(
+                                                                shape = RoundedCornerShape(Radius.pill),
+                                                                color = MaterialTheme.dokanColors.goldContainer
+                                                            ) {
+                                                                Text(
+                                                                    text = "পিন: ${staff.pin}",
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = MaterialTheme.dokanColors.gold,
+                                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                                )
+                                                            }
+                                                        }
+                                                        Text(
+                                                            text = "ইমেইল: ${staff.email.ifBlank { "নেই" }}${if (staff.phone.isNotBlank()) " • ফোন: ${staff.phone}" else ""}",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                    Row {
+                                                        IconButton(
+                                                            onClick = { editingStaffMember = staff },
+                                                            modifier = Modifier.size(32.dp)
+                                                        ) {
+                                                            Icon(Icons.Default.Edit, contentDescription = "সম্পাদনা", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                                        }
+                                                        IconButton(
+                                                            onClick = { staffMemberToDelete = staff },
+                                                            modifier = Modifier.size(32.dp)
+                                                        ) {
+                                                            Icon(Icons.Default.Delete, contentDescription = "মুছুন", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
 
                         DokanSecondaryButton(
-                            text = "🔐 সিকিউরিটি ও স্টাফ পিন পরিবর্তন করুন",
+                            text = "🔐 সিকিউরিটি ও জেনারেল স্টাফ পিন পরিবর্তন করুন",
                             onClick = {
                                 masterPinEditInput = pinCode
                                 staffPinEditInput = staffPinInput
@@ -1199,6 +1305,284 @@ fun SettingsScreen(
                     Text("বাতিল")
                 }
             }
+        )
+    }
+
+    // -------------------------------------------------------------------------
+    // Staff Member Dialogs
+    // -------------------------------------------------------------------------
+    if (showAddStaffDialog) {
+        var newStaffName by remember { mutableStateOf("") }
+        var newStaffEmail by remember { mutableStateOf("") }
+        var newStaffPin by remember { mutableStateOf("") }
+        var newStaffPhone by remember { mutableStateOf("") }
+        var staffAddError by remember { mutableStateOf<String?>(null) }
+        var isSavingStaff by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { if (!isSavingStaff) showAddStaffDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.PersonAdd, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                    Text("নতুন কর্মচারী যোগ করুন")
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Text(
+                        "কর্মচারী তার ফোনে দোকান কোড, এই ইমেইল এবং পিন দিয়ে লগইন করবে:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    DokanTextField(
+                        value = newStaffName,
+                        onValueChange = {
+                            newStaffName = it
+                            staffAddError = null
+                        },
+                        label = "কর্মচারীর নাম *",
+                        placeholder = "যেমন: মোঃ করিম"
+                    )
+
+                    DokanTextField(
+                        value = newStaffEmail,
+                        onValueChange = {
+                            newStaffEmail = it
+                            staffAddError = null
+                        },
+                        label = "কর্মচারীর ইমেইল *",
+                        placeholder = "যেমন: karim@gmail.com",
+                        keyboardType = KeyboardType.Email
+                    )
+
+                    DokanTextField(
+                        value = newStaffPin,
+                        onValueChange = {
+                            newStaffPin = it.filter { c -> c.isDigit() }.take(6)
+                            staffAddError = null
+                        },
+                        label = "লগইন পিন (৪-৬ ডিজিট) *",
+                        placeholder = "যেমন: 1234",
+                        keyboardType = KeyboardType.NumberPassword
+                    )
+
+                    DokanTextField(
+                        value = newStaffPhone,
+                        onValueChange = { newStaffPhone = it },
+                        label = "ফোন নম্বর (ঐচ্ছিক)",
+                        placeholder = "যেমন: 017xxxxxxxx",
+                        keyboardType = KeyboardType.Phone
+                    )
+
+                    if (staffAddError != null) {
+                        Text(
+                            text = staffAddError ?: "",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+
+                    if (isSavingStaff) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp).align(Alignment.CenterHorizontally),
+                            strokeWidth = 2.dp
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val cleanName = newStaffName.trim()
+                        val cleanEmail = newStaffEmail.trim().lowercase()
+                        val cleanPin = newStaffPin.trim()
+                        if (cleanName.isBlank()) {
+                            staffAddError = "কর্মচারীর নাম লিখুন"
+                            return@Button
+                        }
+                        if (cleanEmail.isBlank() || !cleanEmail.contains("@") || !cleanEmail.contains(".")) {
+                            staffAddError = "সঠিক ইমেইল ঠিকানা লিখুন"
+                            return@Button
+                        }
+                        if (cleanPin.length < 4) {
+                            staffAddError = "পিন কমপক্ষে ৪ ডিজিট হতে হবে"
+                            return@Button
+                        }
+                        if (staffMembers.any { it.email.equals(cleanEmail, ignoreCase = true) }) {
+                            staffAddError = "এই ইমেইলের কর্মচারী ইতিমধ্যে যুক্ত আছে"
+                            return@Button
+                        }
+                        isSavingStaff = true
+                        val newMember = StaffMember(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = cleanName,
+                            email = cleanEmail,
+                            pin = cleanPin,
+                            phone = newStaffPhone.trim(),
+                            role = "staff",
+                            isActive = true,
+                            createdAt = System.currentTimeMillis()
+                        )
+                        viewModel.saveStaffMember(newMember) { success, msg ->
+                            isSavingStaff = false
+                            if (success) {
+                                staffMembers = viewModel.getStaffMembers()
+                                showAddStaffDialog = false
+                            } else {
+                                staffAddError = msg
+                            }
+                        }
+                    },
+                    enabled = !isSavingStaff && newStaffName.isNotBlank() && newStaffEmail.isNotBlank() && newStaffPin.length >= 4
+                ) {
+                    Text("সংরক্ষণ করুন")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showAddStaffDialog = false },
+                    enabled = !isSavingStaff
+                ) {
+                    Text("বাতিল")
+                }
+            }
+        )
+    }
+
+    if (editingStaffMember != null) {
+        val member = editingStaffMember!!
+        var editName by remember { mutableStateOf(member.name) }
+        var editEmail by remember { mutableStateOf(member.email) }
+        var editPin by remember { mutableStateOf(member.pin) }
+        var editPhone by remember { mutableStateOf(member.phone) }
+        var editError by remember { mutableStateOf<String?>(null) }
+        var isUpdatingStaff by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { if (!isUpdatingStaff) editingStaffMember = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                    Text("কর্মচারী তথ্য সম্পাদনা")
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    DokanTextField(
+                        value = editName,
+                        onValueChange = {
+                            editName = it
+                            editError = null
+                        },
+                        label = "কর্মচারীর নাম *"
+                    )
+
+                    DokanTextField(
+                        value = editEmail,
+                        onValueChange = {
+                            editEmail = it
+                            editError = null
+                        },
+                        label = "কর্মচারীর ইমেইল *"
+                    )
+
+                    DokanTextField(
+                        value = editPin,
+                        onValueChange = {
+                            editPin = it.filter { c -> c.isDigit() }.take(6)
+                            editError = null
+                        },
+                        label = "লগইন পিন (৪-৬ ডিজিট) *",
+                        keyboardType = KeyboardType.NumberPassword
+                    )
+
+                    DokanTextField(
+                        value = editPhone,
+                        onValueChange = { editPhone = it },
+                        label = "ফোন নম্বর",
+                        keyboardType = KeyboardType.Phone
+                    )
+
+                    if (editError != null) {
+                        Text(
+                            text = editError ?: "",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+
+                    if (isUpdatingStaff) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp).align(Alignment.CenterHorizontally),
+                            strokeWidth = 2.dp
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val cleanName = editName.trim()
+                        val cleanEmail = editEmail.trim().lowercase()
+                        val cleanPin = editPin.trim()
+                        if (cleanName.isBlank()) {
+                            editError = "কর্মচারীর নাম লিখুন"
+                            return@Button
+                        }
+                        if (cleanPin.length < 4) {
+                            editError = "পিন কমপক্ষে ৪ ডিজিট হতে হবে"
+                            return@Button
+                        }
+                        isUpdatingStaff = true
+                        val updatedMember = member.copy(
+                            name = cleanName,
+                            email = cleanEmail,
+                            pin = cleanPin,
+                            phone = editPhone.trim()
+                        )
+                        viewModel.saveStaffMember(updatedMember) { success, msg ->
+                            isUpdatingStaff = false
+                            if (success) {
+                                staffMembers = viewModel.getStaffMembers()
+                                editingStaffMember = null
+                            } else {
+                                editError = msg
+                            }
+                        }
+                    },
+                    enabled = !isUpdatingStaff && editName.isNotBlank() && editPin.length >= 4
+                ) {
+                    Text("আপডেট করুন")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { editingStaffMember = null },
+                    enabled = !isUpdatingStaff
+                ) {
+                    Text("বাতিল")
+                }
+            }
+        )
+    }
+
+    if (staffMemberToDelete != null) {
+        val member = staffMemberToDelete!!
+        DokanConfirmDialog(
+            title = "কর্মচারী মুছে ফেলবেন?",
+            message = "${member.name} (${member.email})-কে কর্মচারী তালিকা থেকে অপসারণ করতে চান?",
+            confirmText = "হ্যাঁ, মুছুন",
+            isDestructive = true,
+            onConfirm = {
+                viewModel.deleteStaffMember(member.id) {
+                    staffMembers = viewModel.getStaffMembers()
+                    staffMemberToDelete = null
+                }
+            },
+            onDismiss = { staffMemberToDelete = null }
         )
     }
 }

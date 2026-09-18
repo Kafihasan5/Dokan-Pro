@@ -61,6 +61,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -75,6 +76,7 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Scale
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Badge
@@ -164,6 +166,7 @@ fun PosScreen(
     var showBarcodeDialog by remember { mutableStateOf(false) }
     var productForQuantityDialog by remember { mutableStateOf<Product?>(null) }
     var showHeldCartsDialog by remember { mutableStateOf(false) }
+    var isListView by remember { mutableStateOf(true) }
 
     val triggerScanner by viewModel.openPosQrScanner.collectAsState()
     LaunchedEffect(triggerScanner) {
@@ -297,6 +300,25 @@ fun PosScreen(
                             )
                         }
 
+                        // View mode toggle (List / Grid)
+                        IconButton(
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                isListView = !isListView
+                            },
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(Radius.sm))
+                                .background(MaterialTheme.dokanColors.surfaceAlt)
+                        ) {
+                            Icon(
+                                imageVector = if (isListView) Icons.Default.GridView else Icons.Default.ViewList,
+                                contentDescription = if (isListView) "গ্রিড ভিউ" else "লিস্ট ভিউ",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
                         // Held Carts indicator button
                         if (heldCarts.isNotEmpty()) {
                             IconButton(
@@ -375,13 +397,72 @@ fun PosScreen(
                 }
             }
 
-            // Products 2-Column Grid
+            // Products List or Grid View
             if (filteredProducts.isEmpty()) {
                 EmptyState(
                     icon = Icons.Default.Search,
                     title = "কোনো পণ্য পাওয়া যায়নি",
                     message = "অন্য নামে খুঁজুন অথবা নতুন পণ্য যোগ করুন।"
                 )
+            } else if (isListView) {
+                LazyColumn(
+                    contentPadding = PaddingValues(
+                        start = Spacing.md,
+                        end = Spacing.md,
+                        top = Spacing.sm,
+                        bottom = 160.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(filteredProducts, key = { it.id }) { product ->
+                        val inCartQty = cartItems.find { it.productId == product.id }?.qty ?: 0.0
+
+                        PosProductListItem(
+                            product = product,
+                            inCartQty = inCartQty,
+                            config = config,
+                            onTap = {
+                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                val isWeighable = product.unitName.trim().let {
+                                    it == "কেজি" || it == "গ্রাম" || it.contains("কেজি") || it.contains("গ্রাম") || it.contains("kg", ignoreCase = true) || it.contains("gm", ignoreCase = true)
+                                }
+                                if (isWeighable) {
+                                    productForQuantityDialog = product
+                                } else {
+                                    viewModel.addProductToCart(product, 1.0)
+                                }
+                            },
+                            onLongTap = {
+                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                productForQuantityDialog = product
+                            },
+                            onAddToCart = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                val isWeighable = product.unitName.trim().let {
+                                    it == "কেজি" || it == "গ্রাম" || it.contains("কেজি") || it.contains("গ্রাম") || it.contains("kg", ignoreCase = true) || it.contains("gm", ignoreCase = true)
+                                }
+                                if (isWeighable) {
+                                    productForQuantityDialog = product
+                                } else {
+                                    viewModel.addProductToCart(product, 1.0)
+                                }
+                            },
+                            onIncreaseQty = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                viewModel.addProductToCart(product, 1.0)
+                            },
+                            onDecreaseQty = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                val newQty = (inCartQty - 1.0).coerceAtLeast(0.0)
+                                viewModel.updateCartItemQty(product.id, newQty)
+                            },
+                            onOpenQuantityDialog = {
+                                productForQuantityDialog = product
+                            }
+                        )
+                    }
+                }
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
@@ -572,7 +653,315 @@ fun PosScreen(
 }
 
 // ==============================================================================
-// 1. POS PRODUCT GRID CARD (2-Column, Radius.md, Bounce on Tap)
+// 1. POS PRODUCT LIST ITEM (Modern High-Efficiency POS Row)
+// ==============================================================================
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun PosProductListItem(
+    product: Product,
+    inCartQty: Double,
+    config: ShopConfig,
+    onTap: () -> Unit,
+    onLongTap: () -> Unit,
+    onAddToCart: () -> Unit,
+    onIncreaseQty: () -> Unit,
+    onDecreaseQty: () -> Unit,
+    onOpenQuantityDialog: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val cardScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.985f else 1.0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "pos_list_card_scale"
+    )
+
+    val localFile = remember(product.localImagePath) {
+        if (!product.localImagePath.isNullOrBlank()) {
+            val f = File(product.localImagePath)
+            if (f.exists()) f else null
+        } else null
+    }
+
+    val isOutOfStock = product.stockQty <= 0.0
+    val isLowStock = product.stockQty in 0.01..product.minStock.toDouble()
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .scale(cardScale)
+            .softShadow(1, RoundedCornerShape(Radius.md))
+            .border(
+                width = if (inCartQty > 0) 1.5.dp else 1.dp,
+                color = if (inCartQty > 0) MaterialTheme.colorScheme.primary.copy(alpha = 0.8f) else MaterialTheme.dokanColors.border,
+                shape = RoundedCornerShape(Radius.md)
+            )
+            .clip(RoundedCornerShape(Radius.md))
+            .combinedClickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onTap,
+                onLongClick = onLongTap
+            )
+            .testTag("pos_product_list_${product.id}"),
+        shape = RoundedCornerShape(Radius.md),
+        color = if (inCartQty > 0) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surface
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            // Left: Product Image / Initial Thumbnail (56x56 dp)
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(Radius.sm))
+                    .background(MaterialTheme.dokanColors.surfaceAlt),
+                contentAlignment = Alignment.Center
+            ) {
+                if (localFile != null) {
+                    AsyncImage(
+                        model = localFile,
+                        contentDescription = product.nameBn,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    val initialLetter = product.nameBn.firstOrNull()?.toString() ?: "প"
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = initialLetter,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                // In-cart indicator badge in thumbnail corner
+                if (inCartQty > 0) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(2.dp)
+                            .clip(RoundedCornerShape(Radius.pill))
+                            .background(MaterialTheme.colorScheme.primary)
+                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                    ) {
+                        Text(
+                            text = if (product.unitName.trim() == "কেজি" && inCartQty < 1.0 && inCartQty > 0.0) {
+                                val gm = kotlin.math.round(inCartQty * 1000).toLong()
+                                "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(gm.toString()) else gm}g"
+                            } else {
+                                Formatters.formatQty(inCartQty, "", config.useBengaliNumerals).trim()
+                            },
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
+                }
+            }
+
+            // Middle: Name, Category/Barcode, and Stock Status Pill
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text(
+                    text = product.nameBn,
+                    style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp),
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                // Subtitle: Category or English Name
+                val subText = when {
+                    product.categoryName.isNotBlank() && product.barcode.isNotBlank() -> "${product.categoryName} • ${product.barcode}"
+                    product.categoryName.isNotBlank() -> product.categoryName
+                    product.nameEn.isNotBlank() -> product.nameEn
+                    product.barcode.isNotBlank() -> "বারকোড: ${product.barcode}"
+                    else -> ""
+                }
+                if (subText.isNotBlank()) {
+                    Text(
+                        text = subText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // Stock Badge Pill
+                Surface(
+                    shape = RoundedCornerShape(Radius.pill),
+                    color = when {
+                        isOutOfStock -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                        isLowStock -> MaterialTheme.dokanColors.warningContainer.copy(alpha = 0.5f)
+                        else -> MaterialTheme.dokanColors.surfaceAlt
+                    }
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = when {
+                                isOutOfStock -> "❌ স্টক নেই"
+                                isLowStock -> "⚠️ স্টক কম: ${Formatters.formatQty(product.stockQty, product.unitName, config.useBengaliNumerals)}"
+                                else -> "📦 স্টক: ${Formatters.formatQty(product.stockQty, product.unitName, config.useBengaliNumerals)}"
+                            },
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            fontWeight = if (isOutOfStock || isLowStock) FontWeight.Bold else FontWeight.Medium,
+                            color = when {
+                                isOutOfStock -> MaterialTheme.colorScheme.error
+                                isLowStock -> MaterialTheme.dokanColors.warning
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Right: Price and Add / Stepper Controls
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Sale Price
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        text = Formatters.formatMoney(product.salePricePoisha, config.useBengaliNumerals, config.currencySymbol),
+                        style = amountTextStyle(16.sp),
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    if (product.unitName.isNotBlank()) {
+                        Text(
+                            text = "/${product.unitName}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 2.dp, bottom = 1.dp)
+                        )
+                    }
+                }
+
+                // Cart Action: Stepper or Add button
+                if (inCartQty <= 0.0) {
+                    Surface(
+                        shape = RoundedCornerShape(Radius.pill),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(Radius.pill))
+                            .clickable(onClick = onAddToCart)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "যোগ করুন",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "যোগ",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(Radius.pill),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(2.dp)
+                        ) {
+                            // Minus / Delete button
+                            Box(
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .clip(CircleShape)
+                                    .background(if (inCartQty <= 1.0) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f) else MaterialTheme.dokanColors.surfaceAlt)
+                                    .clickable(onClick = onDecreaseQty),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (inCartQty <= 1.0) Icons.Default.Delete else Icons.Default.Remove,
+                                    contentDescription = "কমান",
+                                    tint = if (inCartQty <= 1.0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+
+                            // Qty text (clicking opens quantity dialog)
+                            Box(
+                                modifier = Modifier
+                                    .padding(horizontal = 6.dp)
+                                    .clickable(onClick = onOpenQuantityDialog),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (product.unitName.trim() == "কেজি" && inCartQty < 1.0 && inCartQty > 0.0) {
+                                        val gm = kotlin.math.round(inCartQty * 1000).toLong()
+                                        "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(gm.toString()) else gm}g"
+                                    } else {
+                                        Formatters.formatQty(inCartQty, "", config.useBengaliNumerals).trim()
+                                    },
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+
+                            // Plus button
+                            Box(
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary)
+                                    .clickable(onClick = onIncreaseQty),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "বাড়ান",
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==============================================================================
+// 2. POS PRODUCT GRID CARD (2-Column, Radius.md, Bounce on Tap)
 // ==============================================================================
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

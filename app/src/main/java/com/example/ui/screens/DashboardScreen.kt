@@ -215,15 +215,16 @@ fun DashboardScreen(
     fun isStaffSale(sale: Sale): Boolean {
         if (!isStaff) return true
         val note = sale.note?.lowercase() ?: ""
-        val staffTag = "staff:${config.staffName.trim().lowercase()}"
-        return if (config.staffName.isNotBlank()) {
-            note.contains(staffTag) || note.contains("staff:")
-        } else {
-            note.contains("staff:")
-        }
+        val staffEmail = config.staffEmail.trim().lowercase()
+        val staffName = config.staffName.trim().lowercase()
+        if (staffEmail.isNotBlank() && note.contains(staffEmail)) return true
+        if (staffName.isNotBlank() && (note.contains("staff:$staffName") || note.contains(staffName))) return true
+        if (staffEmail.isBlank() && staffName.isBlank() && note.contains("staff:")) return true
+        return false
     }
 
-    val visibleSales = remember(sales, isStaff, config.staffName) {
+    // Staff personal sales for summary calculations
+    val staffPersonalSales = remember(sales, isStaff, config.staffEmail, config.staffName) {
         if (isStaff) {
             sales.filter { isStaffSale(it) }
         } else {
@@ -231,31 +232,31 @@ fun DashboardScreen(
         }
     }
 
-    val todaySalesCount = remember(visibleSales) { visibleSales.count { it.saleDate in startOfToday..endOfToday && !it.isReturned } }
-    val yesterdaySalesCount = remember(visibleSales) { visibleSales.count { it.saleDate in startOfYesterday until startOfToday && !it.isReturned } }
+    val todaySalesCount = remember(staffPersonalSales) { staffPersonalSales.count { it.saleDate in startOfToday..endOfToday && !it.isReturned } }
+    val yesterdaySalesCount = remember(staffPersonalSales) { staffPersonalSales.count { it.saleDate in startOfYesterday until startOfToday && !it.isReturned } }
 
-    val (periodSales, periodExpenses, periodLabel) = remember(visibleSales, expenses, dashboardFilterMode, customSelectedDate, isStaff) {
+    val (periodSales, periodExpenses, periodLabel) = remember(staffPersonalSales, expenses, dashboardFilterMode, customSelectedDate, isStaff) {
         when (dashboardFilterMode) {
             "today" -> {
-                val s = visibleSales.filter { it.saleDate in startOfToday..endOfToday && !it.isReturned }
+                val s = staffPersonalSales.filter { it.saleDate in startOfToday..endOfToday && !it.isReturned }
                 val e = if (isStaff) emptyList() else expenses.filter { it.expenseDate in startOfToday..endOfToday }
                 Triple(s, e, if (isStaff) "আজ আপনার" else "আজকের")
             }
             "yesterday" -> {
-                val s = visibleSales.filter { it.saleDate in startOfYesterday until startOfToday && !it.isReturned }
+                val s = staffPersonalSales.filter { it.saleDate in startOfYesterday until startOfToday && !it.isReturned }
                 val e = if (isStaff) emptyList() else expenses.filter { it.expenseDate in startOfYesterday until startOfToday }
                 Triple(s, e, if (isStaff) "গতকাল আপনার" else "গতকালের")
             }
             "custom" -> {
                 val start = customSelectedDate ?: startOfToday
                 val end = start + 86400000L
-                val s = visibleSales.filter { it.saleDate in start until end && !it.isReturned }
+                val s = staffPersonalSales.filter { it.saleDate in start until end && !it.isReturned }
                 val e = if (isStaff) emptyList() else expenses.filter { it.expenseDate in start until end }
                 val dateStr = SimpleDateFormat("dd MMM", Locale("bn", "BD")).format(Date(start))
                 Triple(s, e, if (isStaff) "$dateStr আপনার" else dateStr)
             }
             else -> {
-                val s = visibleSales.filter { !it.isReturned }
+                val s = staffPersonalSales.filter { !it.isReturned }
                 val e = if (isStaff) emptyList() else expenses
                 Triple(s, e, if (isStaff) "আপনার মোট" else "সর্বমোট")
             }
@@ -275,15 +276,16 @@ fun DashboardScreen(
     var currentSalesPage by remember { mutableIntStateOf(1) }
     val salesPageSize = 10
 
-    val sortedSales = remember(visibleSales, dashboardFilterMode, customSelectedDate, salesSearchQuery) {
+    // Staff can view all invoices (owner's + staff's) in the invoice history table
+    val sortedSales = remember(sales, dashboardFilterMode, customSelectedDate, salesSearchQuery) {
         val base = when (dashboardFilterMode) {
-            "today" -> visibleSales.filter { it.saleDate in startOfToday..endOfToday }
-            "yesterday" -> visibleSales.filter { it.saleDate in startOfYesterday until startOfToday }
+            "today" -> sales.filter { it.saleDate in startOfToday..endOfToday }
+            "yesterday" -> sales.filter { it.saleDate in startOfYesterday until startOfToday }
             "custom" -> {
                 val start = customSelectedDate ?: startOfToday
-                visibleSales.filter { it.saleDate in start until (start + 86400000L) }
+                sales.filter { it.saleDate in start until (start + 86400000L) }
             }
-            else -> visibleSales
+            else -> sales
         }
         val query = salesSearchQuery.trim().lowercase()
         val filtered = if (query.isBlank()) {
@@ -532,6 +534,64 @@ fun DashboardScreen(
                     }
                 }
 
+                // Staff Identity Banner (for staff mode)
+                if (isStaff) {
+                    Surface(
+                        shape = RoundedCornerShape(Radius.md),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(Spacing.md),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Person,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "👨‍💼 বিক্রয়কর্মী: ${config.staffName.ifBlank { "স্টাফ" }}",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                if (config.staffEmail.isNotBlank()) {
+                                    Text(
+                                        text = "আইডি/ইমেইল: ${config.staffEmail}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(Radius.pill),
+                                color = MaterialTheme.colorScheme.primary
+                            ) {
+                                Text(
+                                    text = "স্টাফ মোড",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // 1) HERO SUMMARY
                 DashboardHeroSummary(
                     periodLabel = periodLabel,
@@ -541,7 +601,7 @@ fun DashboardScreen(
                     salesCount = periodSales.size,
                     todaySalesCount = todaySalesCount,
                     yesterdaySalesCount = yesterdaySalesCount,
-                    totalSalesCount = sales.size,
+                    totalSalesCount = if (isStaff) staffPersonalSales.size else sales.size,
                     dashboardFilterMode = dashboardFilterMode,
                     customSelectedDate = customSelectedDate,
                     config = config,
@@ -560,6 +620,7 @@ fun DashboardScreen(
                     totalStockSaleValue = totalStockSaleValue,
                     totalStockPurchaseValue = totalStockPurchaseValue,
                     productsCount = products.size,
+                    lowStockCount = lowStockProducts.size,
                     config = config,
                     onNavigateToDue = { onNavigate(AppScreen.DUE_KHATA) },
                     onNavigateToProducts = { onNavigate(AppScreen.PRODUCTS) }
@@ -878,6 +939,7 @@ private fun DashboardSecondaryStats(
     totalStockSaleValue: Long,
     totalStockPurchaseValue: Long,
     productsCount: Int,
+    lowStockCount: Int,
     config: ShopConfig,
     onNavigateToDue: () -> Unit,
     onNavigateToProducts: () -> Unit
@@ -890,23 +952,23 @@ private fun DashboardSecondaryStats(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.md)
             ) {
-                // Card 1: মোট স্টক মূল্য (বিক্রয়দর)
+                // Card 1: কম স্টক পণ্য (Low Stock Alert - Staff can see this, hidden stock valuation)
                 StatCard(
-                    label = "দোকানের মোট স্টক মূল্য",
-                    value = Formatters.formatMoney(totalStockSaleValue, config.useBengaliNumerals, config.currencySymbol),
-                    tone = StatTone.Gold,
-                    caption = "বিক্রয়মূল্যের ভিত্তিতে",
-                    icon = Icons.Default.ShoppingCart,
+                    label = "কম স্টক পণ্য",
+                    value = if (config.useBengaliNumerals) Formatters.toBengaliDigits(lowStockCount.toString()) else lowStockCount.toString(),
+                    tone = if (lowStockCount > 0) StatTone.Negative else StatTone.Positive,
+                    caption = if (lowStockCount > 0) "রিঅর্ডার প্রয়োজন" else "সব স্টক পর্যাপ্ত",
+                    icon = Icons.Default.Warning,
                     onClick = onNavigateToProducts,
                     modifier = Modifier.weight(1f)
                 )
 
                 // Card 2: আইটেম সংখ্যা
                 StatCard(
-                    label = "আইটেম সংখ্যা",
+                    label = "দোকানের মোট পণ্য",
                     value = if (config.useBengaliNumerals) Formatters.toBengaliDigits(productsCount.toString()) else productsCount.toString(),
                     tone = StatTone.Neutral,
-                    caption = "স্টকে মোট পণ্য",
+                    caption = "স্টকে মোট আইটেম",
                     icon = Icons.Default.AddBox,
                     onClick = onNavigateToProducts,
                     modifier = Modifier.weight(1f)
