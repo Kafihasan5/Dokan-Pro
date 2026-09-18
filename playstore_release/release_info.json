@@ -1,12 +1,12 @@
 {
-  "versionCode": 80,
-  "versionName": "1.0.80",
+  "versionCode": 81,
+  "versionName": "1.0.81",
   "applicationId": "com.webix.dokanpro",
   "bundleFile": "app-release.aab",
   "format": "Android App Bundle (AAB)",
   "targetSdk": 36,
   "minSdk": 24,
-  "buildTime": "2026-09-18T15:27:50Z",
-  "releaseNotes": "Redesign activation screen with simple 2-step role selection for owner and staff",
+  "buildTime": "2026-09-18T15:53:21Z",
+  "releaseNotes": "Enhance activation screen: landing free trial, Webix Solution branding & license purchase, and ordered owner flow",
   "note": "Ready for Google Play Console upload"
 }
