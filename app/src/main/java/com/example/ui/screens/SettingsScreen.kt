@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.entity.StaffMember
@@ -60,19 +61,10 @@ fun SettingsScreen(
     var themeMode by remember { mutableStateOf(config.themeMode) }
     var vatEnabled by remember { mutableStateOf(config.vatEnabled) }
     var vatPercentageText by remember { mutableStateOf(config.vatPercentage.toString()) }
-    var allowNegativeStock by remember { mutableStateOf(config.allowNegativeStock) }
-    var printInvoiceAfterSale by remember { mutableStateOf(config.printInvoiceAfterSale) }
-    var bluetoothPrinterAddress by remember { mutableStateOf(config.bluetoothPrinterAddress) }
-    var bluetoothPrinterName by remember { mutableStateOf(config.bluetoothPrinterName) }
-    var lowStockThreshold by remember { mutableStateOf(config.lowStockThreshold.toString()) }
     var pinEnabled by remember { mutableStateOf(config.pinEnabled) }
     var pinCode by remember { mutableStateOf(config.pinCode) }
     var userRole by remember { mutableStateOf(config.userRole) }
-    var staffName by remember { mutableStateOf(config.staffName) }
-    var invoiceTemplate by remember { mutableStateOf(config.invoiceTemplate) }
-
-    var isSaving by remember { mutableStateOf(false) }
-    var saveSuccess by remember { mutableStateOf(false) }
+    var allowNegativeStock by remember { mutableStateOf(config.allowNegativeStock) }
 
     var showWipeAllDataDialog by remember { mutableStateOf(false) }
     var showCategoryUnitManager by remember { mutableStateOf(false) }
@@ -1574,7 +1566,7 @@ fun SettingsScreen(
         DokanConfirmDialog(
             title = "কর্মচারী মুছে ফেলবেন?",
             message = "${member.name} (${member.email})-কে কর্মচারী তালিকা থেকে অপসারণ করতে চান?",
-            confirmText = "হ্যাঁ, মুছুন",
+            confirmLabel = "হ্যাঁ, মুছুন",
             isDestructive = true,
             onConfirm = {
                 viewModel.deleteStaffMember(member.id) {
