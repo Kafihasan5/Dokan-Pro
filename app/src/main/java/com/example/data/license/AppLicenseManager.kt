@@ -277,6 +277,20 @@ class AppLicenseManager(private val context: Context) {
     }
 
     /**
+     * Activate device for an owner restoring an existing shop via Master PIN.
+     */
+    fun activateAsRestoredOwner(email: String, shopCode: String) {
+        prefs.edit()
+            .putBoolean(KEY_IS_ACTIVATED, true)
+            .putString(KEY_EMAIL, email.ifBlank { "owner@$shopCode" })
+            .putString(KEY_CUSTOMER_NAME, "দোকান মালিক")
+            .putLong(KEY_ACTIVATED_AT, System.currentTimeMillis())
+            .putBoolean(KEY_IS_DEMO_MODE, false)
+            .remove(KEY_DEMO_EXPIRES_AT)
+            .apply()
+    }
+
+    /**
      * Clear demo mode state when user activates with a real license.
      */
     fun clearDemoState() {

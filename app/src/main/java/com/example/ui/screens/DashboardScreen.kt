@@ -208,33 +208,54 @@ fun DashboardScreen(
         )
     }
 
-    val todaySalesCount = remember(sales) { sales.count { it.saleDate in startOfToday..endOfToday && !it.isReturned } }
-    val yesterdaySalesCount = remember(sales) { sales.count { it.saleDate in startOfYesterday until startOfToday && !it.isReturned } }
+    val isStaff = config.userRole == "staff"
 
-    val (periodSales, periodExpenses, periodLabel) = remember(sales, expenses, dashboardFilterMode, customSelectedDate) {
+    fun isStaffSale(sale: Sale): Boolean {
+        if (!isStaff) return true
+        val note = sale.note?.lowercase() ?: ""
+        val staffTag = "staff:${config.staffName.trim().lowercase()}"
+        return if (config.staffName.isNotBlank()) {
+            note.contains(staffTag) || note.contains("staff:")
+        } else {
+            note.contains("staff:")
+        }
+    }
+
+    val visibleSales = remember(sales, isStaff, config.staffName) {
+        if (isStaff) {
+            sales.filter { isStaffSale(it) }
+        } else {
+            sales
+        }
+    }
+
+    val todaySalesCount = remember(visibleSales) { visibleSales.count { it.saleDate in startOfToday..endOfToday && !it.isReturned } }
+    val yesterdaySalesCount = remember(visibleSales) { visibleSales.count { it.saleDate in startOfYesterday until startOfToday && !it.isReturned } }
+
+    val (periodSales, periodExpenses, periodLabel) = remember(visibleSales, expenses, dashboardFilterMode, customSelectedDate, isStaff) {
         when (dashboardFilterMode) {
             "today" -> {
-                val s = sales.filter { it.saleDate in startOfToday..endOfToday && !it.isReturned }
-                val e = expenses.filter { it.expenseDate in startOfToday..endOfToday }
-                Triple(s, e, "আজকের")
+                val s = visibleSales.filter { it.saleDate in startOfToday..endOfToday && !it.isReturned }
+                val e = if (isStaff) emptyList() else expenses.filter { it.expenseDate in startOfToday..endOfToday }
+                Triple(s, e, if (isStaff) "আজ আপনার" else "আজকের")
             }
             "yesterday" -> {
-                val s = sales.filter { it.saleDate in startOfYesterday until startOfToday && !it.isReturned }
-                val e = expenses.filter { it.expenseDate in startOfYesterday until startOfToday }
-                Triple(s, e, "গতকালের")
+                val s = visibleSales.filter { it.saleDate in startOfYesterday until startOfToday && !it.isReturned }
+                val e = if (isStaff) emptyList() else expenses.filter { it.expenseDate in startOfYesterday until startOfToday }
+                Triple(s, e, if (isStaff) "গতকাল আপনার" else "গতকালের")
             }
             "custom" -> {
                 val start = customSelectedDate ?: startOfToday
                 val end = start + 86400000L
-                val s = sales.filter { it.saleDate in start until end && !it.isReturned }
-                val e = expenses.filter { it.expenseDate in start until end }
+                val s = visibleSales.filter { it.saleDate in start until end && !it.isReturned }
+                val e = if (isStaff) emptyList() else expenses.filter { it.expenseDate in start until end }
                 val dateStr = SimpleDateFormat("dd MMM", Locale("bn", "BD")).format(Date(start))
-                Triple(s, e, dateStr)
+                Triple(s, e, if (isStaff) "$dateStr আপনার" else dateStr)
             }
             else -> {
-                val s = sales.filter { !it.isReturned }
-                val e = expenses
-                Triple(s, e, "সর্বমোট")
+                val s = visibleSales.filter { !it.isReturned }
+                val e = if (isStaff) emptyList() else expenses
+                Triple(s, e, if (isStaff) "আপনার মোট" else "সর্বমোট")
             }
         }
     }
@@ -242,25 +263,25 @@ fun DashboardScreen(
     val periodSalesTotalPoisha = periodSales.sumOf { it.totalPoisha }
     val periodSaleIds = periodSales.map { it.id }.toSet()
     val periodSoldItems = saleItems.filter { it.saleId in periodSaleIds }
-    val periodCostPoisha = periodSoldItems.sumOf { (it.qty * it.purchasePriceAtSalePoisha).toLong() }
-    val periodGrossProfitPoisha = (periodSalesTotalPoisha - periodCostPoisha).coerceAtLeast(0)
-    val periodExpenseTotalPoisha = periodExpenses.sumOf { it.amountPoisha }
-    val periodNetProfitPoisha = periodGrossProfitPoisha - periodExpenseTotalPoisha
+    val periodCostPoisha = if (isStaff) 0L else periodSoldItems.sumOf { (it.qty * it.purchasePriceAtSalePoisha).toLong() }
+    val periodGrossProfitPoisha = if (isStaff) 0L else (periodSalesTotalPoisha - periodCostPoisha).coerceAtLeast(0)
+    val periodExpenseTotalPoisha = if (isStaff) 0L else periodExpenses.sumOf { it.amountPoisha }
+    val periodNetProfitPoisha = if (isStaff) 0L else periodGrossProfitPoisha - periodExpenseTotalPoisha
 
     var showExpenseDialog by remember { mutableStateOf(false) }
     var salesSearchQuery by remember { mutableStateOf("") }
     var currentSalesPage by remember { mutableIntStateOf(1) }
     val salesPageSize = 10
 
-    val sortedSales = remember(sales, dashboardFilterMode, customSelectedDate, salesSearchQuery) {
+    val sortedSales = remember(visibleSales, dashboardFilterMode, customSelectedDate, salesSearchQuery) {
         val base = when (dashboardFilterMode) {
-            "today" -> sales.filter { it.saleDate in startOfToday..endOfToday }
-            "yesterday" -> sales.filter { it.saleDate in startOfYesterday until startOfToday }
+            "today" -> visibleSales.filter { it.saleDate in startOfToday..endOfToday }
+            "yesterday" -> visibleSales.filter { it.saleDate in startOfYesterday until startOfToday }
             "custom" -> {
                 val start = customSelectedDate ?: startOfToday
-                sales.filter { it.saleDate in start until (start + 86400000L) }
+                visibleSales.filter { it.saleDate in start until (start + 86400000L) }
             }
-            else -> sales
+            else -> visibleSales
         }
         val query = salesSearchQuery.trim().lowercase()
         val filtered = if (query.isBlank()) {
@@ -482,12 +503,15 @@ fun DashboardScreen(
 
                 // 3) QUICK ACTIONS (4 Square Tiles)
                 DashboardQuickActions(
+                    config = config,
                     onNavigate = onNavigate,
                     onAddExpense = { showExpenseDialog = true }
                 )
 
-                // 4) WEEKLY CHART
-                DashboardWeeklyChart(sales = sales, config = config, onNavigateToReports = { onNavigate(AppScreen.REPORTS) })
+                // 4) WEEKLY CHART (Owner only)
+                if (!isStaff) {
+                    DashboardWeeklyChart(sales = sales, config = config, onNavigateToReports = { onNavigate(AppScreen.REPORTS) })
+                }
 
                 // 5) LOW STOCK SECTION
                 DashboardLowStockSection(
@@ -581,8 +605,9 @@ private fun DashboardHeroSummary(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val isStaff = config.userRole == "staff"
                     Text(
-                        text = "$periodLabel হিসাব",
+                        text = if (isStaff) "$periodLabel বিক্রি" else "$periodLabel হিসাব",
                         style = MaterialTheme.typography.labelMedium,
                         color = Color.White.copy(alpha = 0.85f)
                     )
@@ -695,79 +720,82 @@ private fun DashboardHeroSummary(
                     currencySymbol = config.currencySymbol
                 )
 
+                val isStaffUser = config.userRole == "staff"
                 Text(
-                    text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(salesCount.toString()) else salesCount} টি বিক্রয় সম্পন্ন",
+                    text = if (isStaffUser) "আপনার মোট ${if (config.useBengaliNumerals) Formatters.toBengaliDigits(salesCount.toString()) else salesCount} টি বিক্রয় সম্পন্ন" else "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(salesCount.toString()) else salesCount} টি বিক্রয় সম্পন্ন",
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White.copy(alpha = 0.80f)
                 )
 
-                Spacer(modifier = Modifier.height(Spacing.md))
+                if (!isStaffUser) {
+                    Spacer(modifier = Modifier.height(Spacing.md))
 
-                // Dedicated "পণ্যের লাভ" (Profit from Products) Card
-                val isGrossProfit = grossProfitPoisha >= 0
-                val netPrefix = if (netProfitPoisha < 0) "-" else ""
-                val netFormatted = Formatters.formatMoney(kotlin.math.abs(netProfitPoisha), config.useBengaliNumerals, config.currencySymbol)
+                    // Dedicated "পণ্যের লাভ" (Profit from Products) Card
+                    val isGrossProfit = grossProfitPoisha >= 0
+                    val netPrefix = if (netProfitPoisha < 0) "-" else ""
+                    val netFormatted = Formatters.formatMoney(kotlin.math.abs(netProfitPoisha), config.useBengaliNumerals, config.currencySymbol)
 
-                Surface(
-                    shape = RoundedCornerShape(Radius.md),
-                    color = Color.White.copy(alpha = 0.18f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.28f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = Spacing.md, vertical = 10.dp)
+                    Surface(
+                        shape = RoundedCornerShape(Radius.md),
+                        color = Color.White.copy(alpha = 0.18f),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.28f)),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        // Main Line: পণ্যের লাভ: ৳ ২,৫০০
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Spacing.md, vertical = 10.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(CircleShape)
-                                        .background(Color.White.copy(alpha = 0.22f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = if (isGrossProfit) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(15.dp)
+                            // Main Line: পণ্যের লাভ: ৳ ২,৫০০
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.White.copy(alpha = 0.22f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isGrossProfit) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "পণ্যের লাভ:",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(8.dp))
+
                                 Text(
-                                    text = "পণ্যের লাভ:",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
+                                    text = Formatters.formatMoney(grossProfitPoisha, config.useBengaliNumerals, config.currencySymbol),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.ExtraBold,
                                     color = Color.White
                                 )
                             }
 
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            // Sub Line: (দোকান খরচ বাদে চূড়ান্ত উদ্বৃত্ত: ৳ ১,৮০০)
+                            val netColor = if (netProfitPoisha >= 0) Color.White.copy(alpha = 0.88f) else Color(0xFFFFCDD2)
                             Text(
-                                text = Formatters.formatMoney(grossProfitPoisha, config.useBengaliNumerals, config.currencySymbol),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.White
+                                text = "(দোকান খরচ বাদে চূড়ান্ত উদ্বৃত্ত: $netPrefix$netFormatted)",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Medium,
+                                color = netColor,
+                                modifier = Modifier.padding(start = 32.dp)
                             )
                         }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        // Sub Line: (দোকান খরচ বাদে চূড়ান্ত উদ্বৃত্ত: ৳ ১,৮০০)
-                        val netColor = if (netProfitPoisha >= 0) Color.White.copy(alpha = 0.88f) else Color(0xFFFFCDD2)
-                        Text(
-                            text = "(দোকান খরচ বাদে চূড়ান্ত উদ্বৃত্ত: $netPrefix$netFormatted)",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Medium,
-                            color = netColor,
-                            modifier = Modifier.padding(start = 32.dp)
-                        )
                     }
                 }
             }
@@ -790,58 +818,89 @@ private fun DashboardSecondaryStats(
     onNavigateToDue: () -> Unit,
     onNavigateToProducts: () -> Unit
 ) {
+    val isStaff = config.userRole == "staff"
+
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
-        ) {
-            // Card 1: খরচ
-            StatCard(
-                label = "খরচ",
-                value = Formatters.formatMoney(periodExpenseTotalPoisha, config.useBengaliNumerals, config.currencySymbol),
-                tone = StatTone.Neutral,
-                caption = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(periodExpensesCount.toString()) else periodExpensesCount} টি এন্ট্রি",
-                icon = Icons.Default.ReceiptLong,
-                modifier = Modifier.weight(1f)
-            )
+        if (isStaff) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+            ) {
+                // Card 1: মোট স্টক মূল্য (বিক্রয়দর)
+                StatCard(
+                    label = "দোকানের মোট স্টক মূল্য",
+                    value = Formatters.formatMoney(totalStockSaleValue, config.useBengaliNumerals, config.currencySymbol),
+                    tone = StatTone.Gold,
+                    caption = "বিক্রয়মূল্যের ভিত্তিতে",
+                    icon = Icons.Default.ShoppingCart,
+                    onClick = onNavigateToProducts,
+                    modifier = Modifier.weight(1f)
+                )
 
-            // Card 2: মোট বাকি
-            StatCard(
-                label = "মোট বাকি",
-                value = Formatters.formatMoney(totalDue, config.useBengaliNumerals, config.currencySymbol),
-                tone = StatTone.Negative,
-                caption = "খাতায় পাওনা",
-                icon = Icons.Default.AccountBalanceWallet,
-                onClick = onNavigateToDue,
-                modifier = Modifier.weight(1f)
-            )
-        }
+                // Card 2: আইটেম সংখ্যা
+                StatCard(
+                    label = "আইটেম সংখ্যা",
+                    value = if (config.useBengaliNumerals) Formatters.toBengaliDigits(productsCount.toString()) else productsCount.toString(),
+                    tone = StatTone.Neutral,
+                    caption = "স্টকে মোট পণ্য",
+                    icon = Icons.Default.AddBox,
+                    onClick = onNavigateToProducts,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+            ) {
+                // Card 1: খরচ
+                StatCard(
+                    label = "খরচ",
+                    value = Formatters.formatMoney(periodExpenseTotalPoisha, config.useBengaliNumerals, config.currencySymbol),
+                    tone = StatTone.Neutral,
+                    caption = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(periodExpensesCount.toString()) else periodExpensesCount} টি এন্ট্রি",
+                    icon = Icons.Default.ReceiptLong,
+                    modifier = Modifier.weight(1f)
+                )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
-        ) {
-            // Card 3: দোকানের মোট স্টক মূল্য
-            StatCard(
-                label = "দোকানের মোট স্টক মূল্য",
-                value = Formatters.formatMoney(totalStockSaleValue, config.useBengaliNumerals, config.currencySymbol),
-                tone = StatTone.Gold,
-                caption = "ক্রয়: ${Formatters.formatMoney(totalStockPurchaseValue, config.useBengaliNumerals, config.currencySymbol)}",
-                icon = Icons.Default.ShoppingCart,
-                onClick = onNavigateToProducts,
-                modifier = Modifier.weight(1f)
-            )
+                // Card 2: মোট বাকি
+                StatCard(
+                    label = "মোট বাকি",
+                    value = Formatters.formatMoney(totalDue, config.useBengaliNumerals, config.currencySymbol),
+                    tone = StatTone.Negative,
+                    caption = "খাতায় পাওনা",
+                    icon = Icons.Default.AccountBalanceWallet,
+                    onClick = onNavigateToDue,
+                    modifier = Modifier.weight(1f)
+                )
+            }
 
-            // Card 4: আইটেম সংখ্যা
-            StatCard(
-                label = "আইটেম সংখ্যা",
-                value = if (config.useBengaliNumerals) Formatters.toBengaliDigits(productsCount.toString()) else productsCount.toString(),
-                tone = StatTone.Neutral,
-                caption = "স্টকে মোট আইটেম",
-                icon = Icons.Default.AddBox,
-                onClick = onNavigateToProducts,
-                modifier = Modifier.weight(1f)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+            ) {
+                // Card 3: দোকানের মোট স্টক মূল্য
+                StatCard(
+                    label = "দোকানের মোট স্টক মূল্য",
+                    value = Formatters.formatMoney(totalStockSaleValue, config.useBengaliNumerals, config.currencySymbol),
+                    tone = StatTone.Gold,
+                    caption = "ক্রয়: ${Formatters.formatMoney(totalStockPurchaseValue, config.useBengaliNumerals, config.currencySymbol)}",
+                    icon = Icons.Default.ShoppingCart,
+                    onClick = onNavigateToProducts,
+                    modifier = Modifier.weight(1f)
+                )
+
+                // Card 4: আইটেম সংখ্যা
+                StatCard(
+                    label = "আইটেম সংখ্যা",
+                    value = if (config.useBengaliNumerals) Formatters.toBengaliDigits(productsCount.toString()) else productsCount.toString(),
+                    tone = StatTone.Neutral,
+                    caption = "স্টকে মোট আইটেম",
+                    icon = Icons.Default.AddBox,
+                    onClick = onNavigateToProducts,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
@@ -851,9 +910,11 @@ private fun DashboardSecondaryStats(
 // ==============================================================================
 @Composable
 private fun DashboardQuickActions(
+    config: ShopConfig,
     onNavigate: (AppScreen) -> Unit,
     onAddExpense: () -> Unit
 ) {
+    val isStaff = config.userRole == "staff"
     Column {
         SectionHeader(title = "কুইক অ্যাকশন")
 
@@ -871,23 +932,25 @@ private fun DashboardQuickActions(
                 onClick = { onNavigate(AppScreen.POS) }
             )
             QuickActionTile(
-                title = "বাকি খাতা",
-                icon = Icons.Default.AccountBalanceWallet,
-                color = MaterialTheme.dokanColors.danger,
-                onClick = { onNavigate(AppScreen.DUE_KHATA) }
-            )
-            QuickActionTile(
-                title = "পণ্য যোগ",
+                title = "পণ্য তালিকা",
                 icon = Icons.Default.AddBox,
                 color = MaterialTheme.dokanColors.info,
                 onClick = { onNavigate(AppScreen.PRODUCTS) }
             )
             QuickActionTile(
-                title = "খরচ যোগ",
-                icon = Icons.Default.NoteAdd,
-                color = MaterialTheme.dokanColors.warning,
-                onClick = onAddExpense
+                title = "বাকি খাতা",
+                icon = Icons.Default.AccountBalanceWallet,
+                color = MaterialTheme.dokanColors.danger,
+                onClick = { onNavigate(AppScreen.DUE_KHATA) }
             )
+            if (!isStaff) {
+                QuickActionTile(
+                    title = "খরচ যোগ",
+                    icon = Icons.Default.NoteAdd,
+                    color = MaterialTheme.dokanColors.warning,
+                    onClick = onAddExpense
+                )
+            }
         }
     }
 }
@@ -1468,18 +1531,20 @@ private fun SaleRowCard(
                     Text("রসিদ", style = MaterialTheme.typography.labelSmall)
                 }
 
-                Spacer(modifier = Modifier.width(Spacing.xs))
+                if (config.userRole != "staff") {
+                    Spacer(modifier = Modifier.width(Spacing.xs))
 
-                IconButton(
-                    onClick = { showDeleteConfirm = true },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.DeleteOutline,
-                        contentDescription = "মুছুন",
-                        tint = MaterialTheme.dokanColors.danger.copy(alpha = 0.8f),
-                        modifier = Modifier.size(18.dp)
-                    )
+                    IconButton(
+                        onClick = { showDeleteConfirm = true },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DeleteOutline,
+                            contentDescription = "মুছুন",
+                            tint = MaterialTheme.dokanColors.danger.copy(alpha = 0.8f),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
         }

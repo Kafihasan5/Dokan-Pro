@@ -921,8 +921,12 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             try {
-                val now = System.currentTimeMillis()
-                val invoice = "INV-${System.currentTimeMillis() % 1000000}"
+                val currentConfig = _shopConfig.value
+                val staffTag = if (currentConfig.userRole == "staff") {
+                    val sName = currentConfig.staffName.ifBlank { "Staff" }
+                    "staff:$sName"
+                } else null
+
                 val sale = Sale(
                     invoiceNo = invoice,
                     customerId = custId,
@@ -935,7 +939,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                     paidAmountPoisha = paidAmount,
                     dueAmountPoisha = dueAmount,
                     paymentMethod = method,
-                    note = null
+                    note = staffTag
                 )
 
                 val saleItems = items.map {
@@ -1611,6 +1615,13 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
             )
             updateShopConfig(updated)
 
+            // Direct activation for restored owner
+            licenseManager.activateAsRestoredOwner(ownerEmail, resolvedCode)
+            _isAppActivated.value = true
+            _isDemoMode.value = false
+            _isPinUnlocked.value = true
+            _currentScreen.value = AppScreen.DASHBOARD
+
             // Connect and restore all shop data safely
             firebaseSyncManager.connectShop(resolvedCode, "owner") { success, msg ->
                 if (success) {
@@ -1636,6 +1647,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         val cleanInput = shopCodeOrEmail.trim()
         val cleanPin = staffPin.trim()
+        val assignedName = staffName.trim().ifBlank { "কর্মচারী" }
         if (cleanInput.isBlank()) {
             onComplete(false, "মালিকের দোকান কোড অথবা ইমেইল লিখুন")
             return
@@ -1673,13 +1685,17 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 firebaseSyncEnabled = true,
                 userRole = "staff",
                 staffPin = cleanPin,
-                staffName = staffName.trim(),
+                staffName = assignedName,
                 isOnboardingCompleted = true
             )
             updateShopConfig(updated)
 
             // Activate locally as staff so license screen is bypassed forever!
-            licenseManager.activateAsStaff(resolvedCode, staffName.trim())
+            licenseManager.activateAsStaff(resolvedCode, assignedName)
+            _isAppActivated.value = true
+            _isDemoMode.value = false
+            _isPinUnlocked.value = true
+            _currentScreen.value = AppScreen.DASHBOARD
 
             // Connect as staff (pulls ONLY products and categories, strictly zero financial/due leak)
             firebaseSyncManager.connectShop(resolvedCode, "staff") { success, msg ->
