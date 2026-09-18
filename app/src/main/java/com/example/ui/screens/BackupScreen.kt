@@ -59,6 +59,8 @@ fun BackupScreen(
     var showSelectiveDeleteDialog by remember { mutableStateOf(false) }
     var showRestoreDialog by remember { mutableStateOf(false) }
     var restoreJsonText by remember { mutableStateOf("") }
+    var showOwnerChangeCodeDialog by remember { mutableStateOf(false) }
+    var ownerTargetCodeInput by remember { mutableStateOf("") }
 
     // Selective Deletion Filters
     var selClearSales by remember { mutableStateOf(true) }
@@ -277,6 +279,22 @@ fun BackupScreen(
                                 }
                             }
 
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                TextButton(
+                                    onClick = {
+                                        ownerTargetCodeInput = shopCodeInput
+                                        showOwnerChangeCodeDialog = true
+                                    }
+                                ) {
+                                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("দোকান কোড পরিবর্তন / রিস্টোর", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+
                             Text(
                                 text = "💡 কর্মচারীর ফোনে অ্যাপ ইনস্টল করে এই দোকান কোডটি দিলে সরাসরি আপনার দোকানের সাথে লাইভ যুক্ত হয়ে যাবে।",
                                 style = MaterialTheme.typography.labelSmall,
@@ -285,8 +303,15 @@ fun BackupScreen(
 
                             if (firebaseSyncStatus.isConnected) {
                                 DokanPrimaryButton(
-                                    text = "সকল ডাটা ক্লাউডে সিঙ্ক করুন (Push All Data)",
+                                    text = "সকল ডাটা ক্লাউডে সেভ করুন (Push All Data)",
                                     onClick = { viewModel.pushAllDataToFirebase() },
+                                    isLoading = isSyncing,
+                                    enabled = !isSyncing
+                                )
+
+                                DokanSecondaryButton(
+                                    text = "ক্লাউড থেকে সমস্ত তথ্য রিস্টোর করুন (Cloud Restore)",
+                                    onClick = { viewModel.restoreAllDataFromFirebase() },
                                     isLoading = isSyncing,
                                     enabled = !isSyncing
                                 )
@@ -300,6 +325,14 @@ fun BackupScreen(
                                     text = "গুগল ক্লাউড লাইভ সিঙ্ক চালু করুন",
                                     onClick = {
                                         viewModel.connectFirebaseShop(shopCodeInput, "owner")
+                                    }
+                                )
+
+                                DokanSecondaryButton(
+                                    text = "পূর্বের দোকান কোড দিয়ে রিস্টোর করুন",
+                                    onClick = {
+                                        ownerTargetCodeInput = ""
+                                        showOwnerChangeCodeDialog = true
                                     }
                                 )
                             }
@@ -744,6 +777,59 @@ fun BackupScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showRestoreDialog = false }) { Text("বাতিল") }
+            }
+        )
+    }
+
+    if (showOwnerChangeCodeDialog) {
+        AlertDialog(
+            onDismissRequest = { showOwnerChangeCodeDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CloudDownload, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                    Text("দোকান কোড পরিবর্তন / রিস্টোর")
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Text(
+                        "আপনার পূর্বের দোকান কোডটি লিখুন। ক্লাউডে থাকা সমস্ত পণ্য, কাস্টমার, বাকি ও বিক্রির ডাটা স্বয়ংক্রিয়ভাবে ডাউনলোড ও রিস্টোর হবে:",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    DokanTextField(
+                        value = ownerTargetCodeInput,
+                        onValueChange = { ownerTargetCodeInput = it.uppercase() },
+                        label = "দোকান কোড (যেমন: SHOP-XXXXXX)",
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val code = ownerTargetCodeInput.trim().uppercase()
+                        if (code.isBlank()) {
+                            viewModel.showToast("দোকান কোড লিখুন")
+                            return@Button
+                        }
+                        showOwnerChangeCodeDialog = false
+                        shopCodeInput = code
+                        viewModel.connectFirebaseShop(code, "owner") { success, _ ->
+                            if (success) {
+                                viewModel.restoreAllDataFromFirebase()
+                            }
+                        }
+                    },
+                    enabled = ownerTargetCodeInput.isNotBlank()
+                ) {
+                    Text("কানেক্ট ও রিস্টোর করুন")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showOwnerChangeCodeDialog = false }) {
+                    Text("বাতিল")
+                }
             }
         )
     }

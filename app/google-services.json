@@ -2,6 +2,7 @@
   "project_info": {
     "project_number": "112590158030",
     "project_id": "dokan-pro-ec9bd",
+    "firebase_url": "https://dokan-pro-ec9bd-default-rtdb.asia-southeast1.firebasedatabase.app",
     "storage_bucket": "dokan-pro-ec9bd.firebasestorage.app"
   },
   "client": [

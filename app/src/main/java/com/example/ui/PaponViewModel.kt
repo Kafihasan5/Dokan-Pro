@@ -1504,6 +1504,27 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun restoreAllDataFromFirebase(onComplete: ((Boolean, String) -> Unit)? = null) {
+        viewModelScope.launch {
+            try {
+                _isSyncing.value = true
+                val ok = firebaseSyncManager.restoreAllDataFromCloud()
+                _isSyncing.value = false
+                if (ok) {
+                    showToast("ক্লাউড থেকে সমস্ত পণ্য ও বিক্রির হিসাব রিস্টোর সম্পন্ন হয়েছে!")
+                    onComplete?.invoke(true, "রিস্টোর সম্পন্ন হয়েছে")
+                } else {
+                    showToast("ক্লাউড থেকে রিস্টোর করতে সমস্যা হয়েছে। ইন্টারনেট চেক করুন।")
+                    onComplete?.invoke(false, "রিস্টোর ব্যর্থ হয়েছে")
+                }
+            } catch (e: Exception) {
+                _isSyncing.value = false
+                showToast("ত্রুটি: ${e.message}")
+                onComplete?.invoke(false, e.message ?: "ত্রুটি")
+            }
+        }
+    }
+
     private fun loadUnits() {
         try {
             val saved = prefs.getString("custom_units_json", null)

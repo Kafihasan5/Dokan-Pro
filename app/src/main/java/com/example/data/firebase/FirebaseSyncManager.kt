@@ -21,6 +21,10 @@ data class FirebaseSyncStatus(
 
 class FirebaseSyncManager(private val dao: PaponDao) {
 
+    companion object {
+        const val FIREBASE_DATABASE_URL = "https://dokan-pro-ec9bd-default-rtdb.asia-southeast1.firebasedatabase.app"
+    }
+
     private val tag = "FirebaseSync"
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -40,11 +44,11 @@ class FirebaseSyncManager(private val dao: PaponDao) {
 
     init {
         try {
-            val db = FirebaseDatabase.getInstance()
+            val db = FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
             db.setPersistenceEnabled(true)
             database = db
         } catch (e: Exception) {
-            database = try { FirebaseDatabase.getInstance() } catch (_: Exception) { null }
+            database = try { FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL) } catch (_: Exception) { null }
         }
         setupConnectionMonitoring()
     }
@@ -77,7 +81,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
 
     /**
      * Connects to a shop on Firebase Realtime Database.
-     * If owner: ensures local products & records are safely backed up to the cloud.
+     * If owner: ensures local products & records are safely backed up or restored from the cloud.
      * If staff: pulls the initial shop catalog into Room DB.
      * Attaches live listeners so changes sync between owner and staff phones instantly.
      */
@@ -93,7 +97,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
         }
 
         val db = database ?: try {
-            FirebaseDatabase.getInstance()
+            FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
         } catch (e: Exception) {
             Log.e(tag, "FirebaseDatabase instance not available", e)
             onComplete?.invoke(false, "Firebase ডাটাবেস প্রস্তুত নয়: ${e.message}")
@@ -120,16 +124,25 @@ class FirebaseSyncManager(private val dao: PaponDao) {
 
         scope.launch {
             try {
-                if (role == "owner") {
-                    // Initial upload of existing local data so nothing is ever lost
-                    pushAllLocalDataToCloud(shopRef)
-                } else {
-                    // Pull full catalog from cloud on employee first connection
-                    pullInitialDataFromCloud(shopRef)
-                }
+                withTimeout(15000L) {
+                    if (role == "owner") {
+                        val localCount = dao.getActiveProductCount()
+                        if (localCount == 0) {
+                            // Fresh device or restoring previous shop
+                            pullInitialDataFromCloud(shopRef)
+                        } else {
+                            // Merge: pull cloud data then push any local-only data
+                            pullInitialDataFromCloud(shopRef)
+                            pushAllLocalDataToCloud(shopRef)
+                        }
+                    } else {
+                        // Employee
+                        pullInitialDataFromCloud(shopRef)
+                    }
 
-                // Attach realtime listeners
-                attachRealtimeListeners(shopRef)
+                    // Attach realtime listeners
+                    attachRealtimeListeners(shopRef)
+                }
 
                 _syncStatus.value = FirebaseSyncStatus(
                     isConnected = true,
@@ -143,6 +156,19 @@ class FirebaseSyncManager(private val dao: PaponDao) {
                 withContext(Dispatchers.Main) {
                     onComplete?.invoke(true, "ক্লাউড লাইভ সিঙ্ক সফলভাবে সংযুক্ত হয়েছে!")
                 }
+            } catch (e: TimeoutCancellationException) {
+                Log.w(tag, "Connection timed out, proceeding in offline mode")
+                attachRealtimeListeners(shopRef)
+                _syncStatus.value = FirebaseSyncStatus(
+                    isConnected = true,
+                    isCloudLive = false,
+                    shopCode = trimmedCode,
+                    role = role,
+                    syncMessage = "🟡 অফলাইন মোড (ইন্টারনেট কানেকশন অপেক্ষা করছে)"
+                )
+                withContext(Dispatchers.Main) {
+                    onComplete?.invoke(true, "দোকানে সংযুক্ত হয়েছে (অফলাইন মোড চালু)")
+                }
             } catch (e: Exception) {
                 Log.e(tag, "Error connecting shop to Firebase", e)
                 _syncStatus.value = FirebaseSyncStatus(
@@ -153,7 +179,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
                     syncMessage = "সংযোগে ত্রুটি: ${e.message}"
                 )
                 withContext(Dispatchers.Main) {
-                    onComplete?.invoke(false, "সংযোগে সমস্যা: ${e.message}")
+                    onComplete?.invoke(false, "সংযোগে সমস্যা: ${e.message ?: "ইন্টারনেট চেক করুন"}")
                 }
             }
         }
@@ -225,7 +251,49 @@ class FirebaseSyncManager(private val dao: PaponDao) {
                 shopRef.child("suppliers").updateChildren(supplierMap)
             }
 
-            // 4. Update metadata
+            // 4. Sales and Sale Items
+            try {
+                val sales = dao.getAllSalesSync()
+                val allSaleItems = dao.getAllSaleItemsSync().groupBy { it.saleId }
+                val saleMap = mutableMapOf<String, Any>()
+                sales.takeLast(1000).forEach { sale ->
+                    val items = allSaleItems[sale.id] ?: emptyList()
+                    saleMap[sale.id.toString()] = mapOf(
+                        "id" to sale.id,
+                        "invoiceNo" to sale.invoiceNo,
+                        "subtotalPoisha" to sale.subtotalPoisha,
+                        "discountPoisha" to sale.discountPoisha,
+                        "vatPoisha" to sale.vatPoisha,
+                        "totalPoisha" to sale.totalPoisha,
+                        "paidAmountPoisha" to sale.paidAmountPoisha,
+                        "dueAmountPoisha" to sale.dueAmountPoisha,
+                        "customerId" to (sale.customerId ?: 0L),
+                        "customerName" to (sale.customerName ?: ""),
+                        "saleDate" to sale.saleDate,
+                        "paymentMethod" to sale.paymentMethod,
+                        "items" to items.map {
+                            mapOf(
+                                "id" to it.id,
+                                "productId" to it.productId,
+                                "productName" to it.productName,
+                                "unitName" to it.unitName,
+                                "qty" to it.qty,
+                                "unitPricePoisha" to it.unitPricePoisha,
+                                "purchasePriceAtSalePoisha" to it.purchasePriceAtSalePoisha,
+                                "discountPoisha" to it.discountPoisha,
+                                "lineTotalPoisha" to it.lineTotalPoisha
+                            )
+                        }
+                    )
+                }
+                if (saleMap.isNotEmpty()) {
+                    shopRef.child("sales").updateChildren(saleMap)
+                }
+            } catch (e: Exception) {
+                Log.w(tag, "Error pushing sales to Firebase", e)
+            }
+
+            // 5. Update metadata
             shopRef.child("info").updateChildren(mapOf(
                 "shopCode" to currentShopCode,
                 "lastBackupAt" to ServerValue.TIMESTAMP
@@ -337,6 +405,95 @@ class FirebaseSyncManager(private val dao: PaponDao) {
         }
         if (supplierList.isNotEmpty()) {
             dao.insertSuppliers(supplierList)
+        }
+
+        // Pull Sales & Sale Items
+        val salesSnap = snapshot.child("sales")
+        for (sChild in salesSnap.children) {
+            try {
+                val saleId = sChild.child("id").getValue(Long::class.java) ?: sChild.key?.toLongOrNull() ?: continue
+                if (dao.getSaleById(saleId) != null) continue
+                val invoiceNo = sChild.child("invoiceNo").getValue(String::class.java) ?: "INV-$saleId"
+                val subtotalPoisha = sChild.child("subtotalPoisha").getValue(Long::class.java) ?: 0L
+                val discountPoisha = sChild.child("discountPoisha").getValue(Long::class.java) ?: 0L
+                val vatPoisha = sChild.child("vatPoisha").getValue(Long::class.java) ?: 0L
+                val totalPoisha = sChild.child("totalPoisha").getValue(Long::class.java) ?: (subtotalPoisha - discountPoisha + vatPoisha)
+                val paidAmountPoisha = sChild.child("paidAmountPoisha").getValue(Long::class.java) ?: totalPoisha
+                val dueAmountPoisha = sChild.child("dueAmountPoisha").getValue(Long::class.java) ?: 0L
+                val customerId = sChild.child("customerId").getValue(Long::class.java)?.takeIf { it > 0 }
+                val customerName = sChild.child("customerName").getValue(String::class.java)?.takeIf { it.isNotBlank() }
+                val saleDate = sChild.child("saleDate").getValue(Long::class.java) ?: System.currentTimeMillis()
+                val paymentMethod = sChild.child("paymentMethod").getValue(String::class.java) ?: "cash"
+
+                val sale = Sale(
+                    id = saleId,
+                    invoiceNo = invoiceNo,
+                    customerId = customerId,
+                    customerName = customerName,
+                    saleDate = saleDate,
+                    subtotalPoisha = subtotalPoisha,
+                    discountPoisha = discountPoisha,
+                    vatPoisha = vatPoisha,
+                    totalPoisha = totalPoisha,
+                    paidAmountPoisha = paidAmountPoisha,
+                    dueAmountPoisha = dueAmountPoisha,
+                    paymentMethod = paymentMethod
+                )
+                dao.insertSale(sale)
+
+                val itemsSnap = sChild.child("items")
+                val items = mutableListOf<SaleItem>()
+                for (itemChild in itemsSnap.children) {
+                    val itemId = itemChild.child("id").getValue(Long::class.java) ?: 0L
+                    val productId = itemChild.child("productId").getValue(Long::class.java) ?: 0L
+                    val productName = itemChild.child("productName").getValue(String::class.java) ?: ""
+                    val unitName = itemChild.child("unitName").getValue(String::class.java) ?: "পিস"
+                    val qty = itemChild.child("qty").getValue(Double::class.java) ?: 1.0
+                    val unitPrice = itemChild.child("unitPricePoisha").getValue(Long::class.java) ?: 0L
+                    val purchasePrice = itemChild.child("purchasePriceAtSalePoisha").getValue(Long::class.java) ?: 0L
+                    val discount = itemChild.child("discountPoisha").getValue(Long::class.java) ?: 0L
+                    val lineTotal = itemChild.child("lineTotalPoisha").getValue(Long::class.java) ?: 0L
+                    items.add(
+                        SaleItem(
+                            id = itemId,
+                            saleId = saleId,
+                            productId = productId,
+                            productName = productName,
+                            unitName = unitName,
+                            qty = qty,
+                            unitPricePoisha = unitPrice,
+                            purchasePriceAtSalePoisha = purchasePrice,
+                            discountPoisha = discount,
+                            lineTotalPoisha = lineTotal
+                        )
+                    )
+                }
+                if (items.isNotEmpty()) {
+                    dao.insertSaleItems(items)
+                }
+            } catch (e: Exception) {
+                Log.w(tag, "Error parsing sale in initial pull", e)
+            }
+        }
+    }
+
+    /**
+     * Pulls and restores all cloud data (products, customers, suppliers, sales) into Room DB.
+     */
+    suspend fun restoreAllDataFromCloud(targetRef: DatabaseReference? = null): Boolean = withContext(Dispatchers.IO) {
+        val shopRef = targetRef ?: currentShopRef ?: return@withContext false
+        try {
+            withTimeout(25000L) {
+                pullInitialDataFromCloud(shopRef)
+            }
+            _syncStatus.value = _syncStatus.value.copy(
+                lastSyncTime = System.currentTimeMillis(),
+                syncMessage = "🟢 ক্লাউড থেকে সফলভাবে রিস্টোর হয়েছে"
+            )
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Error restoring all data from cloud", e)
+            false
         }
     }
 

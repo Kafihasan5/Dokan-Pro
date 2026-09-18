@@ -44,6 +44,9 @@ fun OnboardingScreen(
     var showJoinShopDialog by remember { mutableStateOf(false) }
     var joinShopCode by remember { mutableStateOf("") }
     var isJoiningShop by remember { mutableStateOf(false) }
+    var showRestoreOwnerShopDialog by remember { mutableStateOf(false) }
+    var restoreOwnerShopCode by remember { mutableStateOf("") }
+    var isRestoringOwnerShop by remember { mutableStateOf(false) }
 
 
     // Step 1 Form State
@@ -597,7 +600,61 @@ fun OnboardingScreen(
                         }
                     }
 
-                    // Option 3: কর্মচারীর হিসেবে যুক্ত হব
+                    // Option 3: পূর্বের দোকান রিস্টোর করব (দোকান মালিক)
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(Radius.lg))
+                            .clickable(enabled = !isSeedingData) {
+                                showRestoreOwnerShopDialog = true
+                            },
+                        shape = RoundedCornerShape(Radius.lg),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(Spacing.lg),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(52.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudDownload,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.tertiary,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(Spacing.md))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "পূর্বের দোকান রিস্টোর করব (দোকান মালিক)",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "পূর্বের দোকান কোড দিয়ে ক্লাউডে থাকা সমস্ত পণ্য, কাস্টমার ও বিক্রির হিসাব নামিয়ে নিন।",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    lineHeight = 17.sp
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // Option 4: কর্মচারীর হিসেবে যুক্ত হব
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -723,6 +780,88 @@ fun OnboardingScreen(
                 TextButton(
                     onClick = { showJoinShopDialog = false },
                     enabled = !isJoiningShop
+                ) {
+                    Text("বাতিল")
+                }
+            }
+        )
+    }
+
+    if (showRestoreOwnerShopDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isRestoringOwnerShop) showRestoreOwnerShopDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CloudDownload, contentDescription = null, tint = Brand500)
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                    Text("পূর্বের দোকান রিস্টোর (দোকান মালিক)")
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Text(
+                        "আপনার পূর্বের দোকান কোডটি (যেমন: SHOP-XXXXXX) এখানে লিখুন। ক্লাউডে থাকা সমস্ত পণ্য, কাস্টমার, বাকি ও বিক্রির হিসাব নামিয়ে আনা হবে:",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    DokanTextField(
+                        value = restoreOwnerShopCode,
+                        onValueChange = { restoreOwnerShopCode = it.uppercase() },
+                        label = "দোকান কোড",
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val code = restoreOwnerShopCode.trim().uppercase()
+                        if (code.isBlank()) {
+                            viewModel.showToast("দোকান কোড লিখুন")
+                            return@Button
+                        }
+                        isRestoringOwnerShop = true
+                        val parsedVat = vatPercentage.toDoubleOrNull() ?: 0.0
+                        val finalShopName = shopName.trim().ifBlank { "Dokan Pro" }
+                        val updated = config.copy(
+                            shopName = if (finalShopName == "দোকান প্রো") "Dokan Pro" else finalShopName,
+                            shopAddress = shopAddress.trim(),
+                            shopPhone = shopPhone.trim(),
+                            tagline = tagline.trim(),
+                            useBengaliNumerals = useBengaliNumerals,
+                            currencySymbol = currencySymbol,
+                            vatEnabled = vatEnabled,
+                            vatPercentage = parsedVat,
+                            themeMode = themeMode,
+                            userRole = "owner",
+                            firebaseShopCode = code,
+                            firebaseSyncEnabled = true,
+                            isOnboardingCompleted = true
+                        )
+                        viewModel.updateShopConfig(updated)
+                        viewModel.connectFirebaseShop(code, "owner") { success, msg ->
+                            isRestoringOwnerShop = false
+                            if (success) {
+                                showRestoreOwnerShopDialog = false
+                                viewModel.showToast("পূর্বের দোকানের তথ্য সফলভাবে রিস্টোর হয়েছে!")
+                                viewModel.navigateTo(AppScreen.DASHBOARD)
+                            } else {
+                                viewModel.showToast("রিস্টোর করা যায়নি: $msg")
+                            }
+                        }
+                    },
+                    enabled = !isRestoringOwnerShop && restoreOwnerShopCode.isNotBlank()
+                ) {
+                    if (isRestoringOwnerShop) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                    } else {
+                        Text("রিস্টোর ও শুরু করুন")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showRestoreOwnerShopDialog = false },
+                    enabled = !isRestoringOwnerShop
                 ) {
                     Text("বাতিল")
                 }
