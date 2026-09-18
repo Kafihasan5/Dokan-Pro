@@ -52,6 +52,7 @@ fun SettingsScreen(
     var shopName by remember { mutableStateOf(config.shopName) }
     var shopAddress by remember { mutableStateOf(config.shopAddress) }
     var shopPhone by remember { mutableStateOf(config.shopPhone) }
+    var ownerEmail by remember { mutableStateOf(config.ownerEmail) }
     var tagline by remember { mutableStateOf(config.tagline) }
     var currencySymbol by remember { mutableStateOf(config.currencySymbol) }
     var useBengaliNumerals by remember { mutableStateOf(config.useBengaliNumerals) }
@@ -133,6 +134,15 @@ fun SettingsScreen(
                         onValueChange = { shopPhone = it },
                         label = "মোবাইল নম্বর",
                         keyboardType = KeyboardType.Phone
+                    )
+
+                    DokanTextField(
+                        value = ownerEmail,
+                        onValueChange = { ownerEmail = it },
+                        label = "মালিকের ইমেইল (ক্লাউড ব্যাকআপ ও রিস্টোরের জন্য)",
+                        placeholder = "যেমন: yourname@gmail.com",
+                        keyboardType = KeyboardType.Email,
+                        leadingIcon = Icons.Default.Email
                     )
 
                     DokanTextField(
@@ -457,16 +467,16 @@ fun SettingsScreen(
                     } else {
                         // EMPLOYEE VIEW
                         Text(
-                            text = "মালিকের দোকানের সাথে কানেক্ট করতে দোকান কোড দিন:",
+                            text = "মালিকের দোকানের সাথে কানেক্ট করতে দোকান কোড অথবা ইমেইল দিন:",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         DokanTextField(
                             value = shopCodeInput,
-                            onValueChange = { shopCodeInput = it.uppercase().trim() },
-                            label = "মালিকের দোকান কোড",
-                            placeholder = "SHOP-XXXXXX",
+                            onValueChange = { shopCodeInput = it.trim() },
+                            label = "দোকান কোড অথবা মালিকের ইমেইল",
+                            placeholder = "যেমন: SHOP-XXXXXX বা owner@gmail.com",
                             leadingIcon = Icons.Default.Storefront
                         )
 
@@ -480,7 +490,7 @@ fun SettingsScreen(
                                         viewModel.showToast(msg)
                                     }
                                 } else {
-                                    viewModel.showToast("দোকান কোড লিখুন")
+                                    viewModel.showToast("দোকান কোড অথবা ইমেইল লিখুন")
                                 }
                             },
                             isLoading = isConnectingShop,
@@ -897,6 +907,7 @@ fun SettingsScreen(
                             shopName = shopName.trim(),
                             shopAddress = shopAddress.trim(),
                             shopPhone = shopPhone.trim(),
+                            ownerEmail = ownerEmail.trim(),
                             tagline = tagline.trim(),
                             currencySymbol = currencySymbol.trim(),
                             useBengaliNumerals = useBengaliNumerals,
@@ -1090,13 +1101,14 @@ fun SettingsScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     Text(
-                        "আপনার পূর্বের দোকান কোডটি লিখুন। ক্লাউডে থাকা সমস্ত পণ্য, কাস্টমার ও বিক্রির হিসাব নামিয়ে আনা হবে:",
+                        "আপনার পূর্বের দোকান কোড (যেমন: SHOP-XXXXXX) অথবা নিবন্ধিত ইমেইল লিখুন। ক্লাউডে থাকা সমস্ত তথ্য নামিয়ে আনা হবে:",
                         style = MaterialTheme.typography.bodySmall
                     )
                     DokanTextField(
                         value = ownerRestoreCodeInput,
-                        onValueChange = { ownerRestoreCodeInput = it.uppercase() },
-                        label = "দোকান কোড (যেমন: SHOP-XXXXXX)",
+                        onValueChange = { ownerRestoreCodeInput = it },
+                        label = "দোকান কোড অথবা নিবন্ধিত ইমেইল",
+                        placeholder = "যেমন: SHOP-XXXXXX অথবা yourname@gmail.com",
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -1104,15 +1116,15 @@ fun SettingsScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val code = ownerRestoreCodeInput.trim().uppercase()
-                        if (code.isBlank()) {
-                            viewModel.showToast("দোকান কোড লিখুন")
+                        val input = ownerRestoreCodeInput.trim()
+                        if (input.isBlank()) {
+                            viewModel.showToast("দোকান কোড অথবা ইমেইল লিখুন")
                             return@Button
                         }
                         showOwnerRestoreCodeDialog = false
-                        shopCodeInput = code
-                        viewModel.connectFirebaseShop(code, "owner") { success, _ ->
+                        viewModel.connectFirebaseShop(input, "owner") { success, _ ->
                             if (success) {
+                                shopCodeInput = viewModel.shopConfig.value.firebaseShopCode
                                 viewModel.restoreAllDataFromFirebase()
                             }
                         }

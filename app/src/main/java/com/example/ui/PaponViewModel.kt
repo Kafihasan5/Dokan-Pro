@@ -36,6 +36,7 @@ data class ShopConfig(
     val shopName: String = "Dokan Pro",
     val shopAddress: String = "বাজার রোড, ঢাকা",
     val shopPhone: String = "০১৭১১-০০০০০০",
+    val ownerEmail: String = "",
     val tagline: String = "আপনার বিশ্বস্ত মুদি দোকান",
     val currencySymbol: String = "৳",
     val useBengaliNumerals: Boolean = true,
@@ -1387,6 +1388,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
             val shopName = if (rawShopName == "দোকান প্রো" || rawShopName.isBlank()) "Dokan Pro" else rawShopName
             val shopAddress = prefs.getString("shop_address", "বাজার রোড, ঢাকা") ?: "বাজার রোড, ঢাকা"
             val shopPhone = prefs.getString("shop_phone", "০১৭১১-০০০০০০") ?: "০১৭১১-০০০০০০"
+            val ownerEmail = prefs.getString("owner_email", "") ?: ""
             val tagline = prefs.getString("tagline", "আপনার বিশ্বস্ত মুদি দোকান") ?: "আপনার বিশ্বস্ত মুদি দোকান"
             val currencySymbol = prefs.getString("currency_symbol", "৳") ?: "৳"
             val useBengaliNumerals = prefs.getBoolean("use_bengali_numerals", true)
@@ -1406,6 +1408,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 shopName = shopName,
                 shopAddress = shopAddress,
                 shopPhone = shopPhone,
+                ownerEmail = ownerEmail,
                 tagline = tagline,
                 currencySymbol = currencySymbol,
                 useBengaliNumerals = useBengaliNumerals,
@@ -1430,6 +1433,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 putString("shop_name", config.shopName)
                 putString("shop_address", config.shopAddress)
                 putString("shop_phone", config.shopPhone)
+                putString("owner_email", config.ownerEmail)
                 putString("tagline", config.tagline)
                 putString("currency_symbol", config.currencySymbol)
                 putBoolean("use_bengali_numerals", config.useBengaliNumerals)
@@ -1446,6 +1450,12 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 putBoolean("firebase_sync_enabled", config.firebaseSyncEnabled)
                 apply()
             }
+            if (config.ownerEmail.isNotBlank() && config.ownerEmail.contains("@") && config.userRole == "owner") {
+                val code = config.firebaseShopCode.ifBlank { getDefaultShopCode() }
+                viewModelScope.launch {
+                    firebaseSyncManager.linkEmailToShop(config.ownerEmail, code)
+                }
+            }
             if (config.isOnboardingCompleted) {
                 triggerNewUserSetupNotification(config)
             }
@@ -1458,24 +1468,47 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun connectFirebaseShop(
-        shopCode: String,
+        shopCodeOrEmail: String,
         role: String = _shopConfig.value.userRole,
         onComplete: ((Boolean, String) -> Unit)? = null
     ) {
-        val cleanCode = shopCode.trim().uppercase()
-        if (cleanCode.isBlank()) {
-            onComplete?.invoke(false, "দোকান কোড লিখুন")
+        val cleanInput = shopCodeOrEmail.trim()
+        if (cleanInput.isBlank()) {
+            onComplete?.invoke(false, "দোকান কোড অথবা ইমেইল লিখুন")
             return
         }
-        val updated = _shopConfig.value.copy(
-            firebaseShopCode = cleanCode,
-            firebaseSyncEnabled = true,
-            userRole = role
-        )
-        updateShopConfig(updated)
-        firebaseSyncManager.connectShop(cleanCode, role) { success, msg ->
-            showToast(msg)
-            onComplete?.invoke(success, msg)
+
+        viewModelScope.launch {
+            val resolvedCode = if (cleanInput.contains("@")) {
+                val code = firebaseSyncManager.resolveShopCode(cleanInput)
+                if (code.isNullOrBlank()) {
+                    val msg = "এই ইমেইল দিয়ে কোনো দোকান পাওয়া যায়নি। সঠিক ইমেইল অথবা দোকান কোড লিখুন।"
+                    showToast(msg)
+                    onComplete?.invoke(false, msg)
+                    return@launch
+                }
+                code
+            } else {
+                cleanInput.uppercase()
+            }
+
+            val currentEmail = if (cleanInput.contains("@")) cleanInput else _shopConfig.value.ownerEmail
+            val updated = _shopConfig.value.copy(
+                firebaseShopCode = resolvedCode,
+                firebaseSyncEnabled = true,
+                userRole = role,
+                ownerEmail = if (role == "owner" && currentEmail.isNotBlank()) currentEmail else _shopConfig.value.ownerEmail
+            )
+            updateShopConfig(updated)
+
+            if (role == "owner" && currentEmail.isNotBlank() && currentEmail.contains("@")) {
+                firebaseSyncManager.linkEmailToShop(currentEmail, resolvedCode)
+            }
+
+            firebaseSyncManager.connectShop(resolvedCode, role) { success, msg ->
+                showToast(msg)
+                onComplete?.invoke(success, msg)
+            }
         }
     }
 

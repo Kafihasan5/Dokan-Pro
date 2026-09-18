@@ -53,6 +53,7 @@ fun OnboardingScreen(
     var shopName by remember { mutableStateOf(config.shopName.ifBlank { "Dokan Pro" }.let { if (it == "দোকান প্রো") "Dokan Pro" else it }) }
     var shopAddress by remember { mutableStateOf(config.shopAddress) }
     var shopPhone by remember { mutableStateOf(config.shopPhone) }
+    var ownerEmail by remember { mutableStateOf(config.ownerEmail) }
     var tagline by remember { mutableStateOf(config.tagline) }
 
     // Step 2 Preferences State
@@ -213,6 +214,15 @@ fun OnboardingScreen(
                                 placeholder = "যেমন: ০১৭১১-০০০০০০",
                                 keyboardType = KeyboardType.Phone,
                                 leadingIcon = Icons.Default.Phone
+                            )
+
+                            DokanTextField(
+                                value = ownerEmail,
+                                onValueChange = { ownerEmail = it },
+                                label = "মালিকের ইমেইল (ঐচ্ছিক / রিস্টোরের জন্য)",
+                                placeholder = "যেমন: yourname@gmail.com",
+                                keyboardType = KeyboardType.Email,
+                                leadingIcon = Icons.Default.Email
                             )
 
                             DokanTextField(
@@ -453,6 +463,7 @@ fun OnboardingScreen(
                                     shopName = if (finalShopName == "দোকান প্রো") "Dokan Pro" else finalShopName,
                                     shopAddress = shopAddress.trim(),
                                     shopPhone = shopPhone.trim(),
+                                    ownerEmail = ownerEmail.trim(),
                                     tagline = tagline.trim(),
                                     useBengaliNumerals = useBengaliNumerals,
                                     currencySymbol = currencySymbol,
@@ -541,6 +552,7 @@ fun OnboardingScreen(
                                     shopName = if (finalShopName == "দোকান প্রো") "Dokan Pro" else finalShopName,
                                     shopAddress = shopAddress.trim(),
                                     shopPhone = shopPhone.trim(),
+                                    ownerEmail = ownerEmail.trim(),
                                     tagline = tagline.trim(),
                                     useBengaliNumerals = useBengaliNumerals,
                                     currencySymbol = currencySymbol,
@@ -732,13 +744,14 @@ fun OnboardingScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     Text(
-                        "দোকান মালিকের কাছ থেকে পাওয়া দোকান কোডটি (যেমন: SHOP-XXXX) এখানে লিখুন:",
+                        "দোকান মালিকের কাছ থেকে পাওয়া দোকান কোড অথবা মালিকের ইমেইল এখানে লিখুন:",
                         style = MaterialTheme.typography.bodySmall
                     )
                     DokanTextField(
                         value = joinShopCode,
-                        onValueChange = { joinShopCode = it.uppercase() },
-                        label = "দোকান কোড",
+                        onValueChange = { joinShopCode = it },
+                        label = "দোকান কোড অথবা মালিকের ইমেইল",
+                        placeholder = "যেমন: SHOP-XXXXXX অথবা owner@gmail.com",
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -746,24 +759,25 @@ fun OnboardingScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val code = joinShopCode.trim().uppercase()
-                        if (code.isBlank()) {
-                            viewModel.showToast("দোকান কোড লিখুন")
+                        val input = joinShopCode.trim()
+                        if (input.isBlank()) {
+                            viewModel.showToast("দোকান কোড অথবা ইমেইল লিখুন")
                             return@Button
                         }
                         isJoiningShop = true
                         val updated = config.copy(
                             userRole = "staff",
-                            firebaseShopCode = code,
                             firebaseSyncEnabled = true,
                             isOnboardingCompleted = true
                         )
                         viewModel.updateShopConfig(updated)
-                        viewModel.connectFirebaseShop(code, "staff") { success, _ ->
+                        viewModel.connectFirebaseShop(input, "staff") { success, msg ->
                             isJoiningShop = false
                             if (success) {
                                 showJoinShopDialog = false
                                 viewModel.navigateTo(AppScreen.POS)
+                            } else {
+                                viewModel.showToast(msg)
                             }
                         }
                     },
@@ -800,13 +814,14 @@ fun OnboardingScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     Text(
-                        "আপনার পূর্বের দোকান কোডটি (যেমন: SHOP-XXXXXX) এখানে লিখুন। ক্লাউডে থাকা সমস্ত পণ্য, কাস্টমার, বাকি ও বিক্রির হিসাব নামিয়ে আনা হবে:",
+                        "আপনার পূর্বের দোকান কোড (যেমন: SHOP-XXXXXX) অথবা নিবন্ধিত ইমেইল এখানে লিখুন। ক্লাউডে থাকা সমস্ত তথ্য নামিয়ে আনা হবে:",
                         style = MaterialTheme.typography.bodySmall
                     )
                     DokanTextField(
                         value = restoreOwnerShopCode,
-                        onValueChange = { restoreOwnerShopCode = it.uppercase() },
-                        label = "দোকান কোড",
+                        onValueChange = { restoreOwnerShopCode = it },
+                        label = "দোকান কোড অথবা নিবন্ধিত ইমেইল",
+                        placeholder = "যেমন: SHOP-XXXXXX অথবা yourname@gmail.com",
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -814,18 +829,20 @@ fun OnboardingScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val code = restoreOwnerShopCode.trim().uppercase()
-                        if (code.isBlank()) {
-                            viewModel.showToast("দোকান কোড লিখুন")
+                        val input = restoreOwnerShopCode.trim()
+                        if (input.isBlank()) {
+                            viewModel.showToast("দোকান কোড অথবা ইমেইল লিখুন")
                             return@Button
                         }
                         isRestoringOwnerShop = true
                         val parsedVat = vatPercentage.toDoubleOrNull() ?: 0.0
                         val finalShopName = shopName.trim().ifBlank { "Dokan Pro" }
+                        val currentOwnerEmail = if (input.contains("@")) input else ownerEmail.trim()
                         val updated = config.copy(
                             shopName = if (finalShopName == "দোকান প্রো") "Dokan Pro" else finalShopName,
                             shopAddress = shopAddress.trim(),
                             shopPhone = shopPhone.trim(),
+                            ownerEmail = currentOwnerEmail,
                             tagline = tagline.trim(),
                             useBengaliNumerals = useBengaliNumerals,
                             currencySymbol = currencySymbol,
@@ -833,12 +850,11 @@ fun OnboardingScreen(
                             vatPercentage = parsedVat,
                             themeMode = themeMode,
                             userRole = "owner",
-                            firebaseShopCode = code,
                             firebaseSyncEnabled = true,
                             isOnboardingCompleted = true
                         )
                         viewModel.updateShopConfig(updated)
-                        viewModel.connectFirebaseShop(code, "owner") { success, msg ->
+                        viewModel.connectFirebaseShop(input, "owner") { success, msg ->
                             isRestoringOwnerShop = false
                             if (success) {
                                 showRestoreOwnerShopDialog = false

@@ -339,20 +339,21 @@ fun BackupScreen(
                         } else {
                             // STAFF VIEW
                             Text(
-                                text = "মালিকের দোকান কোড প্রবেশ করান:",
+                                text = "মালিকের দোকান কোড অথবা ইমেইল প্রবেশ করান:",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
 
                             DokanTextField(
                                 value = shopCodeInput,
-                                onValueChange = { shopCodeInput = it.uppercase() },
-                                label = "দোকান কোড (যেমন: SHOP-XXXX)",
+                                onValueChange = { shopCodeInput = it },
+                                label = "দোকান কোড অথবা মালিকের ইমেইল",
+                                placeholder = "যেমন: SHOP-XXXXXX বা owner@gmail.com",
                                 modifier = Modifier.fillMaxWidth()
                             )
 
                             Text(
-                                text = "💡 দোকান মালিকের ফোন থেকে দোকান কোডটি নিয়ে এখানে লিখুন এবং 'দোকানে সংযুক্ত হন' চাপুন।",
+                                text = "💡 দোকান মালিকের দোকান কোড অথবা মালিকের ইমেইল এড্রেস লিখে 'দোকানে সংযুক্ত হন' চাপুন।",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -794,13 +795,14 @@ fun BackupScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     Text(
-                        "আপনার পূর্বের দোকান কোডটি লিখুন। ক্লাউডে থাকা সমস্ত পণ্য, কাস্টমার, বাকি ও বিক্রির ডাটা স্বয়ংক্রিয়ভাবে ডাউনলোড ও রিস্টোর হবে:",
+                        "আপনার পূর্বের দোকান কোড (যেমন: SHOP-XXXXXX) অথবা নিবন্ধিত ইমেইল লিখুন। ক্লাউডে থাকা সমস্ত তথ্য স্বয়ংক্রিয়ভাবে ডাউনলোড ও রিস্টোর হবে:",
                         style = MaterialTheme.typography.bodySmall
                     )
                     DokanTextField(
                         value = ownerTargetCodeInput,
-                        onValueChange = { ownerTargetCodeInput = it.uppercase() },
-                        label = "দোকান কোড (যেমন: SHOP-XXXXXX)",
+                        onValueChange = { ownerTargetCodeInput = it },
+                        label = "দোকান কোড অথবা ইমেইল",
+                        placeholder = "যেমন: SHOP-XXXXXX বা yourname@gmail.com",
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -808,15 +810,15 @@ fun BackupScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val code = ownerTargetCodeInput.trim().uppercase()
-                        if (code.isBlank()) {
-                            viewModel.showToast("দোকান কোড লিখুন")
+                        val input = ownerTargetCodeInput.trim()
+                        if (input.isBlank()) {
+                            viewModel.showToast("দোকান কোড অথবা ইমেইল লিখুন")
                             return@Button
                         }
                         showOwnerChangeCodeDialog = false
-                        shopCodeInput = code
-                        viewModel.connectFirebaseShop(code, "owner") { success, _ ->
+                        viewModel.connectFirebaseShop(input, "owner") { success, _ ->
                             if (success) {
+                                shopCodeInput = viewModel.shopConfig.value.firebaseShopCode
                                 viewModel.restoreAllDataFromFirebase()
                             }
                         }

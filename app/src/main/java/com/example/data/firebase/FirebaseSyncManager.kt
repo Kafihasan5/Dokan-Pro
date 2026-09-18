@@ -80,6 +80,65 @@ class FirebaseSyncManager(private val dao: PaponDao) {
     }
 
     /**
+     * Replaces characters disallowed in Firebase keys (., $, #, [, ], /, @).
+     */
+    fun encodeEmailKey(email: String): String {
+        return email.trim().lowercase()
+            .replace(".", "_dot_")
+            .replace("@", "_at_")
+            .replace("#", "_")
+            .replace("$", "_")
+            .replace("[", "_")
+            .replace("]", "_")
+            .replace("/", "_")
+    }
+
+    /**
+     * Maps an owner's email to their shopCode in Firebase (/email_to_shop/{encodedEmail} = shopCode).
+     */
+    suspend fun linkEmailToShop(email: String, shopCode: String) = withContext(Dispatchers.IO) {
+        val cleanEmail = email.trim().lowercase()
+        val cleanShop = shopCode.trim().uppercase()
+        if (cleanEmail.isBlank() || !cleanEmail.contains("@") || cleanShop.isBlank()) return@withContext
+        try {
+            val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
+            val encodedKey = encodeEmailKey(cleanEmail)
+            db.getReference("email_to_shop").child(encodedKey).setValue(cleanShop).await()
+            db.getReference("shops").child(cleanShop).child("info").child("ownerEmail").setValue(cleanEmail).await()
+            Log.d(tag, "Successfully linked email $cleanEmail to shop $cleanShop in Firebase")
+        } catch (e: Exception) {
+            Log.w(tag, "Error linking email to shop: ${e.message}")
+        }
+    }
+
+    /**
+     * Resolves a query (either an email address or a shop code) to a valid shopCode.
+     * If query contains '@', looks up in /email_to_shop/{encodedEmail}.
+     * If query is already a shop code, returns it formatted.
+     */
+    suspend fun resolveShopCode(query: String): String? = withContext(Dispatchers.IO) {
+        val clean = query.trim()
+        if (clean.isBlank()) return@withContext null
+
+        if (clean.contains("@")) {
+            try {
+                val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
+                val encodedKey = encodeEmailKey(clean)
+                val snap = withTimeout(10000L) {
+                    db.getReference("email_to_shop").child(encodedKey).get().await()
+                }
+                val foundCode = snap.getValue(String::class.java)?.trim()?.uppercase()
+                return@withContext if (!foundCode.isNullOrBlank()) foundCode else null
+            } catch (e: Exception) {
+                Log.e(tag, "Error resolving shop code by email: ${e.message}")
+                return@withContext null
+            }
+        } else {
+            return@withContext clean.uppercase()
+        }
+    }
+
+    /**
      * Connects to a shop on Firebase Realtime Database.
      * If owner: ensures local products & records are safely backed up or restored from the cloud.
      * If staff: pulls the initial shop catalog into Room DB.
