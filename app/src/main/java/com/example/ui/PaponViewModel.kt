@@ -927,6 +927,9 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                     "staff:$sName"
                 } else null
 
+                val now = System.currentTimeMillis()
+                val invoice = "INV-${System.currentTimeMillis() % 1000000}"
+
                 val sale = Sale(
                     invoiceNo = invoice,
                     customerId = custId,
