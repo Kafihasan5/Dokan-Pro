@@ -86,6 +86,13 @@ class FirebaseSyncManager(private val dao: PaponDao) {
     }
 
     /**
+     * Sanitizes any key to ensure it NEVER contains Firebase invalid path characters (., $, #, [, ], /).
+     */
+    fun sanitizeFirebaseKey(key: String): String {
+        return key.trim().replace(Regex("[.#$\\[\\]/\\s]"), "")
+    }
+
+    /**
      * Replaces characters disallowed in Firebase keys (., $, #, [, ], /, @).
      */
     fun encodeEmailKey(email: String): String {
@@ -97,6 +104,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             .replace("[", "_")
             .replace("]", "_")
             .replace("/", "_")
+            .replace(" ", "")
     }
 
     /**
@@ -104,7 +112,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
      */
     suspend fun linkEmailToShop(email: String, shopCode: String) = withContext(Dispatchers.IO) {
         val cleanEmail = email.trim().lowercase()
-        val cleanShop = shopCode.trim().uppercase()
+        val cleanShop = sanitizeFirebaseKey(shopCode.trim().uppercase())
         if (cleanEmail.isBlank() || !cleanEmail.contains("@") || cleanShop.isBlank()) return@withContext
         try {
             val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
@@ -120,27 +128,73 @@ class FirebaseSyncManager(private val dao: PaponDao) {
     /**
      * Resolves a query (either an email address or a shop code) to a valid shopCode.
      * If query contains '@', looks up in /email_to_shop/{encodedEmail}.
-     * If query is already a shop code, returns it formatted.
+     * Fallback: searches /shops for matching ownerEmail.
+     * If query is already a shop code, returns it sanitized and formatted.
      */
     suspend fun resolveShopCode(query: String): String? = withContext(Dispatchers.IO) {
-        val clean = query.trim()
+        val clean = com.example.util.Formatters.replaceBengaliDigits(query).trim()
         if (clean.isBlank()) return@withContext null
 
         if (clean.contains("@")) {
+            val cleanEmail = clean.lowercase()
             try {
                 val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
-                val encodedKey = encodeEmailKey(clean)
+                val encodedKey = encodeEmailKey(cleanEmail)
+
+                // 1. Direct index lookup in /email_to_shop/{encodedKey}
                 val snap = withTimeout(10000L) {
                     db.getReference("email_to_shop").child(encodedKey).get().await()
                 }
                 val foundCode = snap.getValue(String::class.java)?.trim()?.uppercase()
-                return@withContext if (!foundCode.isNullOrBlank()) foundCode else null
+                if (!foundCode.isNullOrBlank()) {
+                    val sanitized = sanitizeFirebaseKey(foundCode)
+                    if (sanitized.isNotBlank()) return@withContext sanitized
+                }
+
+                // 2. Fallback: Search in /shops for matching ownerEmail
+                Log.d(tag, "Email $cleanEmail not found in email_to_shop, scanning /shops...")
+                val shopsSnap = withTimeout(15000L) {
+                    db.getReference("shops").get().await()
+                }
+                for (shopChild in shopsSnap.children) {
+                    val shopKey = shopChild.key?.trim()?.uppercase() ?: continue
+                    val infoEmail = shopChild.child("info").child("ownerEmail").getValue(String::class.java)?.trim()?.lowercase()
+                    val secEmail = shopChild.child("security").child("ownerEmail").getValue(String::class.java)?.trim()?.lowercase()
+                    if (infoEmail == cleanEmail || secEmail == cleanEmail) {
+                        val sanitized = sanitizeFirebaseKey(shopKey)
+                        // Self-heal index for next time
+                        try {
+                            db.getReference("email_to_shop").child(encodedKey).setValue(sanitized).await()
+                        } catch (_: Exception) {}
+                        return@withContext sanitized
+                    }
+                }
+                return@withContext null
             } catch (e: Exception) {
                 Log.e(tag, "Error resolving shop code by email: ${e.message}")
                 return@withContext null
             }
         } else {
-            return@withContext clean.uppercase()
+            val sanitized = sanitizeFirebaseKey(clean.uppercase())
+            if (sanitized.isBlank()) return@withContext null
+
+            // If user typed code without "SHOP-" prefix, check if SHOP-$sanitized exists
+            if (!sanitized.startsWith("SHOP-")) {
+                try {
+                    val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
+                    val existsDirect = withTimeout(4000L) {
+                        db.getReference("shops").child(sanitized).child("info").get().await().exists()
+                    }
+                    if (!existsDirect) {
+                        val prefixed = "SHOP-$sanitized"
+                        val existsPrefixed = withTimeout(4000L) {
+                            db.getReference("shops").child(prefixed).child("info").get().await().exists()
+                        }
+                        if (existsPrefixed) return@withContext prefixed
+                    }
+                } catch (_: Exception) {}
+            }
+            return@withContext sanitized
         }
     }
 
@@ -163,7 +217,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
         masterPin: String,
         staffPin: String
     ) = withContext(Dispatchers.IO) {
-        val cleanCode = shopCode.trim().uppercase()
+        val cleanCode = sanitizeFirebaseKey(shopCode.uppercase())
         if (cleanCode.isBlank()) return@withContext
         try {
             val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
@@ -190,7 +244,8 @@ class FirebaseSyncManager(private val dao: PaponDao) {
      */
     suspend fun verifyMasterPin(shopCode: String, masterPinInput: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            val cleanCode = shopCode.trim().uppercase()
+            val cleanCode = sanitizeFirebaseKey(shopCode.uppercase())
+            if (cleanCode.isBlank()) return@withContext false
             val cleanInput = com.example.util.Formatters.fromBengaliDigits(masterPinInput).trim()
             val rawInput = masterPinInput.trim()
             val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
@@ -247,7 +302,8 @@ class FirebaseSyncManager(private val dao: PaponDao) {
      */
     suspend fun verifyStaffPin(shopCode: String, staffPinInput: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            val cleanCode = shopCode.trim().uppercase()
+            val cleanCode = sanitizeFirebaseKey(shopCode.uppercase())
+            if (cleanCode.isBlank()) return@withContext false
             val cleanInput = com.example.util.Formatters.fromBengaliDigits(staffPinInput).trim()
             val rawInput = staffPinInput.trim()
             val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
@@ -299,7 +355,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
         shopCode: String,
         role: String = "owner"
     ): Result<String> = withContext(Dispatchers.IO) {
-        val trimmedCode = shopCode.trim().uppercase()
+        val trimmedCode = sanitizeFirebaseKey(shopCode.uppercase())
         if (trimmedCode.isBlank()) {
             return@withContext Result.failure(Exception("দোকান কোড সঠিক নয়"))
         }
@@ -343,7 +399,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
      * Fetches shop metadata (shopName, shopPhone, shopAddress, ownerEmail, tagline) from Firebase.
      */
     suspend fun fetchShopInfo(shopCode: String): Map<String, String>? = withContext(Dispatchers.IO) {
-        val clean = shopCode.trim().uppercase()
+        val clean = sanitizeFirebaseKey(shopCode.uppercase())
         if (clean.isBlank()) return@withContext null
         try {
             val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
@@ -375,7 +431,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
         role: String = "owner",
         onComplete: ((Boolean, String) -> Unit)? = null
     ) {
-        val trimmedCode = shopCode.trim().uppercase()
+        val trimmedCode = sanitizeFirebaseKey(shopCode.uppercase())
         if (trimmedCode.isBlank()) {
             onComplete?.invoke(false, "দোকান কোড সঠিক নয়")
             return

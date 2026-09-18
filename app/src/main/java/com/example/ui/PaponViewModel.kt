@@ -1531,7 +1531,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         role: String = _shopConfig.value.userRole,
         onComplete: ((Boolean, String) -> Unit)? = null
     ) {
-        val cleanInput = shopCodeOrEmail.trim()
+        val cleanInput = com.example.util.Formatters.replaceBengaliDigits(shopCodeOrEmail).trim()
         if (cleanInput.isBlank()) {
             onComplete?.invoke(false, "দোকান কোড অথবা ইমেইল লিখুন")
             return
@@ -1548,7 +1548,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 code
             } else {
-                cleanInput.uppercase()
+                firebaseSyncManager.resolveShopCode(cleanInput) ?: firebaseSyncManager.sanitizeFirebaseKey(cleanInput.uppercase())
             }
 
             val currentEmail = if (cleanInput.contains("@")) cleanInput else _shopConfig.value.ownerEmail
@@ -1580,7 +1580,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         masterPin: String,
         onComplete: (Boolean, String) -> Unit
     ) {
-        val cleanInput = com.example.util.Formatters.fromBengaliDigits(shopCodeOrEmail).trim()
+        val cleanInput = com.example.util.Formatters.replaceBengaliDigits(shopCodeOrEmail).trim()
         val cleanPin = com.example.util.Formatters.fromBengaliDigits(masterPin).trim()
         val rawPin = masterPin.trim()
         if (cleanInput.isBlank()) {
@@ -1597,11 +1597,15 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 val resolvedCode = if (cleanInput.contains("@")) {
                     firebaseSyncManager.resolveShopCode(cleanInput)
                 } else {
-                    cleanInput.uppercase()
+                    firebaseSyncManager.resolveShopCode(cleanInput) ?: firebaseSyncManager.sanitizeFirebaseKey(cleanInput.uppercase())
                 }
 
                 if (resolvedCode.isNullOrBlank()) {
-                    val msg = "এই ইমেইল অথবা কোড দিয়ে কোনো দোকান খুঁজে পাওয়া যায়নি।"
+                    val msg = if (cleanInput.contains("@")) {
+                        "এই ইমেইল দিয়ে পূর্বে কোনো দোকান পাওয়া যায়নি। অনুগ্রহ করে সঠিক ইমেইল অথবা দোকান কোড (যেমন: SHOP-XXXXXX) লিখুন।"
+                    } else {
+                        "এই কোড দিয়ে কোনো দোকান পাওয়া যায়নি। সঠিক দোকান কোড লিখুন।"
+                    }
                     showToast(msg)
                     withContext(Dispatchers.Main) {
                         onComplete(false, msg)
@@ -1661,6 +1665,10 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 // STEP 4: Attach live background sync listeners for ongoing live updates
                 firebaseSyncManager.connectShop(resolvedCode, "owner")
 
+                if (ownerEmail.isNotBlank() && ownerEmail.contains("@")) {
+                    firebaseSyncManager.linkEmailToShop(ownerEmail, resolvedCode)
+                }
+
                 // STEP 5: Unlock PIN and transition smoothly to Dashboard!
                 prefs.edit().putBoolean("telegram_setup_notified", true).apply()
                 _isDemoMode.value = false
@@ -1674,7 +1682,12 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (e: Exception) {
                 Log.e("PaponViewModel", "Error in secureRestoreOwnerShop", e)
-                val msg = "রিস্টোর ত্রুটি: ${e.message ?: "ইন্টারনেট সংযোগ চেক করুন"}"
+                val rawMsg = e.message ?: ""
+                val msg = if (rawMsg.contains("Firebase Database path", ignoreCase = true) || rawMsg.contains("must not contain", ignoreCase = true)) {
+                    "দোকান কোড বা ইমেইল ফরম্যাট সঠিক নয়। সঠিক তথ্য দিয়ে চেষ্টা করুন।"
+                } else {
+                    "রিস্টোর ত্রুটি: ${if (rawMsg.isNotBlank()) rawMsg else "ইন্টারনেট সংযোগ চেক করুন"}"
+                }
                 showToast(msg)
                 withContext(Dispatchers.Main) {
                     onComplete(false, msg)
@@ -1693,7 +1706,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         staffName: String,
         onComplete: (Boolean, String) -> Unit
     ) {
-        val cleanInput = com.example.util.Formatters.fromBengaliDigits(shopCodeOrEmail).trim()
+        val cleanInput = com.example.util.Formatters.replaceBengaliDigits(shopCodeOrEmail).trim()
         val cleanPin = com.example.util.Formatters.fromBengaliDigits(staffPin).trim()
         val rawPin = staffPin.trim()
         val assignedName = staffName.trim().ifBlank { "কর্মচারী" }
@@ -1711,7 +1724,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 val resolvedCode = if (cleanInput.contains("@")) {
                     firebaseSyncManager.resolveShopCode(cleanInput)
                 } else {
-                    cleanInput.uppercase()
+                    firebaseSyncManager.resolveShopCode(cleanInput) ?: firebaseSyncManager.sanitizeFirebaseKey(cleanInput.uppercase())
                 }
 
                 if (resolvedCode.isNullOrBlank()) {
@@ -1779,7 +1792,12 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (e: Exception) {
                 Log.e("PaponViewModel", "Error in secureJoinAsStaff", e)
-                val msg = "যুক্ত হতে সমস্যা: ${e.message ?: "ইন্টারনেট সংযোগ চেক করুন"}"
+                val rawMsg = e.message ?: ""
+                val msg = if (rawMsg.contains("Firebase Database path", ignoreCase = true) || rawMsg.contains("must not contain", ignoreCase = true)) {
+                    "দোকান কোড বা ইমেইল ফরম্যাট সঠিক নয়। সঠিক তথ্য দিয়ে চেষ্টা করুন।"
+                } else {
+                    "যুক্ত হতে সমস্যা: ${if (rawMsg.isNotBlank()) rawMsg else "ইন্টারনেট সংযোগ চেক করুন"}"
+                }
                 showToast(msg)
                 withContext(Dispatchers.Main) {
                     onComplete(false, msg)
