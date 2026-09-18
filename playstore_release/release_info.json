@@ -1,12 +1,12 @@
 {
-  "versionCode": 87,
-  "versionName": "1.0.87",
+  "versionCode": 88,
+  "versionName": "1.0.88",
   "applicationId": "com.webix.dokanpro",
   "bundleFile": "app-release.aab",
   "format": "Android App Bundle (AAB)",
   "targetSdk": 36,
   "minSdk": 24,
-  "buildTime": "2026-09-18T17:49:51Z",
-  "releaseNotes": "Add missing Toast import in DashboardScreen",
+  "buildTime": "2026-09-18T17:58:29Z",
+  "releaseNotes": "Fix: prevent historic broadcast notices from popping up on fresh app install",
   "note": "Ready for Google Play Console upload"
 }
