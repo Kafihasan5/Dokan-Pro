@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android APK & Play Store Bundle
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Build Debug APK & Release
+    name: Build APK, Play Store AAB & Release
     runs-on: ubuntu-latest
 
     steps:
@@ -37,6 +37,17 @@ jobs:
             git push origin main || true
           fi
 
+      - name: Ensure PlayStore Upload Keystore
+        run: |
+          if [ ! -f playstore-upload.jks ]; then
+            keytool -genkey -v -keystore playstore-upload.jks -storepass dokanpro2026 -alias dokanpro -keypass dokanpro2026 -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Dokan Pro,OU=Mobile,O=Webix,L=Dhaka,ST=Dhaka,C=BD"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add playstore-upload.jks
+            git commit -m "Generate persistent playstore-upload.jks for Google Play App Signing [skip ci]" || true
+            git push origin main || true
+          fi
+
       - name: Accept Android SDK Licenses
         run: |
           mkdir -p "$ANDROID_HOME/licenses"
@@ -55,29 +66,66 @@ jobs:
             cp .env.example .env
           fi
 
-      - name: Build Debug APK
+      - name: Build GitHub Version (Debug APK)
         run: |
           gradle assembleDebug -PversionCode=${{ github.run_number }} -PversionName="1.0.${{ github.run_number }}" --no-daemon --stacktrace
 
-      - name: Upload Debug APK Artifact
+      - name: Build Play Store Version (Release AAB)
+        run: |
+          gradle bundleRelease -PversionCode=${{ github.run_number }} -PversionName="1.0.${{ github.run_number }}" --no-daemon --stacktrace
+
+      - name: Prepare PlayStore Release Folder
+        run: |
+          mkdir -p playstore_release
+          cp app/build/outputs/bundle/release/*.aab playstore_release/app-release.aab
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          COMMIT_MSG=$(git log -1 --pretty=%s)
+          cat <<EOF > playstore_release/release_info.json
+          {
+            "versionCode": ${{ github.run_number }},
+            "versionName": "1.0.${{ github.run_number }}",
+            "applicationId": "com.webix.dokanpro",
+            "bundleFile": "app-release.aab",
+            "format": "Android App Bundle (AAB)",
+            "targetSdk": 36,
+            "minSdk": 24,
+            "buildTime": "$BUILD_TIME",
+            "releaseNotes": "$COMMIT_MSG",
+            "note": "Ready for Google Play Console upload"
+          }
+          EOF
+
+      - name: Upload GitHub APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 7
 
+      - name: Upload PlayStore AAB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: playstore-bundle
+          path: playstore_release/app-release.aab
+          retention-days: 14
+
       - name: Create or Update GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           COMMIT_MSG=$(git log -1 --pretty=%s)
-          gh release create "v${{ github.run_number }}" app/build/outputs/apk/debug/app-debug.apk \
+          gh release create "v${{ github.run_number }}" \
+            app/build/outputs/apk/debug/app-debug.apk \
+            playstore_release/app-release.aab \
             --title "Release v1.0.${{ github.run_number }}" \
-            --notes "Automated release: $COMMIT_MSG" \
+            --notes "Automated release: $COMMIT_MSG (Includes GitHub APK and Play Store AAB Bundle)" \
             --latest || \
-          gh release upload "v${{ github.run_number }}" app/build/outputs/apk/debug/app-debug.apk --clobber
+          gh release upload "v${{ github.run_number }}" \
+            app/build/outputs/apk/debug/app-debug.apk \
+            playstore_release/app-release.aab \
+            --clobber
 
-      - name: Update version.json
+      - name: Update version.json & Commit PlayStore Release
         run: |
           COMMIT_MSG=$(git log -1 --pretty=%s)
           cat <<EOF > version.json
@@ -85,10 +133,11 @@ jobs:
             "versionCode": ${{ github.run_number }},
             "versionName": "1.0.${{ github.run_number }}",
             "downloadUrl": "https://github.com/${{ github.repository }}/releases/download/v${{ github.run_number }}/app-debug.apk",
+            "playstoreBundleUrl": "https://github.com/${{ github.repository }}/releases/download/v${{ github.run_number }}/app-release.aab",
             "releaseNotes": "$COMMIT_MSG"
           }
           EOF
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add version.json
-          git diff --staged --quiet || (git commit -m "Auto-update version.json to v1.0.${{ github.run_number }} [skip ci]" && git pull --rebase origin main && git push origin main)
+          git add version.json playstore_release/
+          git diff --staged --quiet || (git commit -m "Auto-update version v1.0.${{ github.run_number }} and playstore bundle [skip ci]" && git pull --rebase origin main && git push origin main)

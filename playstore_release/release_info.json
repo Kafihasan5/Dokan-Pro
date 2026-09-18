@@ -1,0 +1,10 @@
+{
+  "applicationId": "com.webix.dokanpro",
+  "appName": "Dokan Pro",
+  "format": "Android App Bundle (AAB)",
+  "bundleFile": "app-release.aab",
+  "minSdk": 24,
+  "targetSdk": 36,
+  "signingKeyAlias": "dokanpro",
+  "note": "Ready for Google Play Console upload"
+}

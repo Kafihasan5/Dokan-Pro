@@ -28,11 +28,21 @@ android {
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      val uploadKey = file("${rootDir}/playstore-upload.jks")
+      val fallbackKey = file("${rootDir}/debug.keystore")
+      val customPath = System.getenv("KEYSTORE_PATH")
+      val keystoreFile = if (!customPath.isNullOrBlank()) file(customPath) else if (uploadKey.exists()) uploadKey else fallbackKey
+
+      storeFile = keystoreFile
+      if (keystoreFile == uploadKey || !customPath.isNullOrBlank()) {
+        storePassword = System.getenv("STORE_PASSWORD") ?: "dokanpro2026"
+        keyAlias = System.getenv("KEY_ALIAS") ?: "dokanpro"
+        keyPassword = System.getenv("KEY_PASSWORD") ?: "dokanpro2026"
+      } else {
+        storePassword = "android"
+        keyAlias = "androiddebugkey"
+        keyPassword = "android"
+      }
     }
     create("debugConfig") {
       storeFile = file("${rootDir}/debug.keystore")
@@ -52,6 +62,18 @@ android {
     debug {
       signingConfig = signingConfigs.getByName("debugConfig")
       isDebuggable = false
+    }
+  }
+
+  bundle {
+    language {
+      enableSplit = false
+    }
+    density {
+      enableSplit = true
+    }
+    abi {
+      enableSplit = true
     }
   }
   compileOptions {
