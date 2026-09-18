@@ -9,8 +9,11 @@ import com.example.data.entity.*
 import com.example.data.repository.PaponRepository
 import com.example.util.AppUpdater
 import com.example.util.Formatters
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay

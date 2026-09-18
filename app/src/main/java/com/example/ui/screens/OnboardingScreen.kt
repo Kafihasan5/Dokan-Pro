@@ -925,6 +925,7 @@ fun OnboardingScreen(
         }
     }
 }
+}
 
 @Composable
 private fun StepItem(
