@@ -789,10 +789,9 @@ private fun PosProductListItem(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // Subtitle: Category or English Name
+                // Subtitle: English Name or Barcode
                 val subText = when {
-                    product.categoryName.isNotBlank() && product.barcode.isNotBlank() -> "${product.categoryName} • ${product.barcode}"
-                    product.categoryName.isNotBlank() -> product.categoryName
+                    product.nameEn.isNotBlank() && product.barcode.isNotBlank() -> "${product.nameEn} • ${product.barcode}"
                     product.nameEn.isNotBlank() -> product.nameEn
                     product.barcode.isNotBlank() -> "বারকোড: ${product.barcode}"
                     else -> ""

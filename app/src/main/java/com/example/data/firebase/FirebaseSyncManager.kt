@@ -430,7 +430,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             if (!snap.exists()) return@withContext emptyList()
             val list = mutableListOf<com.example.data.entity.StaffMember>()
             for (child in snap.children) {
-                val id = child.child("id").getValue(String::class.java) ?: child.key ?: UUID.randomUUID().toString()
+                val id = child.child("id").getValue(String::class.java) ?: child.key ?: java.util.UUID.randomUUID().toString()
                 val name = child.child("name").getValue(String::class.java) ?: ""
                 val email = child.child("email").getValue(String::class.java) ?: ""
                 val pin = child.child("pin").getValue(String::class.java) ?: ""

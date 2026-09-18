@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -59,6 +60,7 @@ import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
