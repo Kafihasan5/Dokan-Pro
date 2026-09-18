@@ -918,12 +918,13 @@ private fun AddPurchaseBottomSheet(
                             existingProducts = products,
                             config = config,
                             onBarcodeScanned = { barcode ->
-                                val found = products.find { it.barcode == barcode }
+                                val trimmed = barcode.trim()
+                                val found = products.find { it.barcode?.trim().equals(trimmed, ignoreCase = true) }
                                 if (found != null) {
                                     addOrSelectProduct(found)
                                 } else {
-                                    scanFeedbackMessage = "বারকোড: $barcode (তালিকায় নেই)"
-                                    quickAddBarcode = barcode
+                                    scanFeedbackMessage = "বারকোড/QR: $trimmed (তালিকায় নেই)"
+                                    quickAddBarcode = trimmed
                                 }
                             },
                             modifier = Modifier.padding(vertical = 2.dp)

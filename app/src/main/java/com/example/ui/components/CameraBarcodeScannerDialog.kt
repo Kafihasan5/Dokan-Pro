@@ -80,6 +80,12 @@ import android.os.Handler
 import android.os.Looper
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.TimeUnit
+import android.util.Size
+import android.view.MotionEvent
+import androidx.camera.core.FocusMeteringAction
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.drawscope.Stroke
 
 @Composable
@@ -131,7 +137,8 @@ fun CameraBarcodeScannerDialog(
 
     val scannedProduct = remember(lastScannedBarcode, products) {
         if (!lastScannedBarcode.isNullOrBlank()) {
-            products.find { it.barcode == lastScannedBarcode }
+            val code = lastScannedBarcode!!.trim()
+            products.find { it.barcode?.trim().equals(code, ignoreCase = true) }
         } else null
     }
 
@@ -278,8 +285,9 @@ fun CameraBarcodeScannerDialog(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(125.dp)
+                                .height(230.dp)
                                 .clip(RoundedCornerShape(Radius.md))
+                                .clipToBounds()
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                                 .padding(Spacing.lg),
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -300,7 +308,7 @@ fun CameraBarcodeScannerDialog(
                             )
                             Spacer(modifier = Modifier.height(Spacing.xs))
                             Text(
-                                text = "বারকোড সহজে স্ক্যান করতে ক্যামেরা পারমিশন এলাউ করুন।",
+                                text = "বারকোড বা QR কোড সহজে স্ক্যান করতে ক্যামেরা পারমিশন এলাউ করুন।",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
@@ -320,21 +328,23 @@ fun CameraBarcodeScannerDialog(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(125.dp)
+                                .height(230.dp)
                                 .clip(RoundedCornerShape(Radius.md))
+                                .clipToBounds()
                                 .background(Color.Black),
                             contentAlignment = Alignment.Center
                         ) {
                             CameraPreviewWithAnalyzer(
                                 resetTrigger = resetScanTrigger,
                                 onBarcodeFound = { code ->
+                                    val trimmedCode = code.trim()
                                     val currentTime = System.currentTimeMillis()
                                     if (currentTime - lastScannedTimestamp >= 500L) {
                                         lastScannedTimestamp = currentTime
-                                        lastCode = code
-                                        lastScannedBarcode = code
+                                        lastCode = trimmedCode
+                                        lastScannedBarcode = trimmedCode
 
-                                        val found = products.find { it.barcode == code }
+                                        val found = products.find { it.barcode?.trim().equals(trimmedCode, ignoreCase = true) }
                                         if (found != null && !scannedHistory.contains(found.id)) {
                                             scannedHistory = listOf(found.id) + scannedHistory
                                         }
@@ -345,7 +355,7 @@ fun CameraBarcodeScannerDialog(
                                             toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 130)
                                         } catch (_: Exception) {}
 
-                                        onBarcodeScanned(code)
+                                        onBarcodeScanned(trimmedCode)
 
                                         if (!isContinuousMode) {
                                             // Non-continuous mode: user can still see and confirm before dismiss
@@ -390,7 +400,7 @@ fun CameraBarcodeScannerDialog(
 
                         Spacer(modifier = Modifier.height(Spacing.xs))
                         Text(
-                            text = "💡 পণ্যের বারকোডটি ফ্রেমের ভেতরে ধরুন",
+                            text = "💡 বারকোড বা QR কোডটি ফ্রেমের ভেতরে ধরুন (ফোকাস করতে ট্যাপ করুন)",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -488,7 +498,7 @@ fun CameraBarcodeScannerDialog(
                                         toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 120)
                                     } catch (_: Exception) {}
 
-                                    val found = products.find { it.barcode == code }
+                                    val found = products.find { it.barcode?.trim().equals(code, ignoreCase = true) }
                                     if (found != null && !scannedHistory.contains(found.id)) {
                                         scannedHistory = listOf(found.id) + scannedHistory
                                     }
@@ -753,13 +763,13 @@ fun CameraBarcodeScannerDialog(
                             Spacer(modifier = Modifier.width(Spacing.xs))
                             Column {
                                 Text(
-                                    text = "বারকোড: $lastScannedBarcode",
+                                    text = "বারকোড / QR: $lastScannedBarcode",
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.error
                                 )
                                 Text(
-                                    text = "দোকানের তালিকায় এই বারকোডের কোনো পণ্য পাওয়া যায়নি!",
+                                    text = "দোকানের তালিকায় এই কোডের কোনো পণ্য পাওয়া যায়নি!",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -956,47 +966,74 @@ private fun CameraPreviewWithAnalyzer(
     // 1) Exactly 1 beep + 1 cart entry per barcode presentation
     // 2) Never continuously add while held pointing at the same barcode
     val activeBarcodeLock = remember { AtomicReference<String?>(null) }
-    val emptyFrameCounter = remember { AtomicInteger(0) }
+    val lastScanTimestamp = remember { AtomicLong(0L) }
+    val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            cameraExecutor.shutdown()
+        }
+    }
 
     LaunchedEffect(resetTrigger) {
         activeBarcodeLock.set(null)
-        emptyFrameCounter.set(0)
+        lastScanTimestamp.set(0L)
     }
 
     AndroidView(
         factory = { ctx ->
+            // Use COMPATIBLE implementation mode so PreviewView uses TextureView instead of SurfaceView.
+            // SurfaceView punches through the window layer and cannot be clipped by Compose Modifier.clip/clipToBounds.
+            // TextureView respects Compose clipping, rounded corners, and dialog boundaries cleanly.
             val previewView = PreviewView(ctx).apply {
+                implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                scaleType = PreviewView.ScaleType.FILL_CENTER
+                clipToOutline = true
                 layoutParams = ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
             }
 
-            val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-            val cameraExecutor = Executors.newSingleThreadExecutor()
+            var boundCamera: Camera? = null
 
+            // Tap-to-focus on camera viewfinder
+            previewView.setOnTouchListener { v, event ->
+                if (event.action == MotionEvent.ACTION_UP) {
+                    try {
+                        val factory = previewView.meteringPointFactory
+                        val point = factory.createPoint(event.x, event.y)
+                        val action = FocusMeteringAction.Builder(
+                            point,
+                            FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
+                        ).setAutoCancelDuration(3, TimeUnit.SECONDS).build()
+                        boundCamera?.cameraControl?.startFocusAndMetering(action)
+                        v.performClick()
+                    } catch (_: Exception) {}
+                }
+                true
+            }
+
+            val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+
+            // ML Kit barcode scanner supporting ALL formats (QR codes, EAN-13, UPC, Code 128, Code 39, Data Matrix, etc.)
             val barcodeScannerOptions = BarcodeScannerOptions.Builder()
-                .setBarcodeFormats(
-                    Barcode.FORMAT_EAN_13,
-                    Barcode.FORMAT_EAN_8,
-                    Barcode.FORMAT_UPC_A,
-                    Barcode.FORMAT_UPC_E,
-                    Barcode.FORMAT_CODE_128,
-                    Barcode.FORMAT_CODE_39,
-                    Barcode.FORMAT_QR_CODE,
-                    Barcode.FORMAT_ALL_FORMATS
-                )
+                .setBarcodeFormats(Barcode.FORMAT_ALL_FORMATS)
                 .build()
             val barcodeScanner = BarcodeScanning.getClient(barcodeScannerOptions)
 
             cameraProviderFuture.addListener({
                 val cameraProvider = cameraProviderFuture.get()
 
-                val preview = Preview.Builder().build().also {
-                    it.setSurfaceProvider(previewView.surfaceProvider)
-                }
+                // Target 720p resolution for high definition, crystal clear QR/barcode recognition
+                val preview = Preview.Builder()
+                    .setTargetResolution(Size(1280, 720))
+                    .build().also {
+                        it.setSurfaceProvider(previewView.surfaceProvider)
+                    }
 
                 val imageAnalysis = ImageAnalysis.Builder()
+                    .setTargetResolution(Size(1280, 720))
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
 
@@ -1008,63 +1045,57 @@ private fun CameraPreviewWithAnalyzer(
                             mediaImage,
                             rotationDegrees
                         )
-                        val imgWidth = inputImage.width
-                        val imgHeight = inputImage.height
-
-                        if (imgWidth <= 0 || imgHeight <= 0) {
-                            imageProxy.close()
-                            return@setAnalyzer
-                        }
 
                         barcodeScanner.process(inputImage)
                             .addOnSuccessListener { barcodes ->
-                                // STRICT REGION OF INTEREST (ROI) FILTERING:
-                                // Only accept barcodes located inside the center reticle frame!
-                                // Reject adjacent barcodes outside the target frame completely.
-                                val reticleBarcodes = barcodes.filter { b ->
-                                    val raw = b.rawValue
-                                    if (raw.isNullOrBlank()) return@filter false
-                                    val box = b.boundingBox ?: return@filter false
-                                    val normX = box.centerX().toFloat() / imgWidth.toFloat()
-                                    val normY = box.centerY().toFloat() / imgHeight.toFloat()
-                                    // Visual reticle corresponds to center region:
-                                    // normX in 0.15f..0.85f and normY in 0.18f..0.82f
-                                    normX in 0.15f..0.85f && normY in 0.18f..0.82f
-                                }
-
-                                if (reticleBarcodes.isEmpty()) {
-                                    val empties = emptyFrameCounter.incrementAndGet()
-                                    // After ~25 empty frames (~1 sec of camera moved away), unlock scanner
-                                    if (empties >= 25) {
+                                if (barcodes.isNullOrEmpty()) {
+                                    val now = System.currentTimeMillis()
+                                    if (now - lastScanTimestamp.get() > 1200L) {
                                         activeBarcodeLock.set(null)
                                     }
                                     return@addOnSuccessListener
                                 }
 
-                                // Barcode found inside reticle: reset empty counter
-                                emptyFrameCounter.set(0)
+                                // Extract all detected values cleanly (both rawValue and displayValue for QR codes)
+                                val candidates = barcodes.mapNotNull { b ->
+                                    val raw = b.rawValue?.trim()?.ifBlank { null }
+                                        ?: b.displayValue?.trim()?.ifBlank { null }
+                                    if (raw != null) Pair(b, raw) else null
+                                }
 
-                                // If multiple barcodes are in the reticle, select the one closest to center
-                                val bestBarcode = reticleBarcodes.minByOrNull { b ->
-                                    val box = b.boundingBox!!
-                                    val normX = box.centerX().toFloat() / imgWidth.toFloat()
-                                    val normY = box.centerY().toFloat() / imgHeight.toFloat()
-                                    val dx = normX - 0.5f
-                                    val dy = normY - 0.5f
-                                    dx * dx + dy * dy
-                                } ?: return@addOnSuccessListener
+                                if (candidates.isEmpty()) return@addOnSuccessListener
 
-                                val raw = bestBarcode.rawValue ?: return@addOnSuccessListener
+                                // If multiple barcodes/QRs are detected, pick the one closest to center
+                                val chosen = if (candidates.size == 1) {
+                                    candidates.first()
+                                } else {
+                                    val imgW = if (rotationDegrees == 90 || rotationDegrees == 270) inputImage.height else inputImage.width
+                                    val imgH = if (rotationDegrees == 90 || rotationDegrees == 270) inputImage.width else inputImage.height
+                                    candidates.minByOrNull { (b, _) ->
+                                        val box = b.boundingBox
+                                        if (box != null && imgW > 0 && imgH > 0) {
+                                            val cx = box.centerX().toFloat() / imgW.toFloat() - 0.5f
+                                            val cy = box.centerY().toFloat() / imgH.toFloat() - 0.5f
+                                            cx * cx + cy * cy
+                                        } else {
+                                            0f
+                                        }
+                                    } ?: candidates.first()
+                                }
+
+                                val raw = chosen.second
+                                val now = System.currentTimeMillis()
 
                                 // ATOMIC REPEATED SCAN LOCK:
-                                // If camera is currently pointed at this same barcode, DO NOT fire again!
+                                // If camera is currently pointed at this same barcode, do not trigger again within 1.5s
                                 val currentLocked = activeBarcodeLock.get()
-                                if (currentLocked == raw) {
+                                if (currentLocked == raw && (now - lastScanTimestamp.get()) < 1500L) {
                                     return@addOnSuccessListener
                                 }
 
-                                // New barcode entered: lock it and dispatch callback on main thread
                                 activeBarcodeLock.set(raw)
+                                lastScanTimestamp.set(now)
+
                                 mainHandler.post {
                                     currentOnBarcodeFound(raw)
                                 }
@@ -1085,13 +1116,16 @@ private fun CameraPreviewWithAnalyzer(
                         preview,
                         imageAnalysis
                     )
+                    boundCamera = camera
                     onCameraReady(camera)
                 } catch (_: Exception) {}
             }, ContextCompat.getMainExecutor(ctx))
 
             previewView
         },
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .clipToBounds()
     )
 }
 
@@ -1142,7 +1176,7 @@ fun CompactCameraBarcodeScanner(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(90.dp),
+                    .height(140.dp),
                 shape = RoundedCornerShape(Radius.md),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
@@ -1162,7 +1196,7 @@ fun CompactCameraBarcodeScanner(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "বারকোড স্ক্যান করতে ক্যামেরা ব্যবহারের অনুমতি দিন",
+                        text = "বারকোড বা QR স্ক্যান করতে ক্যামেরা ব্যবহারের অনুমতি দিন",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
@@ -1182,7 +1216,7 @@ fun CompactCameraBarcodeScanner(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(85.dp),
+                    .height(110.dp),
                 shape = RoundedCornerShape(Radius.md),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
@@ -1233,19 +1267,21 @@ fun CompactCameraBarcodeScanner(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(90.dp)
+                    .height(140.dp)
                     .clip(RoundedCornerShape(Radius.md))
+                    .clipToBounds()
                     .background(Color.Black),
                 contentAlignment = Alignment.Center
             ) {
                 CameraPreviewWithAnalyzer(
                     resetTrigger = resetScanTrigger,
                     onBarcodeFound = { code ->
+                        val trimmed = code.trim()
                         val currentTime = System.currentTimeMillis()
                         if (currentTime - lastScannedTimestamp >= 500L) {
                             lastScannedTimestamp = currentTime
-                            lastCode = code
-                            lastScannedBarcode = code
+                            lastCode = trimmed
+                            lastScannedBarcode = trimmed
 
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                             try {
@@ -1253,7 +1289,7 @@ fun CompactCameraBarcodeScanner(
                                 toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 130)
                             } catch (_: Exception) {}
 
-                            onBarcodeScanned(code)
+                            onBarcodeScanned(trimmed)
                         }
                     },
                     onCameraReady = { cam ->

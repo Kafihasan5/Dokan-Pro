@@ -606,7 +606,8 @@ fun PosScreen(
             },
             onDismiss = { showBarcodeDialog = false },
             onBarcodeScanned = { barcode ->
-                val found = products.find { it.barcode == barcode }
+                val trimmedCode = barcode.trim()
+                val found = products.find { it.barcode?.trim().equals(trimmedCode, ignoreCase = true) }
                 if (found != null) {
                     val alreadyInCart = cartItems.any { it.productId == found.id }
                     if (alreadyInCart) {
@@ -616,7 +617,7 @@ fun PosScreen(
                         viewModel.showToast("✓ ${found.nameBn} কার্টে যোগ করা হয়েছে")
                     }
                 } else {
-                    viewModel.showToast("বারকোড খুঁজে পাওয়া যায়নি: $barcode")
+                    viewModel.showToast("বারকোড বা QR কোড পাওয়া যায়নি: $trimmedCode")
                 }
             }
         )
