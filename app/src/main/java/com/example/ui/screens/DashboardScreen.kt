@@ -641,7 +641,11 @@ fun DashboardScreen(
                     DashboardWeeklyChart(sales = sales, config = config, onNavigateToReports = { onNavigate(AppScreen.REPORTS) })
 
                     val staffSalesSummaries = remember(periodSales, config.staffMembersJson) {
-                        viewModel.calculateStaffSalesSummaries(periodSales)
+                        try {
+                            viewModel.calculateStaffSalesSummaries(periodSales)
+                        } catch (_: Throwable) {
+                            emptyList()
+                        }
                     }
                     if (staffSalesSummaries.isNotEmpty()) {
                         DashboardEmployeeSalesWidget(
@@ -1320,8 +1324,9 @@ private fun DashboardEmployeeSalesWidget(
                                 .background(avatarColor.copy(alpha = 0.14f)),
                             contentAlignment = Alignment.Center
                         ) {
+                            val initialLetter = summary.staffName.trim().firstOrNull()?.toString()?.uppercase() ?: "S"
                             Text(
-                                text = summary.staffName.take(1).uppercase(),
+                                text = initialLetter,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
                                 color = avatarColor

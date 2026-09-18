@@ -182,41 +182,51 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
     fun startOneHourDemo() {
         viewModelScope.launch {
-            _isActivating.value = true
-            when (val res = licenseManager.startOneHourDemo()) {
-                is com.example.data.license.DemoStartResult.Success -> {
-                    // Seed 7 days of realistic grocery shop dummy data
-                    repository.seedDemoData()
-                    _isDemoMode.value = true
-                    _isDemoUsed.value = true
-                    _isDemoExpired.value = false
-                    _remainingDemoMillis.value = res.remainingMillis
-                    _isAppActivated.value = true
-                    // Auto-complete onboarding so demo enters dashboard directly with all 20 products
-                    if (!_shopConfig.value.isOnboardingCompleted) {
-                        val current = _shopConfig.value
-                        val updated = current.copy(
-                            shopName = if (current.shopName.isBlank() || current.shopName == "দোকান প্রো") "Dokan Pro" else current.shopName,
-                            isOnboardingCompleted = true
-                        )
-                        updateShopConfig(updated)
+            try {
+                _isActivating.value = true
+                when (val res = licenseManager.startOneHourDemo()) {
+                    is com.example.data.license.DemoStartResult.Success -> {
+                        // Seed 7 days of realistic grocery shop dummy data
+                        try {
+                            repository.seedDemoData()
+                        } catch (t: Throwable) {
+                            Log.e("PaponViewModel", "Failed to seed demo data: ${t.message}", t)
+                        }
+                        _isDemoMode.value = true
+                        _isDemoUsed.value = true
+                        _isDemoExpired.value = false
+                        _remainingDemoMillis.value = res.remainingMillis
+                        _isAppActivated.value = true
+                        // Auto-complete onboarding so demo enters dashboard directly with all 20 products
+                        if (!_shopConfig.value.isOnboardingCompleted) {
+                            val current = _shopConfig.value
+                            val updated = current.copy(
+                                shopName = if (current.shopName.isBlank() || current.shopName == "দোকান প্রো") "Dokan Pro" else current.shopName,
+                                isOnboardingCompleted = true
+                            )
+                            updateShopConfig(updated)
+                        }
+                        startDemoTimerTicker()
+                        _isActivating.value = false
+                        showToast(res.message.ifBlank { "১ ঘণ্টার ফ্রি ডেমো মোড চালু হয়েছে! ২০টি পণ্য ও ৭ দিনের ডামি ডাটা লোড করা হয়েছে।" })
                     }
-                    startDemoTimerTicker()
-                    _isActivating.value = false
-                    showToast(res.message.ifBlank { "১ ঘণ্টার ফ্রি ডেমো মোড চালু হয়েছে! ২০টি পণ্য ও ৭ দিনের ডামি ডাটা লোড করা হয়েছে।" })
+                    is com.example.data.license.DemoStartResult.Expired -> {
+                        _isDemoMode.value = false
+                        _isDemoUsed.value = true
+                        _isDemoExpired.value = true
+                        _isAppActivated.value = false
+                        _isActivating.value = false
+                        showToast(res.message)
+                    }
+                    is com.example.data.license.DemoStartResult.Error -> {
+                        _isActivating.value = false
+                        showToast(res.message)
+                    }
                 }
-                is com.example.data.license.DemoStartResult.Expired -> {
-                    _isDemoMode.value = false
-                    _isDemoUsed.value = true
-                    _isDemoExpired.value = true
-                    _isAppActivated.value = false
-                    _isActivating.value = false
-                    showToast(res.message)
-                }
-                is com.example.data.license.DemoStartResult.Error -> {
-                    _isActivating.value = false
-                    showToast(res.message)
-                }
+            } catch (t: Throwable) {
+                Log.e("PaponViewModel", "Unexpected error in startOneHourDemo", t)
+                _isActivating.value = false
+                showToast("ডেমো চালু করতে সমস্যা হয়েছে: ${t.message ?: "আবার চেষ্টা করুন"}")
             }
         }
     }
@@ -320,35 +330,42 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
     fun activateApp(email: String) {
         viewModelScope.launch {
-            _isActivating.value = true
-            _activationError.value = null
-            when (val res = licenseManager.activateWithEmail(email)) {
-                is com.example.data.license.ActivationResult.Success -> {
-                    // CRITICAL REQUIREMENT: Real customer activated the app!
-                    // If demo was used or currently active, wipe all dummy data clean so they get a 100% fresh shop.
-                    val wasDemo = licenseManager.wasDemoUsed() || _isDemoMode.value
-                    if (wasDemo) {
-                        repository.clearAllDummyData()
-                        licenseManager.clearDemoState()
+            try {
+                _isActivating.value = true
+                _activationError.value = null
+                when (val res = licenseManager.activateWithEmail(email)) {
+                    is com.example.data.license.ActivationResult.Success -> {
+                        // CRITICAL REQUIREMENT: Real customer activated the app!
+                        // If demo was used or currently active, wipe all dummy data clean so they get a 100% fresh shop.
+                        val wasDemo = try { licenseManager.wasDemoUsed() || _isDemoMode.value } catch (_: Throwable) { false }
+                        if (wasDemo) {
+                            try { repository.clearAllDummyData() } catch (_: Throwable) {}
+                            try { licenseManager.clearDemoState() } catch (_: Throwable) {}
+                        }
+                        try { demoTimerJob?.cancel() } catch (_: Throwable) {}
+                        _isDemoMode.value = false
+                        val cleanEmail = email.trim()
+                        val updatedCfg = _shopConfig.value.copy(
+                            ownerEmail = cleanEmail,
+                            userRole = "owner"
+                        )
+                        _shopConfig.value = updatedCfg
+                        saveShopConfig(updatedCfg)
+                        _licenseInfo.value = res.info
+                        _isActivating.value = false
+                        _isAppActivated.value = true
+                        showToast(res.message.ifBlank { "অভিনন্দন! Dokan-Pro সফলভাবে সক্রিয় হয়েছে" })
                     }
-                    demoTimerJob?.cancel()
-                    _isDemoMode.value = false
-                    val cleanEmail = email.trim()
-                    val updatedCfg = _shopConfig.value.copy(
-                        ownerEmail = cleanEmail,
-                        userRole = "owner"
-                    )
-                    _shopConfig.value = updatedCfg
-                    saveShopConfig(updatedCfg)
-                    _isAppActivated.value = true
-                    _licenseInfo.value = res.info
-                    _isActivating.value = false
-                    showToast(res.message.ifBlank { "অভিনন্দন! Dokan-Pro সফলভাবে সক্রিয় হয়েছে" })
+                    is com.example.data.license.ActivationResult.Error -> {
+                        _activationError.value = res.message
+                        _isActivating.value = false
+                    }
                 }
-                is com.example.data.license.ActivationResult.Error -> {
-                    _activationError.value = res.message
-                    _isActivating.value = false
-                }
+            } catch (t: Throwable) {
+                Log.e("PaponViewModel", "Crash prevented in activateApp", t)
+                _activationError.value = "অ্যাক্টিভেশন ত্রুটি: ${t.message ?: "ইন্টারনেট সংযোগ চেক করুন"}"
+                _isActivating.value = false
+                showToast("অ্যাক্টিভেশন ব্যর্থ হয়েছে: ${t.message ?: "পুনরায় চেষ্টা করুন"}")
             }
         }
     }
@@ -1524,10 +1541,14 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
             if (config.userRole == "owner") {
                 val code = config.firebaseShopCode.ifBlank { getDefaultShopCode() }
                 viewModelScope.launch {
-                    firebaseSyncManager.saveShopSecurity(code, config.ownerEmail, config.pinCode, config.staffPin)
-                    val staffList = getStaffMembers()
-                    if (staffList.isNotEmpty()) {
-                        firebaseSyncManager.saveStaffMembers(code, staffList)
+                    try {
+                        firebaseSyncManager.saveShopSecurity(code, config.ownerEmail, config.pinCode, config.staffPin)
+                        val staffList = getStaffMembers()
+                        if (staffList.isNotEmpty()) {
+                            firebaseSyncManager.saveStaffMembers(code, staffList)
+                        }
+                    } catch (t: Throwable) {
+                        Log.e("PaponViewModel", "saveShopSecurity error in saveShopConfig: ${t.message}")
                     }
                 }
             }
@@ -1693,7 +1714,9 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
                     showToast("দোকানের সমস্ত তথ্য সফলভাবে রিস্টোর হয়েছে!")
                     withContext(Dispatchers.Main) {
-                        onComplete(true, "দোকান সফলভাবে রিস্টোর সম্পন্ন হয়েছে!")
+                        try {
+                            onComplete(true, "দোকান সফলভাবে রিস্টোর সম্পন্ন হয়েছে!")
+                        } catch (_: Throwable) {}
                     }
                 } catch (t: Throwable) {
                     Log.e("PaponViewModel", "Error in secureRestoreOwnerShop", t)
@@ -1705,13 +1728,17 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     showToast(msg)
                     withContext(Dispatchers.Main) {
-                        onComplete(false, msg)
+                        try {
+                            onComplete(false, msg)
+                        } catch (_: Throwable) {}
                     }
                 }
             }
         } catch (t: Throwable) {
             Log.e("PaponViewModel", "Synchronous error in secureRestoreOwnerShop", t)
-            onComplete(false, "ত্রুটি: ${t.message ?: "পুনরায় চেষ্টা করুন"}")
+            try {
+                onComplete(false, "ত্রুটি: ${t.message ?: "পুনরায় চেষ্টা করুন"}")
+            } catch (_: Throwable) {}
         }
     }
 
@@ -1821,7 +1848,9 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
                     showToast("কর্মচারী ($finalStaffName) হিসেবে সফলভাবে যুক্ত হয়েছেন!")
                     withContext(Dispatchers.Main) {
-                        onComplete(true, "কর্মচারী হিসেবে যুক্ত সম্পন্ন!")
+                        try {
+                            onComplete(true, "কর্মচারী হিসেবে যুক্ত সম্পন্ন!")
+                        } catch (_: Throwable) {}
                     }
                 } catch (t: Throwable) {
                     Log.e("PaponViewModel", "Error in secureJoinAsStaff", t)
@@ -1833,13 +1862,17 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     showToast(msg)
                     withContext(Dispatchers.Main) {
-                        onComplete(false, msg)
+                        try {
+                            onComplete(false, msg)
+                        } catch (_: Throwable) {}
                     }
                 }
             }
         } catch (t: Throwable) {
             Log.e("PaponViewModel", "Outer error in secureJoinAsStaff", t)
-            onComplete(false, "সমস্যা হয়েছে: ${t.message ?: "আবার চেষ্টা করুন"}")
+            try {
+                onComplete(false, "সমস্যা হয়েছে: ${t.message ?: "আবার চেষ্টা করুন"}")
+            } catch (_: Throwable) {}
         }
     }
 
@@ -1879,89 +1912,94 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
      * Shows how much each employee sold, total invoices, cash collected, and due.
      */
     fun calculateStaffSalesSummaries(salesList: List<Sale>): List<StaffSalesSummary> {
-        val staffMembers = getStaffMembers()
-        val map = mutableMapOf<String, StaffSalesSummary>()
+        return try {
+            val staffMembers = getStaffMembers()
+            val map = mutableMapOf<String, StaffSalesSummary>()
 
-        // Pre-populate with configured staff members so the owner can see them even if sales are 0
-        staffMembers.forEach { member ->
-            val key = member.email.trim().lowercase().ifBlank { member.name.trim().lowercase() }
-            if (key.isNotBlank()) {
-                map[key] = StaffSalesSummary(
-                    staffKey = key,
-                    staffName = member.name.ifBlank { "স্টাফ" },
-                    staffEmail = member.email,
-                    totalSalesPoisha = 0L,
-                    totalOrdersCount = 0,
-                    totalCashPoisha = 0L,
-                    totalDuePoisha = 0L,
-                    isOwner = false
+            // Pre-populate with configured staff members so the owner can see them even if sales are 0
+            staffMembers.forEach { member ->
+                val key = member.email.trim().lowercase().ifBlank { member.name.trim().lowercase() }
+                if (key.isNotBlank()) {
+                    map[key] = StaffSalesSummary(
+                        staffKey = key,
+                        staffName = member.name.ifBlank { "স্টাফ" },
+                        staffEmail = member.email,
+                        totalSalesPoisha = 0L,
+                        totalOrdersCount = 0,
+                        totalCashPoisha = 0L,
+                        totalDuePoisha = 0L,
+                        isOwner = false
+                    )
+                }
+            }
+
+            var ownerSalesPoisha = 0L
+            var ownerOrdersCount = 0
+            var ownerCashPoisha = 0L
+            var ownerDuePoisha = 0L
+
+            for (sale in salesList) {
+                if (sale.isReturned) continue
+                val note = sale.note?.trim() ?: ""
+                if (note.startsWith("staff:", ignoreCase = true) || note.contains("staff", ignoreCase = true)) {
+                    val parts = note.split(":")
+                    val sEmail = if (parts.size >= 3) parts[1].trim().lowercase() else ""
+                    val sName = if (parts.size >= 3) parts[2].trim() else if (parts.size >= 2) parts[1].trim() else "স্টাফ"
+
+                    val matchedKey = map.keys.firstOrNull { k ->
+                        (sEmail.isNotBlank() && k == sEmail) ||
+                        (sName.isNotBlank() && k.equals(sName, ignoreCase = true)) ||
+                        (sName.isNotBlank() && map[k]?.staffName.equals(sName, ignoreCase = true))
+                    } ?: (sEmail.ifBlank { sName.lowercase().ifBlank { "staff_misc" } })
+
+                    val existing = map[matchedKey] ?: StaffSalesSummary(
+                        staffKey = matchedKey,
+                        staffName = sName.ifBlank { "স্টাফ" },
+                        staffEmail = sEmail,
+                        totalSalesPoisha = 0L,
+                        totalOrdersCount = 0,
+                        totalCashPoisha = 0L,
+                        totalDuePoisha = 0L,
+                        isOwner = false
+                    )
+
+                    map[matchedKey] = existing.copy(
+                        totalSalesPoisha = existing.totalSalesPoisha + sale.totalPoisha,
+                        totalOrdersCount = existing.totalOrdersCount + 1,
+                        totalCashPoisha = existing.totalCashPoisha + sale.paidAmountPoisha,
+                        totalDuePoisha = existing.totalDuePoisha + sale.dueAmountPoisha
+                    )
+                } else {
+                    ownerSalesPoisha += sale.totalPoisha
+                    ownerOrdersCount += 1
+                    ownerCashPoisha += sale.paidAmountPoisha
+                    ownerDuePoisha += sale.dueAmountPoisha
+                }
+            }
+
+            val result = map.values.toMutableList()
+            result.sortByDescending { it.totalSalesPoisha }
+
+            if (ownerOrdersCount > 0 || ownerSalesPoisha > 0) {
+                result.add(
+                    StaffSalesSummary(
+                        staffKey = "owner",
+                        staffName = "দোকান মালিক (সরাসরি)",
+                        staffEmail = _shopConfig.value.ownerEmail,
+                        totalSalesPoisha = ownerSalesPoisha,
+                        totalOrdersCount = ownerOrdersCount,
+                        totalCashPoisha = ownerCashPoisha,
+                        totalDuePoisha = ownerDuePoisha,
+                        isOwner = true
+                    )
                 )
             }
+
+            result
+        } catch (t: Throwable) {
+            Log.e("PaponViewModel", "Crash prevented in calculateStaffSalesSummaries", t)
+            emptyList()
         }
-
-        var ownerSalesPoisha = 0L
-        var ownerOrdersCount = 0
-        var ownerCashPoisha = 0L
-        var ownerDuePoisha = 0L
-
-        for (sale in salesList) {
-            if (sale.isReturned) continue
-            val note = sale.note?.trim() ?: ""
-            if (note.startsWith("staff:", ignoreCase = true) || note.contains("staff", ignoreCase = true)) {
-                val parts = note.split(":")
-                val sEmail = if (parts.size >= 3) parts[1].trim().lowercase() else ""
-                val sName = if (parts.size >= 3) parts[2].trim() else if (parts.size >= 2) parts[1].trim() else "স্টাফ"
-
-                val matchedKey = map.keys.firstOrNull { k ->
-                    (sEmail.isNotBlank() && k == sEmail) ||
-                    (sName.isNotBlank() && k.equals(sName, ignoreCase = true)) ||
-                    (sName.isNotBlank() && map[k]?.staffName.equals(sName, ignoreCase = true))
-                } ?: (sEmail.ifBlank { sName.lowercase().ifBlank { "staff_misc" } })
-
-                val existing = map[matchedKey] ?: StaffSalesSummary(
-                    staffKey = matchedKey,
-                    staffName = sName.ifBlank { "স্টাফ" },
-                    staffEmail = sEmail,
-                    totalSalesPoisha = 0L,
-                    totalOrdersCount = 0,
-                    totalCashPoisha = 0L,
-                    totalDuePoisha = 0L,
-                    isOwner = false
-                )
-
-                map[matchedKey] = existing.copy(
-                    totalSalesPoisha = existing.totalSalesPoisha + sale.totalPoisha,
-                    totalOrdersCount = existing.totalOrdersCount + 1,
-                    totalCashPoisha = existing.totalCashPoisha + sale.paidAmountPoisha,
-                    totalDuePoisha = existing.totalDuePoisha + sale.dueAmountPoisha
-                )
-            } else {
-                ownerSalesPoisha += sale.totalPoisha
-                ownerOrdersCount += 1
-                ownerCashPoisha += sale.paidAmountPoisha
-                ownerDuePoisha += sale.dueAmountPoisha
-            }
-        }
-
-        val result = map.values.toMutableList()
-        result.sortByDescending { it.totalSalesPoisha }
-
-        if (ownerOrdersCount > 0 || ownerSalesPoisha > 0) {
-            result.add(
-                StaffSalesSummary(
-                    staffKey = "owner",
-                    staffName = "দোকান মালিক (সরাসরি)",
-                    staffEmail = _shopConfig.value.ownerEmail,
-                    totalSalesPoisha = ownerSalesPoisha,
-                    totalOrdersCount = ownerOrdersCount,
-                    totalCashPoisha = ownerCashPoisha,
-                    totalDuePoisha = ownerDuePoisha,
-                    isOwner = true
-                )
-            )
-        }
-
-        return result
     }
 
     fun saveStaffMember(staff: com.example.data.entity.StaffMember, onComplete: ((Boolean, String) -> Unit)? = null) {

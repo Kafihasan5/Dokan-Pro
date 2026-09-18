@@ -102,12 +102,16 @@ fun AppActivationScreen(
 
     // Automatically reset scroll position when navigating flows or switching tabs
     LaunchedEffect(activeFlow, ownerChoice) {
-        scrollState.scrollTo(0)
+        try {
+            scrollState.scrollTo(0)
+        } catch (_: Throwable) {}
     }
 
     // Intercept hardware back button when inside a sub-flow
     BackHandler(enabled = activeFlow != "role_select") {
-        activeFlow = "role_select"
+        try {
+            activeFlow = "role_select"
+        } catch (_: Throwable) {}
     }
 
     // Modern Deep Obsidian Gradient Background
@@ -242,19 +246,21 @@ fun AppActivationScreen(
 
                             // 👑 কার্ড ১: আমি দোকান মালিক (I am Shop Owner)
                             Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(Radius.lg))
-                                    .clickable {
+                                onClick = {
+                                    try {
                                         ownerChoice = "license" // Default to new license activation first
                                         activeFlow = "owner_flow"
-                                    },
+                                    } catch (t: Throwable) {
+                                        android.util.Log.e("AppActivation", "Error entering owner flow", t)
+                                    }
+                                },
                                 shape = RoundedCornerShape(Radius.lg),
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surface
                                 ),
                                 border = BorderStroke(1.5.dp, Brand500.copy(alpha = 0.5f)),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -308,16 +314,20 @@ fun AppActivationScreen(
 
                             // 👤 কার্ড ২: আমি কর্মচারী (I am Staff / Employee) - NO 'Free Access' badge
                             Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(Radius.lg))
-                                    .clickable { activeFlow = "staff_flow" },
+                                onClick = {
+                                    try {
+                                        activeFlow = "staff_flow"
+                                    } catch (t: Throwable) {
+                                        android.util.Log.e("AppActivation", "Error entering staff flow", t)
+                                    }
+                                },
                                 shape = RoundedCornerShape(Radius.lg),
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surface
                                 ),
                                 border = BorderStroke(1.5.dp, Success.copy(alpha = 0.5f)),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -408,7 +418,13 @@ fun AppActivationScreen(
                                             )
                                         }
                                         Button(
-                                            onClick = { viewModel.startOneHourDemo() },
+                                            onClick = {
+                                                try {
+                                                    viewModel.startOneHourDemo()
+                                                } catch (t: Throwable) {
+                                                    android.util.Log.e("AppActivation", "Error in startOneHourDemo", t)
+                                                }
+                                            },
                                             enabled = !isActivating,
                                             shape = RoundedCornerShape(Radius.sm),
                                             colors = ButtonDefaults.buttonColors(containerColor = Gold500),
@@ -536,7 +552,11 @@ fun AppActivationScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(Radius.sm))
-                                    .clickable { activeFlow = "role_select" }
+                                    .clickable {
+                                        try {
+                                            activeFlow = "role_select"
+                                        } catch (_: Throwable) {}
+                                    }
                                     .padding(vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -570,7 +590,11 @@ fun AppActivationScreen(
                                 ) {
                                     // অপশন ১: নতুন লাইসেন্স সক্রিয় (FIRST)
                                     Surface(
-                                        onClick = { ownerChoice = "license" },
+                                        onClick = {
+                                            try {
+                                                ownerChoice = "license"
+                                            } catch (_: Throwable) {}
+                                        },
                                         shape = RoundedCornerShape(Radius.pill),
                                         color = if (ownerChoice == "license") Brand500 else Color.Transparent,
                                         modifier = Modifier.weight(1f)
@@ -581,7 +605,7 @@ fun AppActivationScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.VpnKey,
+                                                imageVector = Icons.Default.Key,
                                                 contentDescription = null,
                                                 tint = Color.White,
                                                 modifier = Modifier.size(16.dp)
@@ -598,7 +622,11 @@ fun AppActivationScreen(
 
                                     // অপশন ২: পূর্বের দোকান পুনরুদ্ধার (SECOND)
                                     Surface(
-                                        onClick = { ownerChoice = "restore" },
+                                        onClick = {
+                                            try {
+                                                ownerChoice = "restore"
+                                            } catch (_: Throwable) {}
+                                        },
                                         shape = RoundedCornerShape(Radius.pill),
                                         color = if (ownerChoice == "restore") Brand500 else Color.Transparent,
                                         modifier = Modifier.weight(1f)
@@ -649,7 +677,7 @@ fun AppActivationScreen(
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 Icon(
-                                                    imageVector = Icons.Default.VpnKey,
+                                                    imageVector = Icons.Default.Key,
                                                     contentDescription = null,
                                                     tint = Brand500,
                                                     modifier = Modifier.size(22.dp)
@@ -729,8 +757,12 @@ fun AppActivationScreen(
                                             isLoading = isActivating,
                                             enabled = emailInput.isNotBlank() && !isActivating,
                                             onClick = {
-                                                keyboardController?.hide()
-                                                viewModel.activateApp(emailInput.trim())
+                                                try {
+                                                    keyboardController?.hide()
+                                                    viewModel.activateApp(emailInput.trim())
+                                                } catch (t: Throwable) {
+                                                    android.util.Log.e("AppActivation", "Error clicking activate button", t)
+                                                }
                                             }
                                         )
 
@@ -872,10 +904,12 @@ fun AppActivationScreen(
                                                         restoreShopCodeOrEmail.trim(),
                                                         restoreMasterPin.trim()
                                                     ) { success, msg ->
-                                                        isRestoringCloud = false
-                                                        if (!success) {
-                                                            restoreErrorMessage = msg
-                                                        }
+                                                        try {
+                                                            isRestoringCloud = false
+                                                            if (!success) {
+                                                                restoreErrorMessage = msg
+                                                            }
+                                                        } catch (_: Throwable) {}
                                                     }
                                                 } catch (e: Exception) {
                                                     isRestoringCloud = false
@@ -951,7 +985,13 @@ fun AppActivationScreen(
                                             )
                                         }
                                         Button(
-                                            onClick = { viewModel.startOneHourDemo() },
+                                            onClick = {
+                                                try {
+                                                    viewModel.startOneHourDemo()
+                                                } catch (t: Throwable) {
+                                                    android.util.Log.e("AppActivation", "Error in startOneHourDemo", t)
+                                                }
+                                            },
                                             enabled = !isActivating,
                                             shape = RoundedCornerShape(Radius.sm),
                                             colors = ButtonDefaults.buttonColors(containerColor = Gold500),
@@ -983,7 +1023,11 @@ fun AppActivationScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(Radius.sm))
-                                    .clickable { activeFlow = "role_select" }
+                                    .clickable {
+                                        try {
+                                            activeFlow = "role_select"
+                                        } catch (_: Throwable) {}
+                                    }
                                     .padding(vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -1124,10 +1168,12 @@ fun AppActivationScreen(
                                                     staffPinInput.trim(),
                                                     staffNameInput.trim()
                                                 ) { success, msg ->
-                                                    isStaffJoining = false
-                                                    if (!success) {
-                                                        staffJoinError = msg
-                                                    }
+                                                    try {
+                                                        isStaffJoining = false
+                                                        if (!success) {
+                                                            staffJoinError = msg
+                                                        }
+                                                    } catch (_: Throwable) {}
                                                 }
                                             } catch (t: Throwable) {
                                                 isStaffJoining = false

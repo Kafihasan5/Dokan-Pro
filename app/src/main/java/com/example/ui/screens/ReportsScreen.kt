@@ -96,7 +96,11 @@ fun ReportsScreen(
 
     val isStaff = config.userRole == "staff"
     val staffSalesSummaries = remember(periodSales, config.staffMembersJson) {
-        viewModel.calculateStaffSalesSummaries(periodSales)
+        try {
+            viewModel.calculateStaffSalesSummaries(periodSales)
+        } catch (_: Throwable) {
+            emptyList()
+        }
     }
 
     // Stock Valuation (All current active products)
