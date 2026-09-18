@@ -1,6 +1,6 @@
 {
-  "versionCode": 68,
-  "versionName": "1.0.68",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v68/app-debug.apk",
-  "releaseNotes": "feat: Clean Owner vs Staff activation modes, direct restore to dashboard, staff personal sales isolation and complete profit privacy"
+  "versionCode": 69,
+  "versionName": "1.0.69",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v69/app-debug.apk",
+  "releaseNotes": "fix(compile): define now and invoice in checkoutSale"
 }
