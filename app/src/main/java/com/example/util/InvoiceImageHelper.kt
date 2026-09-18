@@ -942,6 +942,7 @@ object InvoiceImageHelper {
         val inv = sale.invoiceNo
         val total = Formatters.formatMoney(sale.totalPoisha, config.useBengaliNumerals, config.currencySymbol)
         val paid = Formatters.formatMoney(sale.paidAmountPoisha, config.useBengaliNumerals, config.currencySymbol)
+        val isDue = sale.dueAmountPoisha > 0
         val salesman = getSalespersonName(sale, config)
 
         val sb = StringBuilder()
