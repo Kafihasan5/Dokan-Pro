@@ -105,8 +105,11 @@ fun TopHeader(
     )
 
     Column(modifier = modifier.fillMaxWidth()) {
+        val isOwner = config.userRole == "owner"
+
         Surface(
-            color = MaterialTheme.colorScheme.background,
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 1.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
@@ -370,52 +373,54 @@ fun TopHeader(
                                     onSyncNow()
                                 }
                             )
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                            DropdownMenuItem(
-                                text = { Text("ক্রয় ও সাপ্লায়ার", style = MaterialTheme.typography.bodyMedium) },
-                                leadingIcon = {
-                                    Icon(
-                                        Icons.Default.LocalShipping,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                },
-                                modifier = Modifier.padding(horizontal = Spacing.sm),
-                                onClick = {
-                                    showMenu = false
-                                    onOpenMoreMenu(AppScreen.PURCHASES)
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("দোকানের খরচ", style = MaterialTheme.typography.bodyMedium) },
-                                leadingIcon = {
-                                    Icon(
-                                        Icons.Default.ReceiptLong,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.dokanColors.warning
-                                    )
-                                },
-                                modifier = Modifier.padding(horizontal = Spacing.sm),
-                                onClick = {
-                                    showMenu = false
-                                    onOpenMoreMenu(AppScreen.EXPENSES)
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("ব্যাকআপ ও ডেটা রিকভারি", style = MaterialTheme.typography.bodyMedium) },
-                                leadingIcon = {
-                                    Icon(
-                                        Icons.Default.Backup,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.dokanColors.info
-                                    )
-                                },
-                                modifier = Modifier.padding(horizontal = Spacing.sm),
-                                onClick = {
-                                    showMenu = false
-                                    onOpenMoreMenu(AppScreen.BACKUP)
-                                }
-                            )
+                            if (isOwner) {
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                                DropdownMenuItem(
+                                    text = { Text("ক্রয় ও সাপ্লায়ার", style = MaterialTheme.typography.bodyMedium) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.LocalShipping,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    },
+                                    modifier = Modifier.padding(horizontal = Spacing.sm),
+                                    onClick = {
+                                        showMenu = false
+                                        onOpenMoreMenu(AppScreen.PURCHASES)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("দোকানের খরচ", style = MaterialTheme.typography.bodyMedium) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.ReceiptLong,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.dokanColors.warning
+                                        )
+                                    },
+                                    modifier = Modifier.padding(horizontal = Spacing.sm),
+                                    onClick = {
+                                        showMenu = false
+                                        onOpenMoreMenu(AppScreen.EXPENSES)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("ব্যাকআপ ও ডেটা রিকভারি", style = MaterialTheme.typography.bodyMedium) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.Backup,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.dokanColors.info
+                                        )
+                                    },
+                                    modifier = Modifier.padding(horizontal = Spacing.sm),
+                                    onClick = {
+                                        showMenu = false
+                                        onOpenMoreMenu(AppScreen.BACKUP)
+                                    }
+                                )
+                            }
                             DropdownMenuItem(
                                 text = { Text("লাইভ সাপোর্ট ও চ্যাট", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold) },
                                 leadingIcon = {
@@ -431,22 +436,24 @@ fun TopHeader(
                                     onOpenMoreMenu(AppScreen.LIVE_SUPPORT)
                                 }
                             )
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                            DropdownMenuItem(
-                                text = { Text("সেটিংস", style = MaterialTheme.typography.bodyMedium) },
-                                leadingIcon = {
-                                    Icon(
-                                        Icons.Default.Settings,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                },
-                                modifier = Modifier.padding(horizontal = Spacing.sm),
-                                onClick = {
-                                    showMenu = false
-                                    onOpenMoreMenu(AppScreen.SETTINGS)
-                                }
-                            )
+                            if (isOwner) {
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                                DropdownMenuItem(
+                                    text = { Text("সেটিংস", style = MaterialTheme.typography.bodyMedium) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.Settings,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    modifier = Modifier.padding(horizontal = Spacing.sm),
+                                    onClick = {
+                                        showMenu = false
+                                        onOpenMoreMenu(AppScreen.SETTINGS)
+                                    }
+                                )
+                            }
                         }
                     }
                 }

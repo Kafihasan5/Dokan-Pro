@@ -262,6 +262,21 @@ class AppLicenseManager(private val context: Context) {
     }
 
     /**
+     * Activate device as an authorized employee/staff member of a shop.
+     * Employees do not need a paid license or demo mode since the owner's shop is already licensed.
+     */
+    fun activateAsStaff(shopCode: String, staffName: String) {
+        prefs.edit()
+            .putBoolean(KEY_IS_ACTIVATED, true)
+            .putString(KEY_EMAIL, "staff@$shopCode")
+            .putString(KEY_CUSTOMER_NAME, "কর্মচারী: ${staffName.ifBlank { "স্টাফ" }}")
+            .putLong(KEY_ACTIVATED_AT, System.currentTimeMillis())
+            .putBoolean(KEY_IS_DEMO_MODE, false)
+            .remove(KEY_DEMO_EXPIRES_AT)
+            .apply()
+    }
+
+    /**
      * Clear demo mode state when user activates with a real license.
      */
     fun clearDemoState() {

@@ -57,6 +57,7 @@ fun FloatingNavBar(
     onNavigate: (AppScreen) -> Unit,
     onFabLongPress: () -> Unit,
     onQrScanClick: () -> Unit = { onNavigate(AppScreen.POS) },
+    isStaff: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val view = LocalView.current
@@ -164,17 +165,19 @@ fun FloatingNavBar(
                     modifier = Modifier.weight(1f)
                 )
 
-                // 6. রিপোর্ট (Reports)
-                NavSlot(
-                    icon = Icons.Default.BarChart,
-                    label = "রিপোর্ট",
-                    isSelected = currentScreen == AppScreen.REPORTS,
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        onNavigate(AppScreen.REPORTS)
-                    },
-                    modifier = Modifier.weight(1f)
-                )
+                // 6. রিপোর্ট (Reports) - শুধুমাত্র দোকান মালিকের জন্য
+                if (!isStaff) {
+                    NavSlot(
+                        icon = Icons.Default.BarChart,
+                        label = "রিপোর্ট",
+                        isSelected = currentScreen == AppScreen.REPORTS,
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            onNavigate(AppScreen.REPORTS)
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
     }

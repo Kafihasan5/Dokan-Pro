@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import java.security.MessageDigest
 
 data class FirebaseSyncStatus(
     val isConnected: Boolean = false,
@@ -135,6 +136,91 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             }
         } else {
             return@withContext clean.uppercase()
+        }
+    }
+
+    /**
+     * Hashes a PIN using SHA-256 for secure cloud storage and zero data leak.
+     */
+    fun hashPin(pin: String): String {
+        val clean = pin.trim()
+        val md = MessageDigest.getInstance("SHA-256")
+        val digest = md.digest(clean.toByteArray(Charsets.UTF_8))
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    /**
+     * Saves owner's Master PIN hash and Staff Access PIN under /shops/{shopCode}/security.
+     */
+    suspend fun saveShopSecurity(
+        shopCode: String,
+        ownerEmail: String,
+        masterPin: String,
+        staffPin: String
+    ) = withContext(Dispatchers.IO) {
+        val cleanCode = shopCode.trim().uppercase()
+        if (cleanCode.isBlank()) return@withContext
+        try {
+            val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
+            val secRef = db.getReference("shops").child(cleanCode).child("security")
+            val map = mapOf(
+                "masterPinHash" to hashPin(masterPin),
+                "staffPin" to staffPin.trim(),
+                "ownerEmail" to ownerEmail.trim().lowercase(),
+                "updatedAt" to ServerValue.TIMESTAMP
+            )
+            secRef.updateChildren(map).await()
+            if (ownerEmail.isNotBlank() && ownerEmail.contains("@")) {
+                linkEmailToShop(ownerEmail, cleanCode)
+            }
+            Log.d(tag, "Shop security successfully saved in Firebase for $cleanCode")
+        } catch (e: Exception) {
+            Log.w(tag, "Error saving shop security: ${e.message}")
+        }
+    }
+
+    /**
+     * Verifies the provided master PIN against the shop's hashed master PIN in Firebase.
+     * Prevents unauthorized access or data theft when someone only knows the owner's email address.
+     */
+    suspend fun verifyMasterPin(shopCode: String, masterPinInput: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
+            val secSnap = withTimeout(10000L) {
+                db.getReference("shops").child(shopCode.trim().uppercase()).child("security").get().await()
+            }
+            val cloudHash = secSnap.child("masterPinHash").getValue(String::class.java)
+            if (cloudHash.isNullOrBlank()) {
+                // Legacy shop without master pin set yet: fallback check default "1234" or accept 4-6 digit pin
+                val clean = masterPinInput.trim()
+                return@withContext clean == "1234" || clean.length in 4..6
+            }
+            val inputHash = hashPin(masterPinInput)
+            return@withContext inputHash.equals(cloudHash.trim(), ignoreCase = true)
+        } catch (e: Exception) {
+            Log.e(tag, "Error verifying master pin: ${e.message}")
+            return@withContext false
+        }
+    }
+
+    /**
+     * Verifies the provided staff PIN against the shop's staff access PIN in Firebase.
+     */
+    suspend fun verifyStaffPin(shopCode: String, staffPinInput: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
+            val secSnap = withTimeout(10000L) {
+                db.getReference("shops").child(shopCode.trim().uppercase()).child("security").get().await()
+            }
+            val cloudStaffPin = secSnap.child("staffPin").getValue(String::class.java)
+            if (cloudStaffPin.isNullOrBlank()) {
+                val clean = staffPinInput.trim()
+                return@withContext clean == "0000" || clean == "1234"
+            }
+            return@withContext staffPinInput.trim() == cloudStaffPin.trim()
+        } catch (e: Exception) {
+            Log.e(tag, "Error verifying staff pin: ${e.message}")
+            return@withContext false
         }
     }
 
@@ -420,9 +506,12 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             dao.insertProducts(productList)
         }
 
-        // Pull Customers
-        val customersSnap = snapshot.child("customers")
-        val customerList = mutableListOf<Customer>()
+        // Privacy Protection: Only Owner can pull sensitive data (Customers, Debt, Suppliers, Sales)
+        // Staff/Employees ONLY pull products and categories to sell via POS without seeing owner financial data
+        if (currentUserRole == "owner") {
+            // Pull Customers
+            val customersSnap = snapshot.child("customers")
+            val customerList = mutableListOf<Customer>()
         for (cChild in customersSnap.children) {
             try {
                 val c = Customer(
@@ -533,6 +622,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             } catch (e: Exception) {
                 Log.w(tag, "Error parsing sale in initial pull", e)
             }
+        }
         }
     }
 

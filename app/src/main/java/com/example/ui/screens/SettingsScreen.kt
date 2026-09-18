@@ -81,14 +81,14 @@ fun SettingsScreen(
 
     val firebaseSyncStatus by viewModel.firebaseSyncStatus.collectAsState()
     val clipboardManager = LocalClipboardManager.current
-    var shopCodeInput by remember(config.firebaseShopCode) {
-        mutableStateOf(config.firebaseShopCode.ifBlank { viewModel.getDefaultShopCode() })
+    val currentShopCode = config.firebaseShopCode.ifBlank { viewModel.getDefaultShopCode() }
+    var staffPinInput by remember(config.staffPin) {
+        mutableStateOf(config.staffPin.ifBlank { "0000" })
     }
-    var selectedRole by remember(config.userRole) { mutableStateOf(config.userRole) }
-    var isConnectingShop by remember { mutableStateOf(false) }
-    var isPushingData by remember { mutableStateOf(false) }
-    var showOwnerRestoreCodeDialog by remember { mutableStateOf(false) }
-    var ownerRestoreCodeInput by remember { mutableStateOf("") }
+    var showChangeSecurityPinsDialog by remember { mutableStateOf(false) }
+    var masterPinEditInput by remember { mutableStateOf(config.pinCode) }
+    var staffPinEditInput by remember { mutableStateOf(config.staffPin.ifBlank { "0000" }) }
+    var isSavingSecurityPins by remember { mutableStateOf(false) }
 
     DokanScreenScaffold(
         title = "দোকান ও অ্যাপ সেটিংস",
@@ -300,7 +300,7 @@ fun SettingsScreen(
                 }
             }
 
-            // 6. গুগল ক্লাউড লাইভ সিঙ্ক (Firebase Realtime Database)
+            // 6. নিরাপত্তা ও অ্যাক্সেস পিন সেটিংস (Security Hub)
             item {
                 SettingsCard {
                     Row(
@@ -308,88 +308,28 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        SectionHeaderWithIcon(title = "গুগল ক্লাউড লাইভ সিঙ্ক", icon = Icons.Default.CloudSync)
+                        SectionHeaderWithIcon(title = "নিরাপত্তা ও অ্যাক্সেস পিন", icon = Icons.Default.Security)
 
                         Surface(
                             shape = RoundedCornerShape(Radius.pill),
-                            color = if (firebaseSyncStatus.isConnected) MaterialTheme.dokanColors.successContainer else MaterialTheme.dokanColors.surfaceAlt,
-                            border = BorderStroke(1.dp, if (firebaseSyncStatus.isConnected) MaterialTheme.dokanColors.success.copy(alpha = 0.3f) else MaterialTheme.dokanColors.border)
+                            color = if (userRole == "owner") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.dokanColors.surfaceAlt,
+                            border = BorderStroke(1.dp, if (userRole == "owner") MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else MaterialTheme.dokanColors.border)
                         ) {
                             Text(
-                                text = if (firebaseSyncStatus.isConnected) "🟢 লাইভ সিঙ্ক সক্রিয়" else "⚪ অফলাইন",
+                                text = if (userRole == "owner") "👑 দোকান মালিক" else "👤 কর্মচারী",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = if (firebaseSyncStatus.isConnected) MaterialTheme.dokanColors.success else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                color = if (userRole == "owner") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                             )
                         }
                     }
 
-                    Surface(
-                        shape = RoundedCornerShape(Radius.sm),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(Spacing.sm),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Security,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(Spacing.xs))
-                            Text(
-                                text = "গুগল ক্লাউড লাইভ ডাটাবেস: আজীবন ১০০% ফ্রি ও অটোমেটিক। ফোনের লোকাল ডেটা অক্ষত রেখে মালিক ও কর্মচারীর ফোনে লাইভ সিঙ্ক হয়।",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                lineHeight = 15.sp
-                            )
-                        }
-                    }
-
-                    // Role selector
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "আপনার ভূমিকা (Role):",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                            FilterChip(
-                                selected = selectedRole == "owner",
-                                onClick = { selectedRole = "owner" },
-                                label = { Text("দোকান মালিক") },
-                                shape = RoundedCornerShape(Radius.pill)
-                            )
-                            FilterChip(
-                                selected = selectedRole == "staff",
-                                onClick = { selectedRole = "staff" },
-                                label = { Text("কর্মচারী") },
-                                shape = RoundedCornerShape(Radius.pill)
-                            )
-                        }
-                    }
-
-                    HorizontalDivider(color = MaterialTheme.dokanColors.border)
-
-                    if (selectedRole == "owner") {
-                        // OWNER VIEW
-                        Text(
-                            text = "আপনার দোকানের নির্ধারিত দোকান কোড (Shop ID):",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
+                    if (userRole == "owner") {
+                        // Shop ID banner
                         Surface(
                             shape = RoundedCornerShape(Radius.md),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -405,7 +345,7 @@ fun SettingsScreen(
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                     Text(
-                                        text = shopCodeInput.ifBlank { viewModel.getDefaultShopCode() },
+                                        text = currentShopCode,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -413,153 +353,237 @@ fun SettingsScreen(
                                     )
                                 }
 
-                                DokanSecondaryButton(
-                                    text = "কপি করুন",
-                                    onClick = {
-                                        val codeToCopy = shopCodeInput.ifBlank { viewModel.getDefaultShopCode() }
-                                        clipboardManager.setText(AnnotatedString(codeToCopy))
-                                        viewModel.showToast("দোকান কোড কপি করা হয়েছে: $codeToCopy")
+                                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                                    IconButton(
+                                        onClick = {
+                                            clipboardManager.setText(AnnotatedString(currentShopCode))
+                                            viewModel.showToast("দোকান কোড কপি করা হয়েছে: $currentShopCode")
+                                        }
+                                    ) {
+                                        Icon(Icons.Default.ContentCopy, contentDescription = "কপি", tint = MaterialTheme.colorScheme.primary)
                                     }
+                                    IconButton(
+                                        onClick = {
+                                            val shareIntent = Intent().apply {
+                                                action = Intent.ACTION_SEND
+                                                putExtra(
+                                                    Intent.EXTRA_TEXT,
+                                                    "দোকান প্রো অ্যাপে যুক্ত হতে আমার দোকান কোড: $currentShopCode এবং স্টাফ পিন: ${config.staffPin.ifBlank { "0000" }}"
+                                                )
+                                                type = "text/plain"
+                                            }
+                                            context.startActivity(Intent.createChooser(shareIntent, "দোকান কোড শেয়ার করুন"))
+                                        }
+                                    ) {
+                                        Icon(Icons.Default.Share, contentDescription = "শেয়ার", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                            }
+                        }
+
+                        // Master Security PIN display
+                        Surface(
+                            shape = RoundedCornerShape(Radius.md),
+                            color = MaterialTheme.dokanColors.surfaceAlt,
+                            border = BorderStroke(1.dp, MaterialTheme.dokanColors.border),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(Spacing.xs))
+                                        Text(
+                                            text = "মাস্টার সিকিউরিটি পিন",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(Radius.pill),
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                    ) {
+                                        Text(
+                                            text = if (pinCode.isNotBlank()) "••••" else "সেট করা নেই",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = "অননুমোদিত রিস্টোর বা ডেটা চুরি রোধ করতে এই পিন অপরিহার্য। ক্লাউড ব্যাকআপ ও রিস্টোরের জন্য এই পিন যাচাই করা হয়।",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
 
+                        // Staff Access PIN display
+                        Surface(
+                            shape = RoundedCornerShape(Radius.md),
+                            color = MaterialTheme.dokanColors.surfaceAlt,
+                            border = BorderStroke(1.dp, MaterialTheme.dokanColors.border),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.People, contentDescription = null, tint = MaterialTheme.dokanColors.gold, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(Spacing.xs))
+                                        Text(
+                                            text = "কর্মচারী অ্যাক্সেস পিন",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(Radius.pill),
+                                        color = MaterialTheme.dokanColors.goldContainer
+                                    ) {
+                                        Text(
+                                            text = staffPinInput,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = MaterialTheme.dokanColors.gold,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = "কর্মচারীরা তাদের ফোন থেকে দোকান কোড এবং এই ৪ ডিজিটের পিন দিয়ে স্টাফ মোডে যুক্ত হতে পারবে। স্টাফরা আপনার লাভ, খরচ বা পূর্বের ইনভয়েস দেখতে পারবে না।",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        DokanSecondaryButton(
+                            text = "🔐 সিকিউরিটি ও স্টাফ পিন পরিবর্তন করুন",
+                            onClick = {
+                                masterPinEditInput = pinCode
+                                staffPinEditInput = staffPinInput
+                                showChangeSecurityPinsDialog = true
+                            }
+                        )
+
+                        HorizontalDivider(color = MaterialTheme.dokanColors.border)
+
+                        // App launch lock switch
+                        SettingRow(
+                            label = "অ্যাপ চালুর সময় পিন লক",
+                            helperText = "অ্যাপ ওপেন করলেই পিন দিয়ে আনলক করতে হবে"
+                        ) {
+                            Switch(
+                                checked = pinEnabled,
+                                onCheckedChange = {
+                                    pinEnabled = it
+                                    val updated = config.copy(pinEnabled = it)
+                                    viewModel.updateShopConfig(updated)
+                                },
+                                colors = brandSwitchColors()
+                            )
+                        }
+
+                        if (pinEnabled) {
+                            DokanSecondaryButton(
+                                text = "🔒 এখনই অ্যাপ লক করুন",
+                                onClick = {
+                                    val updated = config.copy(pinEnabled = true, pinCode = pinCode.trim())
+                                    viewModel.updateShopConfig(updated)
+                                    viewModel.lockApp()
+                                }
+                            )
+                        }
+
+                        HorizontalDivider(color = MaterialTheme.dokanColors.border)
+
+                        // Backup Screen shortcut
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            TextButton(
-                                onClick = {
-                                    ownerRestoreCodeInput = shopCodeInput.ifBlank { viewModel.getDefaultShopCode() }
-                                    showOwnerRestoreCodeDialog = true
-                                }
+                            Column {
+                                Text(
+                                    text = "গুগল ক্লাউড সিঙ্ক স্ট্যাটাস",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = if (firebaseSyncStatus.isConnected) "লাইভ ক্লাউড ডাটাবেস সক্রিয়" else "অফলাইনে চলছে",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(Radius.pill),
+                                color = if (firebaseSyncStatus.isConnected) MaterialTheme.dokanColors.successContainer else MaterialTheme.dokanColors.surfaceAlt,
+                                border = BorderStroke(1.dp, if (firebaseSyncStatus.isConnected) MaterialTheme.dokanColors.success.copy(alpha = 0.3f) else MaterialTheme.dokanColors.border)
                             ) {
-                                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("দোকান কোড পরিবর্তন / রিস্টোর", style = MaterialTheme.typography.labelSmall)
+                                Text(
+                                    text = if (firebaseSyncStatus.isConnected) "🟢 সক্রিয়" else "⚪ অফলাইন",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (firebaseSyncStatus.isConnected) MaterialTheme.dokanColors.success else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
                             }
                         }
 
-                        Text(
-                            text = "কর্মচারীর ফোনে এই কোডটি দিলে তারা সরাসরি আপনার দোকানে যুক্ত হয়ে লাইভ বিক্রি ও স্টক দেখতে পারবে।",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
                         DokanPrimaryButton(
-                            text = if (isPushingData) "ক্লাউডে সেভ হচ্ছে..." else "এখনই ক্লাউডে ব্যাকআপ দিন (Sync Now)",
-                            onClick = {
-                                isPushingData = true
-                                viewModel.pushAllDataToFirebase {
-                                    isPushingData = false
-                                }
-                            },
-                            isLoading = isPushingData,
-                            enabled = !isPushingData
-                        )
-
-                        DokanSecondaryButton(
-                            text = "ক্লাউড থেকে সমস্ত তথ্য রিস্টোর করুন (Cloud Restore)",
-                            onClick = { viewModel.restoreAllDataFromFirebase() },
-                            isLoading = isSyncing,
-                            enabled = !isSyncing
+                            text = "🔄 ক্লাউড ব্যাকআপ ও সিঙ্ক ব্যবস্থাপনা পেজ ➡️",
+                            onClick = { viewModel.navigateTo(AppScreen.BACKUP) }
                         )
                     } else {
-                        // EMPLOYEE VIEW
-                        Text(
-                            text = "মালিকের দোকানের সাথে কানেক্ট করতে দোকান কোড অথবা ইমেইল দিন:",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        // STAFF MODE VIEW
+                        Surface(
+                            shape = RoundedCornerShape(Radius.md),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                                Text(
+                                    text = "স্টাফ মোড সক্রিয়",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "সংযুক্ত দোকান কোড: ${config.firebaseShopCode}\nকর্মচারীর নাম: ${config.staffName.ifBlank { "স্টাফ" }}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "🛡️ তথ্য নিরাপত্তা: কর্মচারী মোডে শুধুমাত্র পণ্য তালিকা এবং লাইভ বিক্রি পরিচালনা করা যায়। দোকানের লাভ, রিপোর্ট, খরচ এবং বাকির খাতা মালিকের গোপন পিন দ্বারা লক করা থাকে।",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    lineHeight = 15.sp
+                                )
+                            }
+                        }
 
-                        DokanTextField(
-                            value = shopCodeInput,
-                            onValueChange = { shopCodeInput = it.trim() },
-                            label = "দোকান কোড অথবা মালিকের ইমেইল",
-                            placeholder = "যেমন: SHOP-XXXXXX বা owner@gmail.com",
-                            leadingIcon = Icons.Default.Storefront
-                        )
-
-                        DokanPrimaryButton(
-                            text = if (isConnectingShop) "সংযুক্ত হচ্ছে..." else "দোকানে যুক্ত হন",
-                            onClick = {
-                                if (shopCodeInput.isNotBlank()) {
-                                    isConnectingShop = true
-                                    viewModel.connectFirebaseShop(shopCodeInput, "staff") { ok, msg ->
-                                        isConnectingShop = false
-                                        viewModel.showToast(msg)
-                                    }
-                                } else {
-                                    viewModel.showToast("দোকান কোড অথবা ইমেইল লিখুন")
-                                }
-                            },
-                            isLoading = isConnectingShop,
-                            enabled = !isConnectingShop && shopCodeInput.isNotBlank()
-                        )
-                    }
-
-                    if (firebaseSyncStatus.isConnected) {
                         DokanSecondaryButton(
-                            text = "লাইভ সিঙ্ক ডিসকানেক্ট করুন",
+                            text = "দোকান পরিবর্তন / লগআউট করুন",
                             onClick = {
                                 viewModel.disconnectFirebaseShop()
-                                viewModel.showToast("লাইভ সিঙ্ক ডিসকানেক্ট করা হয়েছে")
-                            }
-                        )
-                    }
-                }
-            }
-
-            // 7. নিরাপত্তা ও ইউজার রোল
-            item {
-                SettingsCard {
-                    SectionHeaderWithIcon(title = "নিরাপত্তা ও ইউজার রোল", icon = Icons.Default.Security)
-
-                    SettingRow(
-                        label = "বর্তমান অ্যাক্টিভ রোল",
-                        helperText = "মালিক বা কর্মচারীর অধিকার নির্ধারণ"
-                    ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                            FilterChip(
-                                selected = userRole == "owner",
-                                onClick = { userRole = "owner" },
-                                label = { Text("মালিক") },
-                                shape = RoundedCornerShape(Radius.pill)
-                            )
-                            FilterChip(
-                                selected = userRole == "staff",
-                                onClick = { userRole = "staff" },
-                                label = { Text("কর্মচারী") },
-                                shape = RoundedCornerShape(Radius.pill)
-                            )
-                        }
-                    }
-
-                    SettingRow(
-                        label = "৪-ডিজিট অ্যাপ পিন লক",
-                        helperText = "অ্যাপ চালুতে পিন সুরক্ষা"
-                    ) {
-                        Switch(
-                            checked = pinEnabled,
-                            onCheckedChange = { pinEnabled = it },
-                            colors = brandSwitchColors()
-                        )
-                    }
-
-                    if (pinEnabled) {
-                        DokanTextField(
-                            value = pinCode,
-                            onValueChange = { pinCode = it.filter { c -> c.isDigit() }.take(4) },
-                            label = "৪ ডিজিট পিন কোড",
-                            keyboardType = KeyboardType.NumberPassword
-                        )
-
-                        DokanSecondaryButton(
-                            text = "এখনই অ্যাপ লক করুন",
-                            onClick = {
-                                val updated = config.copy(pinEnabled = true, pinCode = pinCode.trim())
-                                viewModel.updateShopConfig(updated)
-                                viewModel.lockApp()
+                                val resetConfig = config.copy(
+                                    userRole = "owner",
+                                    staffName = "",
+                                    firebaseShopCode = ""
+                                )
+                                viewModel.updateShopConfig(resetConfig)
+                                viewModel.navigateTo(AppScreen.ACTIVATION)
                             }
                         )
                     }
@@ -916,6 +940,7 @@ fun SettingsScreen(
                             vatPercentage = vatPercentageText.toDoubleOrNull() ?: 0.0,
                             pinEnabled = pinEnabled,
                             pinCode = pinCode.trim(),
+                            staffPin = staffPinInput.trim().ifBlank { "0000" },
                             userRole = userRole,
                             allowNegativeStock = allowNegativeStock
                         )
@@ -1088,54 +1113,96 @@ fun SettingsScreen(
         )
     }
 
-    if (showOwnerRestoreCodeDialog) {
+    if (showChangeSecurityPinsDialog) {
+        var masterError by remember { mutableStateOf<String?>(null) }
+        var staffError by remember { mutableStateOf<String?>(null) }
+
         AlertDialog(
-            onDismissRequest = { showOwnerRestoreCodeDialog = false },
+            onDismissRequest = { if (!isSavingSecurityPins) showChangeSecurityPinsDialog = false },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CloudDownload, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.Security, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.width(Spacing.xs))
-                    Text("দোকান কোড পরিবর্তন / রিস্টোর")
+                    Text("সিকিউরিটি ও স্টাফ পিন পরিবর্তন")
                 }
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     Text(
-                        "আপনার পূর্বের দোকান কোড (যেমন: SHOP-XXXXXX) অথবা নিবন্ধিত ইমেইল লিখুন। ক্লাউডে থাকা সমস্ত তথ্য নামিয়ে আনা হবে:",
-                        style = MaterialTheme.typography.bodySmall
+                        "মাস্টার পিন দিয়ে দোকানের যাবতীয় তথ্য ও ব্যাকআপ সুরক্ষিত থাকে। স্টাফ পিন দিয়ে কর্মচারীরা দোকানে যুক্ত হতে পারে:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
                     DokanTextField(
-                        value = ownerRestoreCodeInput,
-                        onValueChange = { ownerRestoreCodeInput = it },
-                        label = "দোকান কোড অথবা নিবন্ধিত ইমেইল",
-                        placeholder = "যেমন: SHOP-XXXXXX অথবা yourname@gmail.com",
-                        modifier = Modifier.fillMaxWidth()
+                        value = masterPinEditInput,
+                        onValueChange = {
+                            masterPinEditInput = it.filter { c -> c.isDigit() }.take(6)
+                            masterError = null
+                        },
+                        label = "মাস্টার সিকিউরিটি পিন (৪-৬ ডিজিট)",
+                        placeholder = "যেমন: 1234",
+                        keyboardType = KeyboardType.NumberPassword,
+                        isError = masterError != null,
+                        errorText = masterError
                     )
+
+                    DokanTextField(
+                        value = staffPinEditInput,
+                        onValueChange = {
+                            staffPinEditInput = it.filter { c -> c.isDigit() }.take(4)
+                            staffError = null
+                        },
+                        label = "কর্মচারী অ্যাক্সেস পিন (৪ ডিজিট)",
+                        placeholder = "যেমন: 0000",
+                        keyboardType = KeyboardType.NumberPassword,
+                        isError = staffError != null,
+                        errorText = staffError
+                    )
+
+                    if (isSavingSecurityPins) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp).align(Alignment.CenterHorizontally),
+                            strokeWidth = 2.dp
+                        )
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        val input = ownerRestoreCodeInput.trim()
-                        if (input.isBlank()) {
-                            viewModel.showToast("দোকান কোড অথবা ইমেইল লিখুন")
+                        val cleanMaster = masterPinEditInput.trim()
+                        val cleanStaff = staffPinEditInput.trim()
+                        if (cleanMaster.length < 4) {
+                            masterError = "মাস্টার পিন কমপক্ষে ৪ ডিজিট হতে হবে"
                             return@Button
                         }
-                        showOwnerRestoreCodeDialog = false
-                        viewModel.connectFirebaseShop(input, "owner") { success, _ ->
+                        if (cleanStaff.length < 4) {
+                            staffError = "স্টাফ পিন ৪ ডিজিট হতে হবে"
+                            return@Button
+                        }
+                        isSavingSecurityPins = true
+                        viewModel.updateSecurityPins(cleanMaster, cleanStaff) { success, msg ->
+                            isSavingSecurityPins = false
                             if (success) {
-                                shopCodeInput = viewModel.shopConfig.value.firebaseShopCode
-                                viewModel.restoreAllDataFromFirebase()
+                                pinCode = cleanMaster
+                                staffPinInput = cleanStaff
+                                showChangeSecurityPinsDialog = false
+                            } else {
+                                masterError = msg
                             }
                         }
                     },
-                    enabled = ownerRestoreCodeInput.isNotBlank()
+                    enabled = !isSavingSecurityPins && masterPinEditInput.isNotBlank() && staffPinEditInput.isNotBlank()
                 ) {
-                    Text("কানেক্ট ও রিস্টোর করুন")
+                    Text("সংরক্ষণ করুন")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showOwnerRestoreCodeDialog = false }) {
+                TextButton(
+                    onClick = { showChangeSecurityPinsDialog = false },
+                    enabled = !isSavingSecurityPins
+                ) {
                     Text("বাতিল")
                 }
             }

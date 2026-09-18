@@ -50,17 +50,16 @@ fun BackupScreen(
     var shopCodeInput by remember(config.firebaseShopCode) {
         mutableStateOf(config.firebaseShopCode.ifBlank { viewModel.getDefaultShopCode() })
     }
-    var selectedRole by remember(config.userRole) { mutableStateOf(config.userRole) }
-
-    var isAutoBackupEnabled by remember { mutableStateOf(true) }
-    var isWifiOnly by remember { mutableStateOf(true) }
-    var showResetConfirmDialog by remember { mutableStateOf(false) }
-    var showClearDummyConfirmDialog by remember { mutableStateOf(false) }
-    var showSelectiveDeleteDialog by remember { mutableStateOf(false) }
-    var showRestoreDialog by remember { mutableStateOf(false) }
-    var restoreJsonText by remember { mutableStateOf("") }
+    val isOwner = config.userRole == "owner"
     var showOwnerChangeCodeDialog by remember { mutableStateOf(false) }
     var ownerTargetCodeInput by remember { mutableStateOf("") }
+    var ownerMasterPinInput by remember { mutableStateOf("") }
+    var isRestoringCloud by remember { mutableStateOf(false) }
+    var restoreErrorMessage by remember { mutableStateOf<String?>(null) }
+    var staffShopInput by remember { mutableStateOf("") }
+    var staffPinInput by remember { mutableStateOf("") }
+    var staffNameInput by remember { mutableStateOf("") }
+    var isJoiningStaff by remember { mutableStateOf(false) }
 
     // Selective Deletion Filters
     var selClearSales by remember { mutableStateOf(true) }
@@ -182,36 +181,35 @@ fun BackupScreen(
                             }
                         }
 
-                        // Role Selector
+                        // Active Mode Banner
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "এই ফোনের ভূমিকা (Role):",
+                                text = "এই ডিভাইসের মোড:",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.SemiBold
                             )
-                            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                                FilterChip(
-                                    selected = selectedRole == "owner",
-                                    onClick = { selectedRole = "owner" },
-                                    label = { Text("দোকান মালিক") },
-                                    shape = RoundedCornerShape(Radius.pill)
-                                )
-                                FilterChip(
-                                    selected = selectedRole == "staff",
-                                    onClick = { selectedRole = "staff" },
-                                    label = { Text("কর্মচারী") },
-                                    shape = RoundedCornerShape(Radius.pill)
+                            Surface(
+                                shape = RoundedCornerShape(Radius.pill),
+                                color = if (isOwner) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.dokanColors.surfaceAlt,
+                                border = BorderStroke(1.dp, if (isOwner) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else MaterialTheme.dokanColors.border)
+                            ) {
+                                Text(
+                                    text = if (isOwner) "👑 দোকান মালিক (Owner)" else "👤 কর্মচারী (Staff)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isOwner) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                 )
                             }
                         }
 
                         HorizontalDivider(color = MaterialTheme.dokanColors.border)
 
-                        if (selectedRole == "owner") {
+                        if (isOwner) {
                             // OWNER VIEW
                             Text(
                                 text = "আপনার দোকান কোড (Shop Code):",
@@ -260,7 +258,7 @@ fun BackupScreen(
                                                     action = Intent.ACTION_SEND
                                                     putExtra(
                                                         Intent.EXTRA_TEXT,
-                                                        "দোকান প্রো অ্যাপে যুক্ত হতে আমার দোকান কোড: $shopCodeInput"
+                                                        "দোকান প্রো অ্যাপে যুক্ত হতে আমার দোকান কোড: $shopCodeInput এবং স্টাফ পিন: ${config.staffPin.ifBlank { "0000" }}"
                                                     )
                                                     type = "text/plain"
                                                 }
@@ -286,17 +284,19 @@ fun BackupScreen(
                                 TextButton(
                                     onClick = {
                                         ownerTargetCodeInput = shopCodeInput
+                                        ownerMasterPinInput = ""
+                                        restoreErrorMessage = null
                                         showOwnerChangeCodeDialog = true
                                     }
                                 ) {
-                                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("দোকান কোড পরিবর্তন / রিস্টোর", style = MaterialTheme.typography.labelSmall)
+                                    Text("দোকান কোড পরিবর্তন / নিরাপদ রিস্টোর", style = MaterialTheme.typography.labelSmall)
                                 }
                             }
 
                             Text(
-                                text = "💡 কর্মচারীর ফোনে অ্যাপ ইনস্টল করে এই দোকান কোডটি দিলে সরাসরি আপনার দোকানের সাথে লাইভ যুক্ত হয়ে যাবে।",
+                                text = "💡 কর্মচারীর ফোনে অ্যাপ ইনস্টল করে এই দোকান কোড এবং স্টাফ পিন (${config.staffPin.ifBlank { "0000" }}) দিলে সরাসরি যুক্ত হয়ে যাবে।",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -329,53 +329,95 @@ fun BackupScreen(
                                 )
 
                                 DokanSecondaryButton(
-                                    text = "পূর্বের দোকান কোড দিয়ে রিস্টোর করুন",
+                                    text = "পূর্বের দোকান কোড ও পিন দিয়ে রিস্টোর করুন",
                                     onClick = {
                                         ownerTargetCodeInput = ""
+                                        ownerMasterPinInput = ""
+                                        restoreErrorMessage = null
                                         showOwnerChangeCodeDialog = true
                                     }
                                 )
                             }
                         } else {
                             // STAFF VIEW
-                            Text(
-                                text = "মালিকের দোকান কোড অথবা ইমেইল প্রবেশ করান:",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            DokanTextField(
-                                value = shopCodeInput,
-                                onValueChange = { shopCodeInput = it },
-                                label = "দোকান কোড অথবা মালিকের ইমেইল",
-                                placeholder = "যেমন: SHOP-XXXXXX বা owner@gmail.com",
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            Text(
-                                text = "💡 দোকান মালিকের দোকান কোড অথবা মালিকের ইমেইল এড্রেস লিখে 'দোকানে সংযুক্ত হন' চাপুন।",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
                             if (firebaseSyncStatus.isConnected) {
-                                Text(
-                                    text = "🟢 সংযুক্ত দোকান: ${firebaseSyncStatus.shopCode}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.dokanColors.success
-                                )
+                                Surface(
+                                    shape = RoundedCornerShape(Radius.md),
+                                    color = MaterialTheme.dokanColors.successContainer.copy(alpha = 0.4f),
+                                    border = BorderStroke(1.dp, MaterialTheme.dokanColors.success.copy(alpha = 0.3f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                                        Text(
+                                            text = "🟢 সংযুক্ত দোকান: ${firebaseSyncStatus.shopCode}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.dokanColors.success
+                                        )
+                                        Text(
+                                            text = "কর্মচারীর নাম: ${config.staffName.ifBlank { "স্টাফ" }}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "🛡️ স্টাফ মোডে পণ্য তালিকা এবং লাইভ বিক্রি পরিচালিত হচ্ছে। লাভ-ক্ষতি, রিপোর্ট ও বাকির খাতা মালিকের গোপন পিন ছাড়া দেখা সম্ভব নয়।",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
 
                                 DokanSecondaryButton(
                                     text = "সংযোগ বিচ্ছিন্ন করুন",
                                     onClick = { viewModel.disconnectFirebaseShop() }
                                 )
                             } else {
+                                Text(
+                                    text = "মালিকের দোকানের সাথে কানেক্ট করতে দোকান কোড, স্টাফ পিন ও আপনার নাম দিন:",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+
+                                DokanTextField(
+                                    value = staffShopInput,
+                                    onValueChange = { staffShopInput = it.trim() },
+                                    label = "দোকান কোড অথবা মালিকের ইমেইল",
+                                    placeholder = "যেমন: SHOP-XXXXXX বা owner@gmail.com",
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                DokanTextField(
+                                    value = staffPinInput,
+                                    onValueChange = { staffPinInput = it.filter { c -> c.isDigit() }.take(4) },
+                                    label = "স্টাফ অ্যাক্সেস পিন (৪ সংখ্যা)",
+                                    placeholder = "যেমন: 0000",
+                                    keyboardType = KeyboardType.NumberPassword,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                DokanTextField(
+                                    value = staffNameInput,
+                                    onValueChange = { staffNameInput = it },
+                                    label = "আপনার নাম (কর্মচারী)",
+                                    placeholder = "যেমন: রহিম",
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
                                 DokanPrimaryButton(
-                                    text = "দোকানের সাথে সংযুক্ত হন (Join Shop)",
+                                    text = if (isJoiningStaff) "যাচাই হচ্ছে..." else "দোকানে যুক্ত হন (Join Shop)",
                                     onClick = {
-                                        viewModel.connectFirebaseShop(shopCodeInput, "staff")
-                                    }
+                                        if (staffShopInput.isBlank() || staffPinInput.isBlank()) {
+                                            viewModel.showToast("দোকান কোড এবং স্টাফ পিন আবশ্যক")
+                                            return@DokanPrimaryButton
+                                        }
+                                        isJoiningStaff = true
+                                        viewModel.secureJoinAsStaff(staffShopInput, staffPinInput, staffNameInput) { success, msg ->
+                                            isJoiningStaff = false
+                                            viewModel.showToast(msg)
+                                        }
+                                    },
+                                    isLoading = isJoiningStaff,
+                                    enabled = !isJoiningStaff && staffShopInput.isNotBlank() && staffPinInput.isNotBlank()
                                 )
                             }
                         }
@@ -784,52 +826,89 @@ fun BackupScreen(
 
     if (showOwnerChangeCodeDialog) {
         AlertDialog(
-            onDismissRequest = { showOwnerChangeCodeDialog = false },
+            onDismissRequest = { if (!isRestoringCloud) showOwnerChangeCodeDialog = false },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.CloudDownload, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.width(Spacing.xs))
-                    Text("দোকান কোড পরিবর্তন / রিস্টোর")
+                    Text("নিরাপদ ক্লাউড রিস্টোর")
                 }
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     Text(
-                        "আপনার পূর্বের দোকান কোড (যেমন: SHOP-XXXXXX) অথবা নিবন্ধিত ইমেইল লিখুন। ক্লাউডে থাকা সমস্ত তথ্য স্বয়ংক্রিয়ভাবে ডাউনলোড ও রিস্টোর হবে:",
-                        style = MaterialTheme.typography.bodySmall
+                        "দোকানের যাবতীয় ডেটা ও গোপনীয়তা সুরক্ষায় মালিকের মাস্টার সিকিউরিটি পিন আবশ্যক। সঠিক পিন ব্যতীত কেউ আপনার তথ্য দেখতে পারবে না:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
                     DokanTextField(
                         value = ownerTargetCodeInput,
-                        onValueChange = { ownerTargetCodeInput = it },
-                        label = "দোকান কোড অথবা ইমেইল",
-                        placeholder = "যেমন: SHOP-XXXXXX বা yourname@gmail.com",
+                        onValueChange = {
+                            ownerTargetCodeInput = it
+                            restoreErrorMessage = null
+                        },
+                        label = "দোকান কোড অথবা মালিকের ইমেইল",
+                        placeholder = "যেমন: SHOP-XXXXXX বা email@gmail.com",
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    DokanTextField(
+                        value = ownerMasterPinInput,
+                        onValueChange = {
+                            ownerMasterPinInput = it.filter { c -> c.isDigit() }.take(6)
+                            restoreErrorMessage = null
+                        },
+                        label = "মাস্টার সিকিউরিটি পিন (৪-৬ ডিজিট)",
+                        placeholder = "পিন নম্বর লিখুন",
+                        keyboardType = KeyboardType.NumberPassword,
+                        isError = restoreErrorMessage != null,
+                        errorText = restoreErrorMessage,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (isRestoringCloud) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp).align(Alignment.CenterHorizontally),
+                            strokeWidth = 2.dp
+                        )
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
                         val input = ownerTargetCodeInput.trim()
+                        val pin = ownerMasterPinInput.trim()
                         if (input.isBlank()) {
-                            viewModel.showToast("দোকান কোড অথবা ইমেইল লিখুন")
+                            restoreErrorMessage = "দোকান কোড অথবা ইমেইল লিখুন"
                             return@Button
                         }
-                        showOwnerChangeCodeDialog = false
-                        viewModel.connectFirebaseShop(input, "owner") { success, _ ->
+                        if (pin.length < 4) {
+                            restoreErrorMessage = "মাস্টার পিন কমপক্ষে ৪ ডিজিট লিখুন"
+                            return@Button
+                        }
+                        isRestoringCloud = true
+                        viewModel.secureRestoreOwnerShop(input, pin) { success, msg ->
+                            isRestoringCloud = false
                             if (success) {
+                                showOwnerChangeCodeDialog = false
                                 shopCodeInput = viewModel.shopConfig.value.firebaseShopCode
-                                viewModel.restoreAllDataFromFirebase()
+                            } else {
+                                restoreErrorMessage = msg
                             }
                         }
                     },
-                    enabled = ownerTargetCodeInput.isNotBlank()
+                    enabled = !isRestoringCloud && ownerTargetCodeInput.isNotBlank() && ownerMasterPinInput.isNotBlank()
                 ) {
-                    Text("কানেক্ট ও রিস্টোর করুন")
+                    Text(if (isRestoringCloud) "যাচাই ও রিস্টোর হচ্ছে..." else "যাচাই করে রিস্টোর করুন")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showOwnerChangeCodeDialog = false }) {
+                TextButton(
+                    onClick = { showOwnerChangeCodeDialog = false },
+                    enabled = !isRestoringCloud
+                ) {
                     Text("বাতিল")
                 }
             }

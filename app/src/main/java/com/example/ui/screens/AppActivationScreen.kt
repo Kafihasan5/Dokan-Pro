@@ -43,6 +43,9 @@ import com.example.ui.components.DokanSecondaryButton
 import com.example.ui.components.DokanTextField
 import com.example.ui.theme.*
 
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+
 @Composable
 fun AppActivationScreen(
     viewModel: PaponViewModel
@@ -58,6 +61,19 @@ fun AppActivationScreen(
     val isDemoExpired by viewModel.isDemoExpired.collectAsState()
     val deviceId = remember { viewModel.getDeviceId() }
     var copiedRecently by remember { mutableStateOf(false) }
+
+    // Staff Join Dialog States
+    var showStaffJoinDialog by remember { mutableStateOf(false) }
+    var staffShopCodeInput by remember { mutableStateOf("") }
+    var staffPinInput by remember { mutableStateOf("") }
+    var staffNameInput by remember { mutableStateOf("") }
+    var isStaffJoining by remember { mutableStateOf(false) }
+
+    // Owner Secure Restore Dialog States
+    var showOwnerRestoreDialog by remember { mutableStateOf(false) }
+    var ownerRestoreCodeInput by remember { mutableStateOf("") }
+    var ownerRestoreMasterPin by remember { mutableStateOf("") }
+    var isOwnerRestoring by remember { mutableStateOf(false) }
 
     val scrollState = rememberScrollState()
 
@@ -327,6 +343,105 @@ fun AppActivationScreen(
                 }
             }
 
+            // 👤 EMPLOYEE JOIN CARD (No license fee or demo required!)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(Radius.lg),
+                colors = CardDefaults.cardColors(
+                    containerColor = Brand700.copy(alpha = 0.45f)
+                ),
+                border = BorderStroke(1.5.dp, MaterialTheme.dokanColors.success.copy(alpha = 0.7f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(Spacing.md),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Badge,
+                            contentDescription = null,
+                            tint = MaterialTheme.dokanColors.success,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "আমি দোকানের কর্মচারী (স্টাফ মোড)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        Surface(
+                            shape = RoundedCornerShape(Radius.xs),
+                            color = MaterialTheme.dokanColors.success
+                        ) {
+                            Text(
+                                text = "ফ্রি এক্সেস",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "দোকান মালিকের কাছ থেকে পাওয়া দোকান কোড অথবা ইমেইল এবং ৪-ডিজিটের কর্মচারী পিন দিয়ে যুক্ত হয়ে সরাসরি পণ্য বিক্রি শুরু করুন। কর্মচারীদের জন্য কোনো লাইসেন্স ফি লাগে না।",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.85f),
+                        lineHeight = 17.sp
+                    )
+
+                    DokanSecondaryButton(
+                        text = "কর্মচারী হিসেবে যুক্ত হোন",
+                        onClick = { showStaffJoinDialog = true }
+                    )
+                }
+            }
+
+            // 🔄 OWNER SECURE RESTORE CARD
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(Radius.lg),
+                colors = CardDefaults.cardColors(
+                    containerColor = Brand700.copy(alpha = 0.35f)
+                ),
+                border = BorderStroke(1.dp, Brand500.copy(alpha = 0.5f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(Spacing.md),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.CloudDownload,
+                            contentDescription = null,
+                            tint = Brand500,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "পূর্বের দোকান রিস্টোর (দোকান মালিক)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Color.White
+                        )
+                    }
+
+                    Text(
+                        text = "নতুন ফোনে আগের দোকানের সমস্ত হিসাব নামিয়ে নিতে আপনার নিবন্ধিত ইমেইল ও গোপন মাস্টার সিকিউরিটি পিন দিন। মাস্টার পিন ছাড়া কেউ আপনার ডাটা দেখতে বা নামাতে পারবে না।",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.82f),
+                        lineHeight = 17.sp
+                    )
+
+                    DokanSecondaryButton(
+                        text = "দোকান রিস্টোর করুন (মাস্টার পিন সহ)",
+                        onClick = { showOwnerRestoreDialog = true }
+                    )
+                }
+            }
+
             // Purchase Card (Webix Solution Official License Link)
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -444,5 +559,141 @@ fun AppActivationScreen(
 
             Spacer(modifier = Modifier.height(Spacing.lg))
         }
+    }
+
+    // 👤 Staff Join Dialog
+    if (showStaffJoinDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isStaffJoining) showStaffJoinDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Badge, contentDescription = null, tint = MaterialTheme.dokanColors.success)
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                    Text("কর্মচারী হিসেবে যুক্ত হন")
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Text(
+                        "দোকান মালিকের কাছ থেকে পাওয়া তথ্যগুলো লিখুন:",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    DokanTextField(
+                        value = staffShopCodeInput,
+                        onValueChange = { staffShopCodeInput = it },
+                        label = "দোকান কোড অথবা মালিকের ইমেইল",
+                        placeholder = "যেমন: SHOP-XXXXXX বা email@gmail.com",
+                        leadingIcon = Icons.Default.Storefront
+                    )
+                    DokanTextField(
+                        value = staffPinInput,
+                        onValueChange = { if (it.length <= 6) staffPinInput = it },
+                        label = "কর্মচারী পিন (৪ ডিজিট)",
+                        placeholder = "যেমন: 0000",
+                        keyboardType = KeyboardType.NumberPassword,
+                        visualTransformation = PasswordVisualTransformation(),
+                        leadingIcon = Icons.Default.Lock
+                    )
+                    DokanTextField(
+                        value = staffNameInput,
+                        onValueChange = { staffNameInput = it },
+                        label = "আপনার নাম (ঐচ্ছিক)",
+                        placeholder = "যেমন: মোঃ করিম",
+                        leadingIcon = Icons.Default.Person
+                    )
+                }
+            },
+            confirmButton = {
+                DokanPrimaryButton(
+                    text = if (isStaffJoining) "যুক্ত হচ্ছে..." else "দোকানে যুক্ত হন",
+                    isLoading = isStaffJoining,
+                    enabled = !isStaffJoining && staffShopCodeInput.isNotBlank() && staffPinInput.isNotBlank(),
+                    onClick = {
+                        isStaffJoining = true
+                        viewModel.secureJoinAsStaff(
+                            staffShopCodeInput.trim(),
+                            staffPinInput.trim(),
+                            staffNameInput.trim()
+                        ) { success, _ ->
+                            isStaffJoining = false
+                            if (success) {
+                                showStaffJoinDialog = false
+                            }
+                        }
+                    }
+                )
+            },
+            dismissButton = {
+                if (!isStaffJoining) {
+                    TextButton(onClick = { showStaffJoinDialog = false }) {
+                        Text("বাতিল")
+                    }
+                }
+            }
+        )
+    }
+
+    // 🔄 Owner Secure Restore Dialog
+    if (showOwnerRestoreDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isOwnerRestoring) showOwnerRestoreDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CloudDownload, contentDescription = null, tint = Brand500)
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                    Text("পূর্বের দোকান রিস্টোর")
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Text(
+                        "দোকানের ডাটা সুরক্ষার জন্য আপনার নিবন্ধিত ইমেইল ও মাস্টার সিকিউরিটি পিন প্রয়োজন:",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    DokanTextField(
+                        value = ownerRestoreCodeInput,
+                        onValueChange = { ownerRestoreCodeInput = it },
+                        label = "দোকান কোড অথবা নিবন্ধিত ইমেইল",
+                        placeholder = "যেমন: SHOP-XXXXXX বা email@gmail.com",
+                        leadingIcon = Icons.Default.Storefront
+                    )
+                    DokanTextField(
+                        value = ownerRestoreMasterPin,
+                        onValueChange = { if (it.length <= 8) ownerRestoreMasterPin = it },
+                        label = "মাস্টার সিকিউরিটি পিন",
+                        placeholder = "আপনার গোপন পিন লিখুন",
+                        keyboardType = KeyboardType.NumberPassword,
+                        visualTransformation = PasswordVisualTransformation(),
+                        leadingIcon = Icons.Default.Key
+                    )
+                }
+            },
+            confirmButton = {
+                DokanPrimaryButton(
+                    text = if (isOwnerRestoring) "রিস্টোর হচ্ছে..." else "দোকান রিস্টোর করুন",
+                    isLoading = isOwnerRestoring,
+                    enabled = !isOwnerRestoring && ownerRestoreCodeInput.isNotBlank() && ownerRestoreMasterPin.isNotBlank(),
+                    onClick = {
+                        isOwnerRestoring = true
+                        viewModel.secureRestoreOwnerShop(
+                            ownerRestoreCodeInput.trim(),
+                            ownerRestoreMasterPin.trim()
+                        ) { success, _ ->
+                            isOwnerRestoring = false
+                            if (success) {
+                                showOwnerRestoreDialog = false
+                            }
+                        }
+                    }
+                )
+            },
+            dismissButton = {
+                if (!isOwnerRestoring) {
+                    TextButton(onClick = { showOwnerRestoreDialog = false }) {
+                        Text("বাতিল")
+                    }
+                }
+            }
+        )
     }
 }

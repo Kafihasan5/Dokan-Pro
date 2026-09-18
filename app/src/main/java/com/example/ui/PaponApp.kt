@@ -205,7 +205,8 @@ fun DokanProApp(
                             currentScreen = currentScreen,
                             onNavigate = { viewModel.navigateTo(it) },
                             onQrScanClick = { viewModel.triggerPosQrScanner() },
-                            onFabLongPress = { viewModel.toggleQuickActions() }
+                            onFabLongPress = { viewModel.toggleQuickActions() },
+                            isStaff = shopConfig.userRole == "staff"
                         )
                     }
                 }

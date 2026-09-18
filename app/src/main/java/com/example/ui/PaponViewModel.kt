@@ -44,8 +44,10 @@ data class ShopConfig(
     val vatEnabled: Boolean = false,
     val vatPercentage: Double = 0.0,
     val pinEnabled: Boolean = false,
-    val pinCode: String = "1234",
+    val pinCode: String = "1234", // Owner Master PIN
+    val staffPin: String = "0000", // Staff Access PIN
     val userRole: String = "owner", // "owner" or "staff"
+    val staffName: String = "",
     val allowNegativeStock: Boolean = true,
     val isOnboardingCompleted: Boolean = false,
     val noticeMessage: String = "",
@@ -1355,6 +1357,27 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         showToast(if (enabled) "অ্যাপ লক সক্রিয় করা হয়েছে" else "অ্যাপ লক নিষ্ক্রিয় করা হয়েছে")
     }
 
+    fun updateSecurityPins(newMasterPin: String, newStaffPin: String, onComplete: ((Boolean, String) -> Unit)? = null) {
+        val cleanMaster = newMasterPin.trim()
+        val cleanStaff = newStaffPin.trim()
+        if (cleanMaster.length < 4) {
+            onComplete?.invoke(false, "মাস্টার পিন কমপক্ষে ৪ ডিজিট হতে হবে")
+            return
+        }
+        val updated = _shopConfig.value.copy(
+            pinCode = cleanMaster,
+            staffPin = cleanStaff.ifBlank { "0000" },
+            pinEnabled = true
+        )
+        updateShopConfig(updated)
+        val code = updated.firebaseShopCode.ifBlank { getDefaultShopCode() }
+        viewModelScope.launch {
+            firebaseSyncManager.saveShopSecurity(code, updated.ownerEmail, cleanMaster, cleanStaff)
+            showToast("সিকিউরিটি পিন সফলভাবে আপডেট করা হয়েছে")
+            onComplete?.invoke(true, "সিকিউরিটি পিন সফলভাবে সংরক্ষিত হয়েছে!")
+        }
+    }
+
 
     // --- SETTINGS & THEME ---
     fun updateShopConfig(config: ShopConfig) {
@@ -1397,7 +1420,9 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
             val vatPercentage = prefs.getFloat("vat_percentage", 0.0f).toDouble()
             val pinEnabled = prefs.getBoolean("pin_enabled", false)
             val pinCode = prefs.getString("pin_code", "1234") ?: "1234"
+            val staffPin = prefs.getString("staff_pin", "0000") ?: "0000"
             val userRole = prefs.getString("user_role", "owner") ?: "owner"
+            val staffName = prefs.getString("staff_name", "") ?: ""
             val allowNegativeStock = prefs.getBoolean("allow_negative_stock", true)
             val isOnboardingCompleted = prefs.getBoolean("is_onboarding_completed", false)
             val noticeMessage = prefs.getString("notice_message", "") ?: ""
@@ -1417,7 +1442,9 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 vatPercentage = vatPercentage,
                 pinEnabled = pinEnabled,
                 pinCode = pinCode,
+                staffPin = staffPin,
                 userRole = userRole,
+                staffName = staffName,
                 allowNegativeStock = allowNegativeStock,
                 isOnboardingCompleted = isOnboardingCompleted,
                 noticeMessage = noticeMessage,
@@ -1442,7 +1469,9 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 putFloat("vat_percentage", config.vatPercentage.toFloat())
                 putBoolean("pin_enabled", config.pinEnabled)
                 putString("pin_code", config.pinCode)
+                putString("staff_pin", config.staffPin)
                 putString("user_role", config.userRole)
+                putString("staff_name", config.staffName)
                 putBoolean("allow_negative_stock", config.allowNegativeStock)
                 putBoolean("is_onboarding_completed", config.isOnboardingCompleted)
                 putString("notice_message", config.noticeMessage)
@@ -1450,10 +1479,10 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 putBoolean("firebase_sync_enabled", config.firebaseSyncEnabled)
                 apply()
             }
-            if (config.ownerEmail.isNotBlank() && config.ownerEmail.contains("@") && config.userRole == "owner") {
+            if (config.userRole == "owner") {
                 val code = config.firebaseShopCode.ifBlank { getDefaultShopCode() }
                 viewModelScope.launch {
-                    firebaseSyncManager.linkEmailToShop(config.ownerEmail, code)
+                    firebaseSyncManager.saveShopSecurity(code, config.ownerEmail, config.pinCode, config.staffPin)
                 }
             }
             if (config.isOnboardingCompleted) {
@@ -1508,6 +1537,144 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
             firebaseSyncManager.connectShop(resolvedCode, role) { success, msg ->
                 showToast(msg)
                 onComplete?.invoke(success, msg)
+            }
+        }
+    }
+
+    /**
+     * Restores owner's shop securely using Master Security PIN.
+     * ZERO DATA LEAK: If master PIN does not match, no cloud data is ever downloaded.
+     */
+    fun secureRestoreOwnerShop(
+        shopCodeOrEmail: String,
+        masterPin: String,
+        onComplete: (Boolean, String) -> Unit
+    ) {
+        val cleanInput = shopCodeOrEmail.trim()
+        val cleanPin = masterPin.trim()
+        if (cleanInput.isBlank()) {
+            onComplete(false, "দোকান কোড অথবা নিবন্ধিত ইমেইল লিখুন")
+            return
+        }
+        if (cleanPin.isBlank() || cleanPin.length < 4) {
+            onComplete(false, "মালিকের ৪-৬ ডিজিটের মাস্টার সিকিউরিটি পিন লিখুন")
+            return
+        }
+
+        viewModelScope.launch {
+            val resolvedCode = if (cleanInput.contains("@")) {
+                firebaseSyncManager.resolveShopCode(cleanInput)
+            } else {
+                cleanInput.uppercase()
+            }
+
+            if (resolvedCode.isNullOrBlank()) {
+                val msg = "এই ইমেইল অথবা কোড দিয়ে কোনো দোকান খুঁজে পাওয়া যায়নি।"
+                showToast(msg)
+                onComplete(false, msg)
+                return@launch
+            }
+
+            // Zero Data Leak: STRICTLY VERIFY MASTER PIN BEFORE DOWNLOADING ANY DATA!
+            val isPinValid = firebaseSyncManager.verifyMasterPin(resolvedCode, cleanPin)
+            if (!isPinValid) {
+                val msg = "ভুল সিকিউরিটি পিন! সঠিক মাস্টার পিন ছাড়া দোকানের গোপনীয় তথ্য নামানো অসম্ভব।"
+                showToast(msg)
+                onComplete(false, msg)
+                return@launch
+            }
+
+            val ownerEmail = if (cleanInput.contains("@")) cleanInput else _shopConfig.value.ownerEmail
+            val updated = _shopConfig.value.copy(
+                firebaseShopCode = resolvedCode,
+                firebaseSyncEnabled = true,
+                userRole = "owner",
+                ownerEmail = ownerEmail,
+                pinCode = cleanPin,
+                pinEnabled = true,
+                isOnboardingCompleted = true
+            )
+            updateShopConfig(updated)
+
+            // Connect and restore all shop data safely
+            firebaseSyncManager.connectShop(resolvedCode, "owner") { success, msg ->
+                if (success) {
+                    showToast("দোকানের সমস্ত তথ্য সফলভাবে রিস্টোর হয়েছে!")
+                    onComplete(true, "দোকান সফলভাবে রিস্টোর সম্পন্ন হয়েছে!")
+                } else {
+                    showToast(msg)
+                    onComplete(false, msg)
+                }
+            }
+        }
+    }
+
+    /**
+     * Connects an employee device using Staff Access PIN.
+     * Bypasses licensing/demo payments and isolates data so employees cannot see profits or past debts.
+     */
+    fun secureJoinAsStaff(
+        shopCodeOrEmail: String,
+        staffPin: String,
+        staffName: String,
+        onComplete: (Boolean, String) -> Unit
+    ) {
+        val cleanInput = shopCodeOrEmail.trim()
+        val cleanPin = staffPin.trim()
+        if (cleanInput.isBlank()) {
+            onComplete(false, "মালিকের দোকান কোড অথবা ইমেইল লিখুন")
+            return
+        }
+        if (cleanPin.isBlank()) {
+            onComplete(false, "কর্মচারী ৪-ডিজিট পিন লিখুন")
+            return
+        }
+
+        viewModelScope.launch {
+            val resolvedCode = if (cleanInput.contains("@")) {
+                firebaseSyncManager.resolveShopCode(cleanInput)
+            } else {
+                cleanInput.uppercase()
+            }
+
+            if (resolvedCode.isNullOrBlank()) {
+                val msg = "দোকানটি খুঁজে পাওয়া যায়নি। সঠিক কোড বা মালিকের ইমেইল লিখুন।"
+                showToast(msg)
+                onComplete(false, msg)
+                return@launch
+            }
+
+            // Verify staff pin
+            val isPinValid = firebaseSyncManager.verifyStaffPin(resolvedCode, cleanPin)
+            if (!isPinValid) {
+                val msg = "ভুল কর্মচারী পিন! মালিকের দেওয়া সঠিক ৪-ডিজিট পিন লিখুন।"
+                showToast(msg)
+                onComplete(false, msg)
+                return@launch
+            }
+
+            val updated = _shopConfig.value.copy(
+                firebaseShopCode = resolvedCode,
+                firebaseSyncEnabled = true,
+                userRole = "staff",
+                staffPin = cleanPin,
+                staffName = staffName.trim(),
+                isOnboardingCompleted = true
+            )
+            updateShopConfig(updated)
+
+            // Activate locally as staff so license screen is bypassed forever!
+            appLicenseManager.activateAsStaff(resolvedCode, staffName.trim())
+
+            // Connect as staff (pulls ONLY products and categories, strictly zero financial/due leak)
+            firebaseSyncManager.connectShop(resolvedCode, "staff") { success, msg ->
+                if (success) {
+                    showToast("কর্মচারী হিসেবে সফলভাবে যুক্ত হয়েছেন!")
+                    onComplete(true, "কর্মচারী হিসেবে যুক্ত সম্পন্ন!")
+                } else {
+                    showToast(msg)
+                    onComplete(false, msg)
+                }
             }
         }
     }

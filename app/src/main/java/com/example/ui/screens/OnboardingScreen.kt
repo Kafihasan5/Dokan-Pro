@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,13 +42,6 @@ fun OnboardingScreen(
 ) {
     var currentStep by remember { mutableIntStateOf(1) }
     var isSeedingData by remember { mutableStateOf(false) }
-    var showJoinShopDialog by remember { mutableStateOf(false) }
-    var joinShopCode by remember { mutableStateOf("") }
-    var isJoiningShop by remember { mutableStateOf(false) }
-    var showRestoreOwnerShopDialog by remember { mutableStateOf(false) }
-    var restoreOwnerShopCode by remember { mutableStateOf("") }
-    var isRestoringOwnerShop by remember { mutableStateOf(false) }
-
 
     // Step 1 Form State
     var shopName by remember { mutableStateOf(config.shopName.ifBlank { "Dokan Pro" }.let { if (it == "দোকান প্রো") "Dokan Pro" else it }) }
@@ -55,6 +49,8 @@ fun OnboardingScreen(
     var shopPhone by remember { mutableStateOf(config.shopPhone) }
     var ownerEmail by remember { mutableStateOf(config.ownerEmail) }
     var tagline by remember { mutableStateOf(config.tagline) }
+    var masterPin by remember { mutableStateOf(config.pinCode.ifBlank { "1234" }) }
+    var staffPin by remember { mutableStateOf(config.staffPin.ifBlank { "0000" }) }
 
     // Step 2 Preferences State
     var useBengaliNumerals by remember { mutableStateOf(config.useBengaliNumerals) }
@@ -223,6 +219,26 @@ fun OnboardingScreen(
                                 placeholder = "যেমন: yourname@gmail.com",
                                 keyboardType = KeyboardType.Email,
                                 leadingIcon = Icons.Default.Email
+                            )
+
+                            DokanTextField(
+                                value = masterPin,
+                                onValueChange = { if (it.length <= 6) masterPin = it },
+                                label = "মাস্টার সিকিউরিটি পিন (৪-৬ ডিজিট) *",
+                                placeholder = "যেমন: 1234",
+                                keyboardType = KeyboardType.NumberPassword,
+                                visualTransformation = PasswordVisualTransformation(),
+                                leadingIcon = Icons.Default.Key
+                            )
+
+                            DokanTextField(
+                                value = staffPin,
+                                onValueChange = { if (it.length <= 6) staffPin = it },
+                                label = "কর্মচারী এক্সেস পিন (৪ ডিজিট)",
+                                placeholder = "যেমন: 0000",
+                                keyboardType = KeyboardType.NumberPassword,
+                                visualTransformation = PasswordVisualTransformation(),
+                                leadingIcon = Icons.Default.Lock
                             )
 
                             DokanTextField(
@@ -465,6 +481,10 @@ fun OnboardingScreen(
                                     shopPhone = shopPhone.trim(),
                                     ownerEmail = ownerEmail.trim(),
                                     tagline = tagline.trim(),
+                                    pinCode = masterPin.trim().ifBlank { "1234" },
+                                    staffPin = staffPin.trim().ifBlank { "0000" },
+                                    pinEnabled = true,
+                                    userRole = "owner",
                                     useBengaliNumerals = useBengaliNumerals,
                                     currencySymbol = currencySymbol,
                                     vatEnabled = vatEnabled,
@@ -473,6 +493,7 @@ fun OnboardingScreen(
                                     isOnboardingCompleted = true
                                 )
                                 viewModel.updateShopConfig(updated)
+                                viewModel.updateSecurityPins(masterPin, staffPin)
                                 viewModel.resetAllData {
                                     isSeedingData = false
                                     viewModel.navigateTo(AppScreen.DASHBOARD)
@@ -554,6 +575,10 @@ fun OnboardingScreen(
                                     shopPhone = shopPhone.trim(),
                                     ownerEmail = ownerEmail.trim(),
                                     tagline = tagline.trim(),
+                                    pinCode = masterPin.trim().ifBlank { "1234" },
+                                    staffPin = staffPin.trim().ifBlank { "0000" },
+                                    pinEnabled = true,
+                                    userRole = "owner",
                                     useBengaliNumerals = useBengaliNumerals,
                                     currencySymbol = currencySymbol,
                                     vatEnabled = vatEnabled,
@@ -562,6 +587,7 @@ fun OnboardingScreen(
                                     isOnboardingCompleted = true
                                 )
                                 viewModel.updateShopConfig(updated)
+                                viewModel.updateSecurityPins(masterPin, staffPin)
                                 viewModel.clearAllDummyData {
                                     viewModel.navigateTo(AppScreen.PRODUCTS)
                                 }
@@ -612,114 +638,6 @@ fun OnboardingScreen(
                         }
                     }
 
-                    // Option 3: পূর্বের দোকান রিস্টোর করব (দোকান মালিক)
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(Radius.lg))
-                            .clickable(enabled = !isSeedingData) {
-                                showRestoreOwnerShopDialog = true
-                            },
-                        shape = RoundedCornerShape(Radius.lg),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(Spacing.lg),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(52.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CloudDownload,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.tertiary,
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(Spacing.md))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "পূর্বের দোকান রিস্টোর করব (দোকান মালিক)",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "পূর্বের দোকান কোড দিয়ে ক্লাউডে থাকা সমস্ত পণ্য, কাস্টমার ও বিক্রির হিসাব নামিয়ে নিন।",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    lineHeight = 17.sp
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    // Option 4: কর্মচারীর হিসেবে যুক্ত হব
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(Radius.lg))
-                            .clickable(enabled = !isSeedingData) {
-                                showJoinShopDialog = true
-                            },
-                        shape = RoundedCornerShape(Radius.lg),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(Spacing.lg),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(52.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.dokanColors.successContainer),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CloudSync,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.dokanColors.success,
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(Spacing.md))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "কর্মচারী হিসেবে যুক্ত হব",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "দোকান মালিকের কোড দিয়ে সরাসরি লাইভ যুক্ত হয়ে বেচাকেনা করুন।",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    lineHeight = 17.sp
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
                     Spacer(modifier = Modifier.height(Spacing.sm))
 
                     DokanSecondaryButton(
@@ -729,160 +647,6 @@ fun OnboardingScreen(
                 }
             }
         }
-    }
-
-    if (showJoinShopDialog) {
-        AlertDialog(
-            onDismissRequest = { if (!isJoiningShop) showJoinShopDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CloudSync, contentDescription = null, tint = Brand500)
-                    Spacer(modifier = Modifier.width(Spacing.xs))
-                    Text("দোকানে যুক্ত হন (কর্মচারী মোড)")
-                }
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    Text(
-                        "দোকান মালিকের কাছ থেকে পাওয়া দোকান কোড অথবা মালিকের ইমেইল এখানে লিখুন:",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    DokanTextField(
-                        value = joinShopCode,
-                        onValueChange = { joinShopCode = it },
-                        label = "দোকান কোড অথবা মালিকের ইমেইল",
-                        placeholder = "যেমন: SHOP-XXXXXX অথবা owner@gmail.com",
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val input = joinShopCode.trim()
-                        if (input.isBlank()) {
-                            viewModel.showToast("দোকান কোড অথবা ইমেইল লিখুন")
-                            return@Button
-                        }
-                        isJoiningShop = true
-                        val updated = config.copy(
-                            userRole = "staff",
-                            firebaseSyncEnabled = true,
-                            isOnboardingCompleted = true
-                        )
-                        viewModel.updateShopConfig(updated)
-                        viewModel.connectFirebaseShop(input, "staff") { success, msg ->
-                            isJoiningShop = false
-                            if (success) {
-                                showJoinShopDialog = false
-                                viewModel.navigateTo(AppScreen.POS)
-                            } else {
-                                viewModel.showToast(msg)
-                            }
-                        }
-                    },
-                    enabled = !isJoiningShop && joinShopCode.isNotBlank()
-                ) {
-                    if (isJoiningShop) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
-                    } else {
-                        Text("সংযুক্ত হন")
-                    }
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { showJoinShopDialog = false },
-                    enabled = !isJoiningShop
-                ) {
-                    Text("বাতিল")
-                }
-            }
-        )
-    }
-
-    if (showRestoreOwnerShopDialog) {
-        AlertDialog(
-            onDismissRequest = { if (!isRestoringOwnerShop) showRestoreOwnerShopDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CloudDownload, contentDescription = null, tint = Brand500)
-                    Spacer(modifier = Modifier.width(Spacing.xs))
-                    Text("পূর্বের দোকান রিস্টোর (দোকান মালিক)")
-                }
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    Text(
-                        "আপনার পূর্বের দোকান কোড (যেমন: SHOP-XXXXXX) অথবা নিবন্ধিত ইমেইল এখানে লিখুন। ক্লাউডে থাকা সমস্ত তথ্য নামিয়ে আনা হবে:",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    DokanTextField(
-                        value = restoreOwnerShopCode,
-                        onValueChange = { restoreOwnerShopCode = it },
-                        label = "দোকান কোড অথবা নিবন্ধিত ইমেইল",
-                        placeholder = "যেমন: SHOP-XXXXXX অথবা yourname@gmail.com",
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val input = restoreOwnerShopCode.trim()
-                        if (input.isBlank()) {
-                            viewModel.showToast("দোকান কোড অথবা ইমেইল লিখুন")
-                            return@Button
-                        }
-                        isRestoringOwnerShop = true
-                        val parsedVat = vatPercentage.toDoubleOrNull() ?: 0.0
-                        val finalShopName = shopName.trim().ifBlank { "Dokan Pro" }
-                        val currentOwnerEmail = if (input.contains("@")) input else ownerEmail.trim()
-                        val updated = config.copy(
-                            shopName = if (finalShopName == "দোকান প্রো") "Dokan Pro" else finalShopName,
-                            shopAddress = shopAddress.trim(),
-                            shopPhone = shopPhone.trim(),
-                            ownerEmail = currentOwnerEmail,
-                            tagline = tagline.trim(),
-                            useBengaliNumerals = useBengaliNumerals,
-                            currencySymbol = currencySymbol,
-                            vatEnabled = vatEnabled,
-                            vatPercentage = parsedVat,
-                            themeMode = themeMode,
-                            userRole = "owner",
-                            firebaseSyncEnabled = true,
-                            isOnboardingCompleted = true
-                        )
-                        viewModel.updateShopConfig(updated)
-                        viewModel.connectFirebaseShop(input, "owner") { success, msg ->
-                            isRestoringOwnerShop = false
-                            if (success) {
-                                showRestoreOwnerShopDialog = false
-                                viewModel.showToast("পূর্বের দোকানের তথ্য সফলভাবে রিস্টোর হয়েছে!")
-                                viewModel.navigateTo(AppScreen.DASHBOARD)
-                            } else {
-                                viewModel.showToast("রিস্টোর করা যায়নি: $msg")
-                            }
-                        }
-                    },
-                    enabled = !isRestoringOwnerShop && restoreOwnerShopCode.isNotBlank()
-                ) {
-                    if (isRestoringOwnerShop) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
-                    } else {
-                        Text("রিস্টোর ও শুরু করুন")
-                    }
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { showRestoreOwnerShopDialog = false },
-                    enabled = !isRestoringOwnerShop
-                ) {
-                    Text("বাতিল")
-                }
-            }
-        )
     }
 }
 
