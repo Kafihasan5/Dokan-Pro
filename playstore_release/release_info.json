@@ -1,12 +1,12 @@
 {
-  "versionCode": 78,
-  "versionName": "1.0.78",
+  "versionCode": 79,
+  "versionName": "1.0.79",
   "applicationId": "com.webix.dokanpro",
   "bundleFile": "app-release.aab",
   "format": "Android App Bundle (AAB)",
   "targetSdk": 36,
   "minSdk": 24,
-  "buildTime": "2026-09-18T06:59:43Z",
-  "releaseNotes": "Generate persistent playstore-upload.jks for Google Play App Signing [skip ci]",
+  "buildTime": "2026-09-18T15:11:17Z",
+  "releaseNotes": "Fix master PIN cloud restore verification and modernize activation UI with Bengali copywriting",
   "note": "Ready for Google Play Console upload"
 }
