@@ -59,6 +59,17 @@ class FirebaseSyncManager(private val dao: PaponDao) {
         setupConnectionMonitoring()
     }
 
+    fun getDb(): FirebaseDatabase? {
+        if (database != null) return database
+        database = try {
+            FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
+        } catch (e: Throwable) {
+            Log.e(tag, "FirebaseDatabase instance error: ${e.message}")
+            null
+        }
+        return database
+    }
+
     private fun setupConnectionMonitoring() {
         val db = database ?: return
         try {
@@ -115,7 +126,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
         val cleanShop = sanitizeFirebaseKey(shopCode.trim().uppercase())
         if (cleanEmail.isBlank() || !cleanEmail.contains("@") || cleanShop.isBlank()) return@withContext
         try {
-            val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
+            val db = getDb() ?: return@withContext
             val encodedKey = encodeEmailKey(cleanEmail)
             db.getReference("email_to_shop").child(encodedKey).setValue(cleanShop).await()
             db.getReference("shops").child(cleanShop).child("info").child("ownerEmail").setValue(cleanEmail).await()
@@ -138,7 +149,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
         if (clean.contains("@")) {
             val cleanEmail = clean.lowercase()
             try {
-                val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
+                val db = getDb() ?: return@withContext null
                 val encodedKey = encodeEmailKey(cleanEmail)
 
                 // 1. Direct index lookup in /email_to_shop/{encodedKey}
@@ -206,7 +217,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             // If user typed code without "SHOP-" prefix, check if SHOP-$sanitized exists
             if (!sanitized.startsWith("SHOP-")) {
                 try {
-                    val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
+                    val db = getDb() ?: return@withContext sanitized
                     val existsDirect = withTimeout(4000L) {
                         db.getReference("shops").child(sanitized).child("info").get().await().exists()
                     }
@@ -247,7 +258,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
         val cleanCode = sanitizeFirebaseKey(shopCode.uppercase())
         if (cleanCode.isBlank()) return@withContext
         try {
-            val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
+            val db = getDb() ?: return@withContext
             val secRef = db.getReference("shops").child(cleanCode).child("security")
 
             val cleanMaster = com.example.util.Formatters.fromBengaliDigits(masterPin).trim().ifBlank { "1234" }
@@ -312,7 +323,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             val candidatePins = setOf(cleanInput, rawInput, bnInput, cleanDigits, rawDigits).filter { it.isNotBlank() }
             val candidateHashes = candidatePins.map { hashPin(it).lowercase() }.toSet()
 
-            val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
+            val db = getDb() ?: return@withContext false
 
             // Step 1: Look up /security node (try cleanCode, SHOP-$cleanCode, or prefix stripped)
             var secSnap = withTimeout(10000L) {
@@ -443,7 +454,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             val bnInput = com.example.util.Formatters.toBengaliDigits(cleanInput).trim()
             val candidatePins = setOf(cleanInput, rawInput, bnInput).filter { it.isNotBlank() }
 
-            val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
+            val db = getDb() ?: return@withContext false
             val secSnap = withTimeout(10000L) {
                 db.getReference("shops").child(cleanCode).child("security").get().await()
             }
@@ -498,7 +509,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
         val cleanCode = sanitizeFirebaseKey(shopCode.uppercase())
         if (cleanCode.isBlank()) return@withContext
         try {
-            val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
+            val db = getDb() ?: return@withContext
             val staffRef = db.getReference("shops").child(cleanCode).child("staff")
             val map = mutableMapOf<String, Any>()
             staffList.forEach { staff ->
@@ -540,7 +551,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
         val cleanCode = sanitizeFirebaseKey(shopCode.uppercase())
         if (cleanCode.isBlank()) return@withContext emptyList()
         try {
-            val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
+            val db = getDb() ?: return@withContext emptyList()
             val snap = withTimeout(10000L) {
                 db.getReference("shops").child(cleanCode).child("staff").get().await()
             }
@@ -641,12 +652,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             return@withContext Result.failure(Exception("দোকান কোড সঠিক নয়"))
         }
 
-        val db = database ?: try {
-            FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
-        } catch (e: Exception) {
-            Log.e(tag, "FirebaseDatabase instance not available", e)
-            return@withContext Result.failure(Exception("Firebase ডাটাবেস প্রস্তুত নয়: ${e.message}"))
-        }
+        val db = getDb() ?: return@withContext Result.failure(Exception("Firebase ডাটাবেস প্রস্তুত নয়"))
 
         currentShopCode = trimmedCode
         currentUserRole = role
@@ -683,7 +689,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
         val clean = sanitizeFirebaseKey(shopCode.uppercase())
         if (clean.isBlank()) return@withContext null
         try {
-            val db = database ?: FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
+            val db = getDb() ?: return@withContext null
             val infoSnap = withTimeout(10000L) {
                 db.getReference("shops").child(clean).child("info").get().await()
             }
@@ -718,11 +724,8 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             return
         }
 
-        val db = database ?: try {
-            FirebaseDatabase.getInstance(FIREBASE_DATABASE_URL)
-        } catch (e: Exception) {
-            Log.e(tag, "FirebaseDatabase instance not available", e)
-            onComplete?.invoke(false, "Firebase ডাটাবেস প্রস্তুত নয়: ${e.message}")
+        val db = getDb() ?: run {
+            onComplete?.invoke(false, "Firebase ডাটাবেস প্রস্তুত নয়")
             return
         }
 

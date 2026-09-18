@@ -143,7 +143,7 @@ fun OnboardingScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.AddBusiness,
+                                    imageVector = Icons.Default.Storefront,
                                     contentDescription = null,
                                     tint = if (setupMode == "new") Color.White else MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.size(15.dp)
@@ -343,7 +343,7 @@ fun OnboardingScreen(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.ErrorOutline,
+                                            imageVector = Icons.Default.Warning,
                                             contentDescription = null,
                                             tint = StatusDanger,
                                             modifier = Modifier.size(18.dp)
@@ -520,7 +520,7 @@ fun OnboardingScreen(
                                 onValueChange = { tagline = it },
                                 label = "স্লোগান / ট্যাগলাইন",
                                 placeholder = "যেমন: আপনার বিশ্বস্ত মুদি দোকান",
-                                leadingIcon = Icons.Default.FormatQuote
+                                leadingIcon = Icons.Default.Info
                             )
                         }
                     }
@@ -664,7 +664,7 @@ fun OnboardingScreen(
                                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
                                 ) {
                                     listOf(
-                                        Triple("system", "সিস্টেম", Icons.Default.BrightnessAuto),
+                                        Triple("system", "সিস্টেম", Icons.Default.SettingsBrightness),
                                         Triple("light", "লাইট", Icons.Default.LightMode),
                                         Triple("dark", "ডার্ক", Icons.Default.DarkMode)
                                     ).forEach { (mode, title, icon) ->
@@ -884,7 +884,7 @@ fun OnboardingScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.AddBusiness,
+                                    imageVector = Icons.Default.Storefront,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(28.dp)

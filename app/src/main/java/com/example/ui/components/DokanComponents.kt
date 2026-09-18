@@ -382,7 +382,13 @@ fun DokanPrimaryButton(
     enabled: Boolean = true
 ) {
     Button(
-        onClick = onClick,
+        onClick = {
+            try {
+                onClick()
+            } catch (t: Throwable) {
+                android.util.Log.e("DokanButton", "Click exception trapped in DokanPrimaryButton", t)
+            }
+        },
         modifier = modifier
             .fillMaxWidth()
             .height(52.dp),
@@ -418,7 +424,13 @@ fun DokanSecondaryButton(
     enabled: Boolean = true
 ) {
     OutlinedButton(
-        onClick = onClick,
+        onClick = {
+            try {
+                onClick()
+            } catch (t: Throwable) {
+                android.util.Log.e("DokanButton", "Click exception trapped in DokanSecondaryButton", t)
+            }
+        },
         modifier = modifier
             .fillMaxWidth()
             .height(52.dp),

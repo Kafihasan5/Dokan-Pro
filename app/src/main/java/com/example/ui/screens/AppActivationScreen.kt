@@ -736,7 +736,7 @@ fun AppActivationScreen(
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
                                                     Icon(
-                                                        imageVector = Icons.Default.ErrorOutline,
+                                                        imageVector = Icons.Default.Warning,
                                                         contentDescription = null,
                                                         tint = StatusDanger,
                                                         modifier = Modifier.size(18.dp)
@@ -758,7 +758,7 @@ fun AppActivationScreen(
                                             enabled = emailInput.isNotBlank() && !isActivating,
                                             onClick = {
                                                 try {
-                                                    keyboardController?.hide()
+                                                    try { keyboardController?.hide() } catch (_: Throwable) {}
                                                     viewModel.activateApp(emailInput.trim())
                                                 } catch (t: Throwable) {
                                                     android.util.Log.e("AppActivation", "Error clicking activate button", t)
@@ -875,7 +875,7 @@ fun AppActivationScreen(
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
                                                     Icon(
-                                                        imageVector = Icons.Default.ErrorOutline,
+                                                        imageVector = Icons.Default.Warning,
                                                         contentDescription = null,
                                                         tint = StatusDanger,
                                                         modifier = Modifier.size(18.dp)
@@ -897,7 +897,7 @@ fun AppActivationScreen(
                                             enabled = !isRestoringCloud && restoreShopCodeOrEmail.isNotBlank() && restoreMasterPin.isNotBlank(),
                                             onClick = {
                                                 try {
-                                                    keyboardController?.hide()
+                                                    try { keyboardController?.hide() } catch (_: Throwable) {}
                                                     restoreErrorMessage = null
                                                     isRestoringCloud = true
                                                     viewModel.secureRestoreOwnerShop(
@@ -1138,7 +1138,7 @@ fun AppActivationScreen(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Icon(
-                                                    imageVector = Icons.Default.ErrorOutline,
+                                                    imageVector = Icons.Default.Warning,
                                                     contentDescription = null,
                                                     tint = StatusDanger,
                                                     modifier = Modifier.size(18.dp)
@@ -1160,7 +1160,7 @@ fun AppActivationScreen(
                                         enabled = !isStaffJoining && staffShopCodeInput.isNotBlank() && staffPinInput.isNotBlank(),
                                         onClick = {
                                             try {
-                                                keyboardController?.hide()
+                                                try { keyboardController?.hide() } catch (_: Throwable) {}
                                                 staffJoinError = null
                                                 isStaffJoining = true
                                                 viewModel.secureJoinAsStaff(
