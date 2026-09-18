@@ -1,6 +1,7 @@
 {
-  "versionCode": 77,
-  "versionName": "1.0.77",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v77/app-debug.apk",
-  "releaseNotes": "Fix Size ambiguous import with android.util.Size"
+  "versionCode": 78,
+  "versionName": "1.0.78",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v78/app-debug.apk",
+  "playstoreBundleUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v78/app-release.aab",
+  "releaseNotes": "Generate persistent playstore-upload.jks for Google Play App Signing [skip ci]"
 }
