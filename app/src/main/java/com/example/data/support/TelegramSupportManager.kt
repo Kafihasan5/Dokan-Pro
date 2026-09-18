@@ -214,8 +214,15 @@ object TelegramSupportManager {
         licenseStatus: String
     ) = withContext(Dispatchers.IO) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val alreadyNotified = prefs.getBoolean("setup_notified_$deviceId", false)
+        val alreadyNotified = prefs.getBoolean("setup_notified_$deviceId", false) ||
+                              prefs.getBoolean("setup_notified_globally", false)
         if (alreadyNotified) return@withContext
+
+        // Mark immediately to prevent race conditions or repeated calls
+        prefs.edit()
+            .putBoolean("setup_notified_$deviceId", true)
+            .putBoolean("setup_notified_globally", true)
+            .apply()
 
         try {
             // Pre-create forum topic for this device so it has a valid topic ID ready

@@ -43,6 +43,15 @@ fun OnboardingScreen(
     var currentStep by remember { mutableIntStateOf(1) }
     var isSeedingData by remember { mutableStateOf(false) }
 
+    // Setup choice: "new" (নতুন দোকান সেটআপ) or "restore" (আগের ডাটা রিস্টোর)
+    var setupMode by remember { mutableStateOf("new") }
+
+    // Cloud Restore State
+    var restoreCodeOrEmail by remember { mutableStateOf(config.ownerEmail) }
+    var restoreMasterPin by remember { mutableStateOf("") }
+    var isRestoringCloud by remember { mutableStateOf(false) }
+    var restoreErrorMessage by remember { mutableStateOf<String?>(null) }
+
     // Step 1 Form State
     var shopName by remember { mutableStateOf(config.shopName.ifBlank { "Dokan Pro" }.let { if (it == "দোকান প্রো") "Dokan Pro" else it }) }
     var shopAddress by remember { mutableStateOf(config.shopAddress) }
@@ -100,53 +109,126 @@ fun OnboardingScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "প্রথম ব্যবহারের প্রস্তুতি",
+                            text = if (setupMode == "restore") "পূর্বের দোকান ও ডাটা রিস্টোর" else "প্রথম ব্যবহারের প্রস্তুতি",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.md))
+                Spacer(modifier = Modifier.height(Spacing.sm))
 
-                // Progress Stepper Bar
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                // Setup Mode Toggle (নতুন দোকান vs আগের ডাটা রিস্টোর)
+                Surface(
+                    shape = RoundedCornerShape(Radius.pill),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    StepItem(
-                        step = 1,
-                        label = "দোকানের তথ্য",
-                        isActive = currentStep == 1,
-                        isCompleted = currentStep > 1,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Box(
+                    Row(
                         modifier = Modifier
-                            .width(28.dp)
-                            .height(2.dp)
-                            .background(if (currentStep > 1) Brand500 else MaterialTheme.colorScheme.outlineVariant)
-                    )
-                    StepItem(
-                        step = 2,
-                        label = "পছন্দ",
-                        isActive = currentStep == 2,
-                        isCompleted = currentStep > 2,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .width(28.dp)
-                            .height(2.dp)
-                            .background(if (currentStep > 2) Brand500 else MaterialTheme.colorScheme.outlineVariant)
-                    )
-                    StepItem(
-                        step = 3,
-                        label = "শুরু করুন",
-                        isActive = currentStep == 3,
-                        isCompleted = false,
-                        modifier = Modifier.weight(1f)
-                    )
+                            .fillMaxWidth()
+                            .padding(3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Surface(
+                            onClick = { setupMode = "new" },
+                            shape = RoundedCornerShape(Radius.pill),
+                            color = if (setupMode == "new") Brand500 else Color.Transparent,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 7.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AddBusiness,
+                                    contentDescription = null,
+                                    tint = if (setupMode == "new") Color.White else MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = "নতুন দোকান",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = if (setupMode == "new") Color.White else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        Surface(
+                            onClick = { setupMode = "restore" },
+                            shape = RoundedCornerShape(Radius.pill),
+                            color = if (setupMode == "restore") Brand500 else Color.Transparent,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 7.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudDownload,
+                                    contentDescription = null,
+                                    tint = if (setupMode == "restore") Color.White else MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = "আগের ডাটা রিস্টোর",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = if (setupMode == "restore") Color.White else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (setupMode == "new") {
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+
+                    // Progress Stepper Bar
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        StepItem(
+                            step = 1,
+                            label = "দোকানের তথ্য",
+                            isActive = currentStep == 1,
+                            isCompleted = currentStep > 1,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .width(28.dp)
+                                .height(2.dp)
+                                .background(if (currentStep > 1) Brand500 else MaterialTheme.colorScheme.outlineVariant)
+                        )
+                        StepItem(
+                            step = 2,
+                            label = "পছন্দ",
+                            isActive = currentStep == 2,
+                            isCompleted = currentStep > 2,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .width(28.dp)
+                                .height(2.dp)
+                                .background(if (currentStep > 2) Brand500 else MaterialTheme.colorScheme.outlineVariant)
+                        )
+                        StepItem(
+                            step = 3,
+                            label = "শুরু করুন",
+                            isActive = currentStep == 3,
+                            isCompleted = false,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
         }
@@ -159,23 +241,215 @@ fun OnboardingScreen(
                 .padding(Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.lg)
         ) {
-            when (currentStep) {
-                1 -> {
-                    // STEP 1: দোকানের তথ্য
+            if (setupMode == "restore") {
+                // =============================================================
+                // 🔄 RESTORE PREVIOUS DATA WITH PIN (মাস্টার পিন দিয়ে রিস্টোর)
+                // =============================================================
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                ) {
                     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                         Text(
-                            text = "দোকানের তথ্য",
+                            text = "আগের ডাটা ফিরিয়ে আনুন",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground
                         )
                         Text(
-                            text = "এই তথ্যগুলো প্রতিটি মেমো ও চালানে প্রিন্ট হবে।",
+                            text = "আপনার পূর্বে সংরক্ষিত পণ্য, বিক্রি, বাকি ও খতিয়ান ফিরিয়ে আনতে মাস্টার সিকিউরিটি পিন দিন। ডাটা লোড হয়ে সরাসরি ড্যাশবোর্ডে প্রবেশ করবে।",
                             style = MaterialTheme.typography.bodyMedium,
                             color = Brand500,
-                            fontWeight = FontWeight.Medium
+                            lineHeight = 18.sp
                         )
                     }
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(Radius.lg),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(Spacing.lg),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(CircleShape)
+                                        .background(Brand500.copy(alpha = 0.12f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudDownload,
+                                        contentDescription = null,
+                                        tint = Brand500,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(Spacing.md))
+                                Column {
+                                    Text(
+                                        text = "মাস্টার পিন সিকিউরিটি রিস্টোর",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "গোপন মাস্টার পিন যাচাই ছাড়া ডাটা নামবে না",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            HorizontalDivider()
+
+                            DokanTextField(
+                                value = restoreCodeOrEmail,
+                                onValueChange = {
+                                    restoreCodeOrEmail = it
+                                    restoreErrorMessage = null
+                                },
+                                label = "দোকান কোড অথবা নিবন্ধিত ইমেইল *",
+                                placeholder = "যেমন: SHOP-XXXXXX বা email@gmail.com",
+                                leadingIcon = Icons.Default.Storefront
+                            )
+
+                            DokanTextField(
+                                value = restoreMasterPin,
+                                onValueChange = {
+                                    if (it.length <= 8) restoreMasterPin = it
+                                    restoreErrorMessage = null
+                                },
+                                label = "মাস্টার সিকিউরিটি পিন (৪-৬ ডিজিট) *",
+                                placeholder = "আপনার গোপন মাস্টার পিন লিখুন",
+                                keyboardType = KeyboardType.NumberPassword,
+                                visualTransformation = PasswordVisualTransformation(),
+                                leadingIcon = Icons.Default.Key
+                            )
+
+                            AnimatedVisibility(visible = restoreErrorMessage != null) {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(Radius.sm),
+                                    color = StatusDanger.copy(alpha = 0.12f),
+                                    border = BorderStroke(1.dp, StatusDanger.copy(alpha = 0.35f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(Spacing.sm),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.ErrorOutline,
+                                            contentDescription = null,
+                                            tint = StatusDanger,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = restoreErrorMessage ?: "",
+                                            fontSize = 12.sp,
+                                            color = StatusDanger,
+                                            lineHeight = 16.sp
+                                        )
+                                    }
+                                }
+                            }
+
+                            DokanPrimaryButton(
+                                text = if (isRestoringCloud) "ডাটা ডাউনলোড ও রিস্টোর হচ্ছে..." else "পিন দিয়ে ডাটা রিস্টোর করুন",
+                                isLoading = isRestoringCloud,
+                                enabled = !isRestoringCloud && restoreMasterPin.isNotBlank(),
+                                onClick = {
+                                    val cleanInput = restoreCodeOrEmail.trim().ifBlank { config.ownerEmail.trim() }
+                                    val cleanPin = restoreMasterPin.trim()
+                                    if (cleanInput.isBlank()) {
+                                        restoreErrorMessage = "দোকান কোড অথবা নিবন্ধিত ইমেইল লিখুন"
+                                        return@DokanPrimaryButton
+                                    }
+                                    if (cleanPin.length < 4) {
+                                        restoreErrorMessage = "মাস্টার সিকিউরিটি পিন কমপক্ষে ৪ ডিজিট হতে হবে"
+                                        return@DokanPrimaryButton
+                                    }
+                                    isRestoringCloud = true
+                                    viewModel.secureRestoreOwnerShop(cleanInput, cleanPin) { success, msg ->
+                                        isRestoringCloud = false
+                                        if (!success) {
+                                            restoreErrorMessage = msg
+                                        }
+                                    }
+                                }
+                            )
+
+                            DokanSecondaryButton(
+                                text = "অথবা নতুন দোকান শুরু করুন",
+                                enabled = !isRestoringCloud,
+                                onClick = { setupMode = "new" }
+                            )
+                        }
+                    }
+                }
+            } else {
+                when (currentStep) {
+                    1 -> {
+                        // STEP 1: দোকানের তথ্য
+                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                            Text(
+                                text = "দোকানের তথ্য",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Text(
+                                text = "এই তথ্যগুলো প্রতিটি মেমো ও চালানে প্রিন্ট হবে।",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Brand500,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+
+                        // Quick switch banner to restore
+                        Surface(
+                            shape = RoundedCornerShape(Radius.sm),
+                            color = Brand500.copy(alpha = 0.10f),
+                            border = BorderStroke(1.dp, Brand500.copy(alpha = 0.35f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { setupMode = "restore" }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = Spacing.md, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudDownload,
+                                        contentDescription = null,
+                                        tint = Brand500,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "আগের দোকানের ডাটা রিস্টোর করতে চান?",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Brand700
+                                    )
+                                }
+                                Text(
+                                    text = "রিস্টোর করুন →",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Brand500
+                                )
+                            }
+                        }
 
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -494,6 +768,7 @@ fun OnboardingScreen(
                                 )
                                 viewModel.updateShopConfig(updated)
                                 viewModel.updateSecurityPins(masterPin, staffPin)
+                                viewModel.triggerNewUserSetupNotification(updated)
                                 viewModel.resetAllData {
                                     isSeedingData = false
                                     viewModel.navigateTo(AppScreen.DASHBOARD)
@@ -588,6 +863,7 @@ fun OnboardingScreen(
                                 )
                                 viewModel.updateShopConfig(updated)
                                 viewModel.updateSecurityPins(masterPin, staffPin)
+                                viewModel.triggerNewUserSetupNotification(updated)
                                 viewModel.clearAllDummyData {
                                     viewModel.navigateTo(AppScreen.PRODUCTS)
                                 }

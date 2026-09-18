@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -80,7 +81,9 @@ fun TopHeader(
     remainingDemoMillis: Long = 0L,
     onBuyLicenseClick: () -> Unit = {},
     unreadNotificationsCount: Int = 0,
-    onOpenNotifications: () -> Unit = {}
+    onOpenNotifications: () -> Unit = {},
+    isUpdateAvailable: Boolean = false,
+    onCheckUpdate: () -> Unit = {}
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val systemDark = isSystemInDarkTheme()
@@ -289,12 +292,23 @@ fun TopHeader(
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
                                 .testTag("top_menu_button")
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "মেনু",
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(20.dp)
-                            )
+                            BadgedBox(
+                                badge = {
+                                    if (isUpdateAvailable) {
+                                        Badge(
+                                            containerColor = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(8.dp)
+                                        )
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "মেনু",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
 
                         DropdownMenu(
@@ -434,6 +448,51 @@ fun TopHeader(
                                 onClick = {
                                     showMenu = false
                                     onOpenMoreMenu(AppScreen.LIVE_SUPPORT)
+                                }
+                            )
+
+                            // App Update check option (accessible to BOTH staff and owner)
+                            DropdownMenuItem(
+                                text = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = if (isUpdateAvailable) "নতুন আপডেট এসেছে" else "অ্যাপ আপডেট চেক করুন",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = if (isUpdateAvailable) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isUpdateAvailable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                        )
+                                        if (isUpdateAvailable) {
+                                            Surface(
+                                                shape = RoundedCornerShape(Radius.pill),
+                                                color = MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.padding(start = 6.dp)
+                                            ) {
+                                                Text(
+                                                    text = "নতুন",
+                                                    color = Color.White,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.SystemUpdate,
+                                        contentDescription = null,
+                                        tint = if (isUpdateAvailable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                modifier = Modifier.padding(horizontal = Spacing.sm),
+                                onClick = {
+                                    showMenu = false
+                                    onCheckUpdate()
                                 }
                             )
                             if (isOwner) {

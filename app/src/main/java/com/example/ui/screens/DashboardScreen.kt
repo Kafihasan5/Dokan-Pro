@@ -58,6 +58,7 @@ import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -156,6 +157,7 @@ fun DashboardScreen(
     val isSyncing by viewModel.isSyncing.collectAsState()
     val isDemoMode by viewModel.isDemoMode.collectAsState()
     val remainingDemoMillis by viewModel.remainingDemoMillis.collectAsState()
+    val appUpdateInfo by viewModel.appUpdateInfo.collectAsState()
     var isDemoBannerDismissed by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
@@ -338,7 +340,9 @@ fun DashboardScreen(
                 remainingDemoMillis = remainingDemoMillis,
                 onBuyLicenseClick = { openBuyLicense() },
                 unreadNotificationsCount = unreadSupportCount,
-                onOpenNotifications = { showNotificationsSheet = true }
+                onOpenNotifications = { showNotificationsSheet = true },
+                isUpdateAvailable = appUpdateInfo.isUpdateAvailable,
+                onCheckUpdate = { viewModel.checkForUpdates(silent = false) }
             )
 
             if (showNotificationsSheet) {
@@ -359,6 +363,66 @@ fun DashboardScreen(
                         viewModel.dismissNotification(id)
                     }
                 )
+            }
+
+            // Universal App Update Alert Banner (for Staff & Owner)
+            if (appUpdateInfo.isUpdateAvailable) {
+                Surface(
+                    shape = RoundedCornerShape(Radius.md),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.lg, vertical = 6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = Spacing.md, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SystemUpdate,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(Spacing.sm))
+                            Column {
+                                Text(
+                                    text = "নতুন আপডেট উপলব্ধ (v${appUpdateInfo.latestVersionName})",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    text = "উন্নত পারফরম্যান্স ও নতুন ফিচারের জন্য এখনই আপডেট করুন",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                )
+                            }
+                        }
+                        Button(
+                            onClick = { viewModel.openUpdateDialog() },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            shape = RoundedCornerShape(Radius.pill),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                            modifier = Modifier.height(34.dp)
+                        ) {
+                            Text(
+                                text = "আপডেট",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
             }
 
             Column(

@@ -64,12 +64,6 @@ fun AppActivationScreen(
     val isDemoUsed by viewModel.isDemoUsed.collectAsState()
     val isDemoExpired by viewModel.isDemoExpired.collectAsState()
 
-    // Owner - Secure Restore States
-    var ownerRestoreCodeInput by remember { mutableStateOf("") }
-    var ownerRestoreMasterPin by remember { mutableStateOf("") }
-    var isOwnerRestoring by remember { mutableStateOf(false) }
-    var ownerRestoreError by remember { mutableStateOf<String?>(null) }
-
     // Staff - Secure Join States
     var staffShopCodeInput by remember { mutableStateOf("") }
     var staffPinInput by remember { mutableStateOf("") }
@@ -401,7 +395,7 @@ fun AppActivationScreen(
                                 }
 
                                 DokanPrimaryButton(
-                                    text = "অ্যাপ সক্রিয় করুন (নতুন দোকান)",
+                                    text = "অ্যাপ সক্রিয় করে প্রবেশ করুন",
                                     isLoading = isActivating,
                                     enabled = emailInput.isNotBlank() && !isActivating,
                                     onClick = {
@@ -409,116 +403,31 @@ fun AppActivationScreen(
                                         viewModel.activateApp(emailInput.trim())
                                     }
                                 )
-                            }
-                        }
 
-                        // Card B: পূর্বের দোকান রিস্টোর (Existing Shop Restore)
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(Radius.lg),
-                            colors = CardDefaults.cardColors(
-                                containerColor = Brand700.copy(alpha = 0.40f)
-                            ),
-                            border = BorderStroke(1.5.dp, Brand500.copy(alpha = 0.6f))
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(Spacing.md),
-                                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.CloudDownload,
-                                        contentDescription = null,
-                                        tint = Brand500,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "পূর্বের দোকান রিস্টোর (মাস্টার পিন সহ)",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp,
-                                        color = Color.White
-                                    )
-                                }
-
-                                Text(
-                                    text = "আগের দোকানের সমস্ত হিসাব, পণ্য ও বাকি নতুন ফোনে নামিয়ে নিতে আপনার নিবন্ধিত ইমেইল/কোড এবং গোপন মাস্টার পিন দিন। ডাটা লোড হয়ে সরাসরি অ্যাপের ড্যাশবোর্ডে প্রবেশ করবে।",
-                                    fontSize = 12.sp,
-                                    color = Color.White.copy(alpha = 0.85f),
-                                    lineHeight = 17.sp
-                                )
-
-                                DokanTextField(
-                                    value = ownerRestoreCodeInput,
-                                    onValueChange = {
-                                        ownerRestoreCodeInput = it
-                                        ownerRestoreError = null
-                                    },
-                                    label = "দোকান কোড অথবা নিবন্ধিত ইমেইল",
-                                    placeholder = "যেমন: SHOP-XXXXXX বা owner@gmail.com",
-                                    leadingIcon = Icons.Default.Storefront
-                                )
-
-                                DokanTextField(
-                                    value = ownerRestoreMasterPin,
-                                    onValueChange = {
-                                        if (it.length <= 8) ownerRestoreMasterPin = it
-                                        ownerRestoreError = null
-                                    },
-                                    label = "মাস্টার সিকিউরিটি পিন",
-                                    placeholder = "আপনার গোপন মাস্টার পিন লিখুন",
-                                    keyboardType = KeyboardType.NumberPassword,
-                                    visualTransformation = PasswordVisualTransformation(),
-                                    leadingIcon = Icons.Default.Key
-                                )
-
-                                AnimatedVisibility(visible = ownerRestoreError != null) {
-                                    Surface(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(Radius.sm),
-                                        color = StatusDanger.copy(alpha = 0.20f),
-                                        border = BorderStroke(1.dp, StatusDanger.copy(alpha = 0.5f))
+                                Surface(
+                                    shape = RoundedCornerShape(Radius.sm),
+                                    color = Brand500.copy(alpha = 0.10f),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(Spacing.sm),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Row(
-                                            modifier = Modifier.padding(Spacing.sm),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.ErrorOutline,
-                                                contentDescription = null,
-                                                tint = StatusDanger,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(
-                                                text = ownerRestoreError ?: "",
-                                                fontSize = 12.sp,
-                                                color = Color.White,
-                                                lineHeight = 16.sp
-                                            )
-                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.Info,
+                                            contentDescription = null,
+                                            tint = Brand500,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "ইমেইল দিয়ে সক্রিয় করার পর পরবর্তী স্ক্রিনে আপনি নতুন দোকান তৈরি অথবা আগের ডাটা রিস্টোর করার অপশন পাবেন।",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            lineHeight = 15.sp
+                                        )
                                     }
                                 }
-
-                                DokanPrimaryButton(
-                                    text = if (isOwnerRestoring) "ডাটা রিস্টোর হচ্ছে..." else "🔄 ডাটা রিস্টোর করে সরাসরি অ্যাপে প্রবেশ করুন",
-                                    isLoading = isOwnerRestoring,
-                                    enabled = !isOwnerRestoring && ownerRestoreCodeInput.isNotBlank() && ownerRestoreMasterPin.isNotBlank(),
-                                    onClick = {
-                                        keyboardController?.hide()
-                                        ownerRestoreError = null
-                                        isOwnerRestoring = true
-                                        viewModel.secureRestoreOwnerShop(
-                                            ownerRestoreCodeInput.trim(),
-                                            ownerRestoreMasterPin.trim()
-                                        ) { success, msg ->
-                                            isOwnerRestoring = false
-                                            if (!success) {
-                                                ownerRestoreError = msg
-                                            }
-                                        }
-                                    }
-                                )
                             }
                         }
 
