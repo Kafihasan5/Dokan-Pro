@@ -1,7 +1,7 @@
 {
-  "versionCode": 83,
-  "versionName": "1.0.83",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v83/app-debug.apk",
-  "playstoreBundleUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v83/app-release.aab",
-  "releaseNotes": "Add missing tween import in AppActivationScreen"
+  "versionCode": 87,
+  "versionName": "1.0.87",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v87/app-debug.apk",
+  "playstoreBundleUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v87/app-release.aab",
+  "releaseNotes": "Add missing Toast import in DashboardScreen"
 }

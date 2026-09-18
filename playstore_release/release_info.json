@@ -1,12 +1,12 @@
 {
-  "versionCode": 83,
-  "versionName": "1.0.83",
+  "versionCode": 87,
+  "versionName": "1.0.87",
   "applicationId": "com.webix.dokanpro",
   "bundleFile": "app-release.aab",
   "format": "Android App Bundle (AAB)",
   "targetSdk": 36,
   "minSdk": 24,
-  "buildTime": "2026-09-18T17:03:42Z",
-  "releaseNotes": "Add missing tween import in AppActivationScreen",
+  "buildTime": "2026-09-18T17:49:51Z",
+  "releaseNotes": "Add missing Toast import in DashboardScreen",
   "note": "Ready for Google Play Console upload"
 }
