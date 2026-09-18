@@ -1679,7 +1679,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
             updateShopConfig(updated)
 
             // Activate locally as staff so license screen is bypassed forever!
-            appLicenseManager.activateAsStaff(resolvedCode, staffName.trim())
+            licenseManager.activateAsStaff(resolvedCode, staffName.trim())
 
             // Connect as staff (pulls ONLY products and categories, strictly zero financial/due leak)
             firebaseSyncManager.connectShop(resolvedCode, "staff") { success, msg ->
