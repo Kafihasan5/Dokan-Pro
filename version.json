@@ -1,6 +1,6 @@
 {
-  "versionCode": 73,
-  "versionName": "1.0.73",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v73/app-debug.apk",
-  "releaseNotes": "POS পণ্য তালিকা আধুনিক লিস্ট ভিউ, একাধিক কর্মচারী যোগ ও ব্যক্তিগত ইমেইল-পিন লগইন ব্যবস্থাপনা"
+  "versionCode": 75,
+  "versionName": "1.0.75",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v75/app-debug.apk",
+  "releaseNotes": "Fix unresolved references: java.util.UUID, Person and Warning icons, and categoryName in PosScreen"
 }
