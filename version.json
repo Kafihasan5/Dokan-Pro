@@ -3,5 +3,5 @@
   "versionName": "1.0.90",
   "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v90/app-debug.apk",
   "playstoreBundleUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v90/app-release.aab",
-  "releaseNotes": "Fix: prevent crashes on login credential submission for owner and staff modes"
+  "releaseNotes": "Fix: prevent crash on credential submission when clicking probesh button (v90)"
 }

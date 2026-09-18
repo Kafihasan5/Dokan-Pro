@@ -1,12 +1,12 @@
 {
-  "versionCode": 89,
-  "versionName": "1.0.89",
+  "versionCode": 90,
+  "versionName": "1.0.90",
   "applicationId": "com.webix.dokanpro",
   "bundleFile": "app-release.aab",
   "format": "Android App Bundle (AAB)",
   "targetSdk": 36,
   "minSdk": 24,
-  "buildTime": "2026-09-18T19:48:07Z",
-  "releaseNotes": "Fix: prevent app crashes when entering as staff or owner",
+  "buildTime": "2026-09-18T23:01:35Z",
+  "releaseNotes": "Fix: prevent crash on credential submission when clicking probesh button (v90)",
   "note": "Ready for Google Play Console upload"
 }
