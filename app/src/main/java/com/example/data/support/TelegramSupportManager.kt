@@ -65,6 +65,7 @@ object TelegramSupportManager {
     private const val KEY_TOPIC_PREFIX = "topic_id_"
     private const val KEY_DISMISSED_NOTIF_IDS = "dismissed_notification_ids"
     private const val KEY_NOTIFS_LAST_CLEARED_AT = "notifications_last_cleared_at"
+    private const val KEY_INITIAL_BROADCAST_SYNC_DONE = "initial_broadcast_sync_done"
 
     private val dismissedNotificationIds = mutableSetOf<String>()
 
@@ -98,10 +99,17 @@ object TelegramSupportManager {
         val saved = prefs.getString(KEY_SUPPORT_CHAT_ID, "") ?: ""
         _configuredChatId.value = if (saved.isNotBlank()) saved else DEFAULT_SUPPORT_CHAT_ID
 
-        // Fresh install protection: Set last cleared timestamp to now if not set yet,
+        val firstInstallTime = try {
+            appContext.packageManager.getPackageInfo(appContext.packageName, 0).firstInstallTime
+        } catch (_: Exception) {
+            System.currentTimeMillis()
+        }
+
+        // Fresh install protection: Set last cleared timestamp to now or install time,
         // so old broadcast messages sent prior to installation date NEVER pop up on fresh install!
-        if (!prefs.contains(KEY_NOTIFS_LAST_CLEARED_AT) || prefs.getLong(KEY_NOTIFS_LAST_CLEARED_AT, 0L) == 0L) {
-            prefs.edit().putLong(KEY_NOTIFS_LAST_CLEARED_AT, System.currentTimeMillis()).apply()
+        val lastCleared = prefs.getLong(KEY_NOTIFS_LAST_CLEARED_AT, 0L)
+        if (!prefs.contains(KEY_NOTIFS_LAST_CLEARED_AT) || lastCleared < firstInstallTime) {
+            prefs.edit().putLong(KEY_NOTIFS_LAST_CLEARED_AT, maxOf(firstInstallTime, System.currentTimeMillis())).apply()
         }
 
         val savedDismissed = prefs.getStringSet(KEY_DISMISSED_NOTIF_IDS, emptySet()) ?: emptySet()
@@ -400,6 +408,15 @@ object TelegramSupportManager {
         val topicId = getStoredTopicId(context, deviceId)
         _isSyncing.value = true
 
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val isFirstSync = !prefs.getBoolean(KEY_INITIAL_BROADCAST_SYNC_DONE, false)
+        val firstInstallTime = try {
+            context.packageManager.getPackageInfo(context.packageName, 0).firstInstallTime
+        } catch (_: Exception) {
+            System.currentTimeMillis()
+        }
+        val lastClearedAt = prefs.getLong(KEY_NOTIFS_LAST_CLEARED_AT, 0L)
+
         try {
             val req = Request.Builder()
                 .url("$TELEGRAM_API_BASE/getUpdates?offset=-100&allowed_updates=[\"message\"]")
@@ -480,11 +497,23 @@ object TelegramSupportManager {
                             val rawMsgId = message.optInt("message_id", 1)
                             val bId = "broadcast_${message.optLong("message_id")}"
                             val msgTimeMs = dateSec * 1000L
-                            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                            val lastClearedAt = prefs.getLong(KEY_NOTIFS_LAST_CLEARED_AT, 0L)
-                            val isDismissed = isNotificationDismissed(bId) || (msgTimeMs <= lastClearedAt)
 
-                            if (cleanNotice.isNotEmpty() && !existingNotifIds.contains(bId) && !isDismissed) {
+                            // If this is the first sync after app install, or if message was sent before app install / clear time,
+                            // or already dismissed, strictly dismiss and do NOT show or notify!
+                            val isHistoric = isFirstSync ||
+                                    (msgTimeMs <= lastClearedAt) ||
+                                    (msgTimeMs <= firstInstallTime) ||
+                                    isNotificationDismissed(bId)
+
+                            if (isHistoric) {
+                                // Auto-dismiss any past broadcast messages so they NEVER alert or show up
+                                synchronized(dismissedNotificationIds) {
+                                    dismissedNotificationIds.add(bId)
+                                }
+                                continue
+                            }
+
+                            if (cleanNotice.isNotEmpty() && !existingNotifIds.contains(bId)) {
                                 val notif = SupportNotification(
                                     id = bId,
                                     title = "📢 সার্বজনীন নোটিশ",
@@ -573,6 +602,18 @@ object TelegramSupportManager {
                         withContext(Dispatchers.Main) {
                             SoundHelper.playMessengerSound(context)
                         }
+                    }
+
+                    if (isFirstSync) {
+                        prefs.edit()
+                            .putBoolean(KEY_INITIAL_BROADCAST_SYNC_DONE, true)
+                            .putLong(KEY_NOTIFS_LAST_CLEARED_AT, maxOf(System.currentTimeMillis(), firstInstallTime))
+                            .putStringSet(KEY_DISMISSED_NOTIF_IDS, HashSet(dismissedNotificationIds))
+                            .apply()
+                    } else {
+                        prefs.edit()
+                            .putStringSet(KEY_DISMISSED_NOTIF_IDS, HashSet(dismissedNotificationIds))
+                            .apply()
                     }
                 }
             }
