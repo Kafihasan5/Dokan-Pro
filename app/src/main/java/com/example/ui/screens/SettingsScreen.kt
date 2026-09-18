@@ -576,14 +576,7 @@ fun SettingsScreen(
                         DokanSecondaryButton(
                             text = "দোকান পরিবর্তন / লগআউট করুন",
                             onClick = {
-                                viewModel.disconnectFirebaseShop()
-                                val resetConfig = config.copy(
-                                    userRole = "owner",
-                                    staffName = "",
-                                    firebaseShopCode = ""
-                                )
-                                viewModel.updateShopConfig(resetConfig)
-                                viewModel.navigateTo(AppScreen.ACTIVATION)
+                                viewModel.logoutAndDeactivate()
                             }
                         )
                     }

@@ -51,6 +51,14 @@ fun BackupScreen(
         mutableStateOf(config.firebaseShopCode.ifBlank { viewModel.getDefaultShopCode() })
     }
     val isOwner = config.userRole == "owner"
+    var isAutoBackupEnabled by remember { mutableStateOf(true) }
+    var isWifiOnly by remember { mutableStateOf(true) }
+    var showResetConfirmDialog by remember { mutableStateOf(false) }
+    var showClearDummyConfirmDialog by remember { mutableStateOf(false) }
+    var showSelectiveDeleteDialog by remember { mutableStateOf(false) }
+    var showRestoreDialog by remember { mutableStateOf(false) }
+    var restoreJsonText by remember { mutableStateOf("") }
+
     var showOwnerChangeCodeDialog by remember { mutableStateOf(false) }
     var ownerTargetCodeInput by remember { mutableStateOf("") }
     var ownerMasterPinInput by remember { mutableStateOf("") }

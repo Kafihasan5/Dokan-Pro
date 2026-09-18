@@ -337,6 +337,21 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun logoutAndDeactivate() {
+        disconnectFirebaseShop()
+        val resetConfig = _shopConfig.value.copy(
+            userRole = "owner",
+            staffName = "",
+            firebaseShopCode = "",
+            isOnboardingCompleted = false
+        )
+        updateShopConfig(resetConfig)
+        licenseManager.deactivate()
+        _isAppActivated.value = false
+        _isDemoMode.value = false
+        showToast("সফলভাবে লগআউট করা হয়েছে")
+    }
+
     init {
         TelegramSupportManager.init(application)
         loadShopConfig()

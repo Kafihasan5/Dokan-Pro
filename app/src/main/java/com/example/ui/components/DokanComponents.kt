@@ -44,6 +44,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -490,6 +491,7 @@ fun DokanTextField(
     modifier: Modifier = Modifier,
     placeholder: String? = null,
     keyboardType: KeyboardType = KeyboardType.Text,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
     imeAction: ImeAction = ImeAction.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     leadingIcon: ImageVector? = null,
@@ -509,6 +511,7 @@ fun DokanTextField(
                 .defaultMinSize(minHeight = 56.dp),
             enabled = enabled,
             singleLine = singleLine,
+            visualTransformation = visualTransformation,
             label = if (label.isNotBlank()) {
                 {
                     Text(

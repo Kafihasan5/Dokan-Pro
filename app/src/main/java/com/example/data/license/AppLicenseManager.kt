@@ -287,6 +287,21 @@ class AppLicenseManager(private val context: Context) {
     }
 
     /**
+     * Deactivate local license and demo states (used when employee or owner logs out).
+     */
+    fun deactivate() {
+        prefs.edit()
+            .putBoolean(KEY_IS_ACTIVATED, false)
+            .remove(KEY_EMAIL)
+            .remove(KEY_CUSTOMER_NAME)
+            .remove(KEY_ACTIVATED_AT)
+            .remove(KEY_EXPIRES_AT)
+            .putBoolean(KEY_IS_DEMO_MODE, false)
+            .remove(KEY_DEMO_EXPIRES_AT)
+            .apply()
+    }
+
+    /**
      * Checks whether the app is currently activated locally (or running in valid 1-hour demo).
      * Offline-first: returns true instantly from local storage without network calls!
      */
