@@ -46,12 +46,20 @@ import com.example.ui.theme.*
 
 /**
  * 🌟 Dokan-Pro Activation & Welcome Flow
- * Step 1: Initial Screen -> Two Clear, Big Options:
- *         1. 👑 "আমি দোকান মালিক" (I am Shop Owner)
- *         2. 👤 "আমি কর্মচারী" (I am Staff / Employee)
- * Step 2:
- *         - Clicking "আমি দোকান মালিক" -> Shows Cloud Restore & License Email Activation.
- *         - Clicking "আমি কর্মচারী" -> Shows Shop Code + Staff PIN Login.
+ * Official Software by Webix Solution
+ *
+ * Screen 1 (Landing):
+ *   - Webix Solution Official Branding
+ *   - 2 Clear Roles: 👑 "আমি দোকান মালিক" and 👤 "আমি কর্মচারী"
+ *   - 🎁 1-Day Free Trial (২৪ ঘণ্টা ফ্রি ট্রায়াল) Option
+ *   - 🛍️ Webix Solution Official License Purchase Card
+ *
+ * Screen 2 (Owner Flow):
+ *   - Option 1 (First): 🔑 "নতুন লাইসেন্স সক্রিয় করুন" (Email Activation)
+ *   - Option 2 (Second): 🔄 "পূর্বের দোকান ও ক্লাউড ডাটা পুনরুদ্ধার" (Cloud Restore)
+ *
+ * Screen 3 (Staff Flow):
+ *   - 👤 Shop Code + Staff PIN Login
  */
 @Composable
 fun AppActivationScreen(
@@ -61,17 +69,11 @@ fun AppActivationScreen(
     val clipboardManager = LocalClipboardManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    // Navigation Step: "role_select" (ভূমিকা নির্বাচন), "owner_flow" (মালিক অপশন), "staff_flow" (কর্মচারী লগইন)
+    // Navigation Flow: "role_select" (ভূমিকা নির্বাচন), "owner_flow" (মালিক অপশন), "staff_flow" (কর্মচারী লগইন)
     var activeFlow by remember { mutableStateOf("role_select") }
 
-    // In Owner Flow: "restore" (আগের দোকান রিস্টোর) vs "license" (ইমেইল দিয়ে লাইসেন্স সক্রিয়করণ)
-    var ownerChoice by remember { mutableStateOf("restore") }
-
-    // Owner - Cloud Restore States
-    var restoreShopCodeOrEmail by remember { mutableStateOf("") }
-    var restoreMasterPin by remember { mutableStateOf("") }
-    var isRestoringCloud by remember { mutableStateOf(false) }
-    var restoreErrorMessage by remember { mutableStateOf<String?>(null) }
+    // Owner Sub-Tab: "license" (নতুন লাইসেন্স সক্রিয়করণ - ১ম) vs "restore" (পূর্বের দোকান পুনরুদ্ধার - ২য়)
+    var ownerChoice by remember { mutableStateOf("license") }
 
     // Owner - License Activation States
     var emailInput by remember { mutableStateOf("") }
@@ -79,6 +81,12 @@ fun AppActivationScreen(
     val activationError by viewModel.activationError.collectAsState()
     val isDemoUsed by viewModel.isDemoUsed.collectAsState()
     val isDemoExpired by viewModel.isDemoExpired.collectAsState()
+
+    // Owner - Cloud Restore States
+    var restoreShopCodeOrEmail by remember { mutableStateOf("") }
+    var restoreMasterPin by remember { mutableStateOf("") }
+    var isRestoringCloud by remember { mutableStateOf(false) }
+    var restoreErrorMessage by remember { mutableStateOf<String?>(null) }
 
     // Staff - Secure Join States
     var staffShopCodeInput by remember { mutableStateOf("") }
@@ -91,7 +99,7 @@ fun AppActivationScreen(
     var copiedRecently by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
 
-    // Intercept hardware back button when inside a flow
+    // Intercept hardware back button when inside a sub-flow
     BackHandler(enabled = activeFlow != "role_select") {
         activeFlow = "role_select"
     }
@@ -124,7 +132,7 @@ fun AppActivationScreen(
             Spacer(modifier = Modifier.height(Spacing.xs))
 
             // =========================================================================
-            // 🌟 TOP APP BRAND HEADER
+            // 🌟 1. WEBIX SOLUTION OFFICIAL APP BRAND HEADER
             // =========================================================================
             Box(
                 modifier = Modifier
@@ -160,33 +168,34 @@ fun AppActivationScreen(
                     color = Color.White
                 )
                 Text(
-                    text = "আধুনিক ও সহজ ডিজিটাল হিসাব খাতা",
+                    text = "Webix Solution অফিসিয়াল সফটওয়্যার",
                     fontSize = 13.sp,
-                    color = Color.White.copy(alpha = 0.78f)
+                    fontWeight = FontWeight.SemiBold,
+                    color = Brand300
                 )
             }
 
-            // Trust & Version Badge
+            // Trust & Official Version Badge
             Surface(
                 shape = RoundedCornerShape(Radius.pill),
                 color = Brand500.copy(alpha = 0.16f),
                 border = BorderStroke(1.dp, Brand500.copy(alpha = 0.35f))
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Verified,
                         contentDescription = null,
                         tint = Brand300,
-                        modifier = Modifier.size(13.dp)
+                        modifier = Modifier.size(14.dp)
                     )
                     Text(
-                        text = "অফিসিয়াল সফটওয়্যার • v${BuildConfig.VERSION_NAME}",
+                        text = "Webix Solution • v${BuildConfig.VERSION_NAME}",
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         color = Brand100
                     )
                 }
@@ -195,7 +204,7 @@ fun AppActivationScreen(
             Spacer(modifier = Modifier.height(Spacing.xs))
 
             // =========================================================================
-            // 🌟 DYNAMIC SCREEN TRANSITION (Step 1: Role Select, Step 2: Flow)
+            // 🌟 2. DYNAMIC SCREEN CONTENT
             // =========================================================================
             AnimatedContent(
                 targetState = activeFlow,
@@ -206,11 +215,11 @@ fun AppActivationScreen(
                         slideInHorizontally { it } + fadeIn() togetherWith slideOutHorizontally { -it } + fadeOut()
                     }
                 },
-                label = "FlowContentAnimation"
+                label = "FlowTransition"
             ) { currentFlow ->
                 when (currentFlow) {
                     // =================================================================
-                    // 🌟 STEP 1: INITIAL SCREEN -> 2 CLEAR, BIG OPTIONS
+                    // 🌟 SCREEN 1: LANDING & ROLE SELECTION
                     // =================================================================
                     "role_select" -> {
                         Column(
@@ -225,7 +234,7 @@ fun AppActivationScreen(
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 4.dp)
+                                    .padding(vertical = 2.dp)
                             )
 
                             // 👑 কার্ড ১: আমি দোকান মালিক (I am Shop Owner)
@@ -233,7 +242,10 @@ fun AppActivationScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(Radius.lg))
-                                    .clickable { activeFlow = "owner_flow" },
+                                    .clickable {
+                                        ownerChoice = "license" // Default to new license activation first
+                                        activeFlow = "owner_flow"
+                                    },
                                 shape = RoundedCornerShape(Radius.lg),
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surface
@@ -267,30 +279,15 @@ fun AppActivationScreen(
                                     Spacer(modifier = Modifier.width(14.dp))
 
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                text = "আমি দোকান মালিক",
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 17.sp,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Surface(
-                                                shape = RoundedCornerShape(Radius.xs),
-                                                color = Brand500.copy(alpha = 0.15f)
-                                            ) {
-                                                Text(
-                                                    text = "অ্যাডমিন",
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Brand700,
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                )
-                                            }
-                                        }
+                                        Text(
+                                            text = "আমি দোকান মালিক",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 17.sp,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
-                                            text = "দোকানের সম্পূর্ণ হিসাব, ডাটা রিস্টোর বা লাইসেন্স সক্রিয় করুন",
+                                            text = "দোকানের সম্পূর্ণ হিসাব, লাইসেন্স বা ডাটা রিস্টোর",
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             lineHeight = 16.sp
@@ -306,7 +303,7 @@ fun AppActivationScreen(
                                 }
                             }
 
-                            // 👤 কার্ড ২: আমি কর্মচারী (I am Staff / Employee)
+                            // 👤 কার্ড ২: আমি কর্মচারী (I am Staff / Employee) - NO 'Free Access' badge
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -345,30 +342,15 @@ fun AppActivationScreen(
                                     Spacer(modifier = Modifier.width(14.dp))
 
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                text = "আমি কর্মচারী",
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 17.sp,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Surface(
-                                                shape = RoundedCornerShape(Radius.xs),
-                                                color = Success.copy(alpha = 0.15f)
-                                            ) {
-                                                Text(
-                                                    text = "ফ্রি এক্সেস",
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Success,
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                )
-                                            }
-                                        }
+                                        Text(
+                                            text = "আমি কর্মচারী",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 17.sp,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
-                                            text = "মালিকের দোকানের সাথে যুক্ত হয়ে পণ্য বিক্রি ও স্টক পরিচালনা করুন",
+                                            text = "মালিকের দোকানে যুক্ত হয়ে পণ্য বিক্রি ও স্টক পরিচালনা করুন",
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             lineHeight = 16.sp
@@ -384,29 +366,106 @@ fun AppActivationScreen(
                                 }
                             }
 
-                            // Reassurance Note
+                            // 🎁 ৩. ফ্রি ট্রায়াল অপশন (১ দিনের ফ্রি ডেমো টেস্ট)
+                            if (!isDemoUsed || !isDemoExpired) {
+                                Surface(
+                                    shape = RoundedCornerShape(Radius.md),
+                                    color = Color.White.copy(alpha = 0.08f),
+                                    border = BorderStroke(1.dp, Gold500.copy(alpha = 0.45f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(Spacing.md),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Timelapse,
+                                                    contentDescription = null,
+                                                    tint = Gold500,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = "১ দিনের ফ্রি ট্রায়াল টেস্ট (২৪ ঘণ্টা)",
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 13.sp,
+                                                    color = Color.White
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = "অ্যাপ কেনার আগে সম্পূর্ণ ফ্রিতে সব ফিচার যাচাই করুন",
+                                                fontSize = 11.sp,
+                                                color = Color.White.copy(alpha = 0.75f)
+                                            )
+                                        }
+                                        Button(
+                                            onClick = { viewModel.startOneHourDemo() },
+                                            enabled = !isActivating,
+                                            shape = RoundedCornerShape(Radius.sm),
+                                            colors = ButtonDefaults.buttonColors(containerColor = Gold500),
+                                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                                        ) {
+                                            Text(
+                                                text = "ফ্রি ট্রায়াল",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Brand900
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 🛍️ ৪. WEBIX SOLUTION অফিসিয়াল লাইসেন্স ক্রয় কার্ড
                             Surface(
                                 shape = RoundedCornerShape(Radius.md),
-                                color = Color.White.copy(alpha = 0.05f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+                                color = Color.White.copy(alpha = 0.06f),
+                                border = BorderStroke(1.dp, Brand500.copy(alpha = 0.35f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(Spacing.md),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Info,
-                                        contentDescription = null,
-                                        tint = Brand300,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "আপনি দোকান মালিক হলে প্রথম অপশনে ক্লিক করে আগের দোকান ফিরিয়ে আনতে বা নতুন শুরু করতে পারবেন। কর্মচারীদের জন্য কোনো লাইসেন্স ফি নেই।",
-                                        fontSize = 11.sp,
-                                        color = Color.White.copy(alpha = 0.75f),
-                                        lineHeight = 15.sp
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "আজীবন মেয়াদের অফিসিয়াল লাইসেন্স",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = Color.White
+                                        )
+                                        Text(
+                                            text = "Webix Solution স্টোর থেকে সরাসরি লাইসেন্স সংগ্রহ করুন",
+                                            fontSize = 11.sp,
+                                            color = Color.White.copy(alpha = 0.70f)
+                                        )
+                                    }
+                                    DokanSecondaryButton(
+                                        text = "লাইসেন্স নিন",
+                                        onClick = {
+                                            try {
+                                                val intent = Intent(
+                                                    Intent.ACTION_VIEW,
+                                                    Uri.parse("https://webixsolution.store/product/dokan-pro")
+                                                )
+                                                context.startActivity(intent)
+                                            } catch (_: Exception) {
+                                                Toast.makeText(
+                                                    context,
+                                                    "ওয়েবসাইট ভিজিট করুন: webixsolution.store/product/dokan-pro",
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                            }
+                                        }
                                     )
                                 }
                             }
@@ -414,14 +473,14 @@ fun AppActivationScreen(
                     }
 
                     // =================================================================
-                    // 🌟 STEP 2 (A): 👑 OWNER FLOW (দোকান রিস্টোর ও ইমেইল সক্রিয়করণ)
+                    // 🌟 SCREEN 2: 👑 OWNER FLOW (১ম: নতুন লাইসেন্স, ২য়: দোকান পুনরুদ্ধার)
                     // =================================================================
                     "owner_flow" -> {
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(Spacing.md)
                         ) {
-                            // Back Navigation Bar
+                            // Back Navigation Button
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -445,7 +504,7 @@ fun AppActivationScreen(
                                 )
                             }
 
-                            // Sub-Selector Toggle: 🔄 দোকান রিস্টোর vs 🔑 ইমেইল দিয়ে সক্রিয়
+                            // Sub-Selector Toggle: অপশন ১ (নতুন লাইসেন্স) প্রথমে, অপশন ২ (দোকান রিস্টোর) দ্বিতীয়তে
                             Surface(
                                 shape = RoundedCornerShape(Radius.pill),
                                 color = Color.White.copy(alpha = 0.10f),
@@ -458,33 +517,7 @@ fun AppActivationScreen(
                                         .padding(4.dp),
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Surface(
-                                        onClick = { ownerChoice = "restore" },
-                                        shape = RoundedCornerShape(Radius.pill),
-                                        color = if (ownerChoice == "restore") Brand500 else Color.Transparent,
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(vertical = 9.dp),
-                                            horizontalArrangement = Arrangement.Center,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.CloudDownload,
-                                                contentDescription = null,
-                                                tint = Color.White,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = "আগের দোকান রিস্টোর",
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White
-                                            )
-                                        }
-                                    }
-
+                                    // অপশন ১: নতুন লাইসেন্স সক্রিয় (FIRST)
                                     Surface(
                                         onClick = { ownerChoice = "license" },
                                         shape = RoundedCornerShape(Radius.pill),
@@ -511,11 +544,173 @@ fun AppActivationScreen(
                                             )
                                         }
                                     }
+
+                                    // অপশন ২: পূর্বের দোকান পুনরুদ্ধার (SECOND)
+                                    Surface(
+                                        onClick = { ownerChoice = "restore" },
+                                        shape = RoundedCornerShape(Radius.pill),
+                                        color = if (ownerChoice == "restore") Brand500 else Color.Transparent,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(vertical = 9.dp),
+                                            horizontalArrangement = Arrangement.Center,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.CloudDownload,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "দোকান পুনরুদ্ধার",
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
                                 }
                             }
 
-                            // OPTION 1: 🔄 পূর্বের দোকান রিস্টোর (Cloud Restore)
-                            if (ownerChoice == "restore") {
+                            // 🔑 OPTION 1 (DEFAULT FIRST): নতুন লাইসেন্স সক্রিয়করণ
+                            if (ownerChoice == "license") {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(Radius.lg),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surface
+                                    ),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(Spacing.md),
+                                        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(38.dp)
+                                                    .clip(RoundedCornerShape(Radius.sm))
+                                                    .background(Brand500.copy(alpha = 0.15f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.VpnKey,
+                                                    contentDescription = null,
+                                                    tint = Brand500,
+                                                    modifier = Modifier.size(22.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Column {
+                                                Text(
+                                                    text = "নতুন লাইসেন্স সক্রিয় করুন",
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 15.sp,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Text(
+                                                    text = "ক্রয়কৃত লাইসেন্স ইমেইল দিয়ে অ্যাপ সক্রিয় করে নতুন দোকান শুরু করুন",
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+
+                                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                                        DokanTextField(
+                                            value = emailInput,
+                                            onValueChange = {
+                                                emailInput = it
+                                                if (activationError != null) viewModel.clearActivationError()
+                                            },
+                                            label = "নিবন্ধিত লাইসেন্স ইমেইল এড্রেস",
+                                            placeholder = "যেমন: yourname@gmail.com",
+                                            keyboardType = KeyboardType.Email,
+                                            leadingIcon = Icons.Default.Email,
+                                            trailingIcon = {
+                                                if (emailInput.isNotEmpty()) {
+                                                    IconButton(onClick = { emailInput = "" }) {
+                                                        Icon(
+                                                            Icons.Default.Clear,
+                                                            contentDescription = "Clear",
+                                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        )
+
+                                        AnimatedVisibility(visible = activationError != null) {
+                                            Surface(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(Radius.sm),
+                                                color = StatusDanger.copy(alpha = 0.12f),
+                                                border = BorderStroke(1.dp, StatusDanger.copy(alpha = 0.35f))
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(Spacing.sm),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.ErrorOutline,
+                                                        contentDescription = null,
+                                                        tint = StatusDanger,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text(
+                                                        text = activationError ?: "",
+                                                        fontSize = 12.sp,
+                                                        color = StatusDanger,
+                                                        lineHeight = 16.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        DokanPrimaryButton(
+                                            text = if (isActivating) "যাচাই করা হচ্ছে..." else "লাইসেন্স সক্রিয় করে প্রবেশ করুন",
+                                            isLoading = isActivating,
+                                            enabled = emailInput.isNotBlank() && !isActivating,
+                                            onClick = {
+                                                keyboardController?.hide()
+                                                viewModel.activateApp(emailInput.trim())
+                                            }
+                                        )
+
+                                        Surface(
+                                            shape = RoundedCornerShape(Radius.sm),
+                                            color = Brand500.copy(alpha = 0.08f),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(Spacing.sm),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Info,
+                                                    contentDescription = null,
+                                                    tint = Brand500,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = "ইমেইল সক্রিয় হওয়ার পর আপনি নিজের দোকানের নাম ও তথ্য দিয়ে নতুন দোকান শুরু করতে পারবেন।",
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    lineHeight = 15.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                // 🔄 OPTION 2: পূর্বের দোকান ও ক্লাউড ডাটা পুনরুদ্ধার (RESTORE)
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(Radius.lg),
@@ -546,13 +741,13 @@ fun AppActivationScreen(
                                             Spacer(modifier = Modifier.width(10.dp))
                                             Column {
                                                 Text(
-                                                    text = "ক্লাউড থেকে দোকান রিস্টোর",
+                                                    text = "পূর্বের দোকান ও ক্লাউড ব্যাকআপ পুনরুদ্ধার",
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 15.sp,
                                                     color = MaterialTheme.colorScheme.onSurface
                                                 )
                                                 Text(
-                                                    text = "আগের সমস্ত পণ্য, কাস্টমার ও হিসাব ফিরিয়ে আনুন",
+                                                    text = "নতুন ডিভাইসে আপনার আগের দোকানের সমস্ত পণ্য, কাস্টমার ও বাকি-বিক্রির হিসাব ফিরিয়ে আনুন",
                                                     fontSize = 11.sp,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
@@ -614,7 +809,7 @@ fun AppActivationScreen(
                                         }
 
                                         DokanPrimaryButton(
-                                            text = if (isRestoringCloud) "দোকানের তথ্য নামানো হচ্ছে..." else "দোকান রিস্টোর করে প্রবেশ করুন",
+                                            text = if (isRestoringCloud) "দোকানের তথ্য নামানো হচ্ছে..." else "দোকানের তথ্য রিস্টোর করুন",
                                             isLoading = isRestoringCloud,
                                             enabled = !isRestoringCloud && restoreShopCodeOrEmail.isNotBlank() && restoreMasterPin.isNotBlank(),
                                             onClick = {
@@ -650,141 +845,7 @@ fun AppActivationScreen(
                                                 )
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Text(
-                                                    text = "🔒 সুরক্ষিত রিস্টোর: সঠিক মাস্টার পিন যাচাই সাপেক্ষে ক্লাউড থেকে সব তথ্য স্বয়ংক্রিয়ভাবে ডাউনলোড হবে।",
-                                                    fontSize = 11.sp,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    lineHeight = 15.sp
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            } else {
-                                // OPTION 2: 🔑 নতুন লাইসেন্স দিয়ে সক্রিয়করণ (License Activation)
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(Radius.lg),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surface
-                                    ),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
-                                ) {
-                                    Column(
-                                        modifier = Modifier.padding(Spacing.md),
-                                        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(38.dp)
-                                                    .clip(RoundedCornerShape(Radius.sm))
-                                                    .background(Brand500.copy(alpha = 0.15f)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.VpnKey,
-                                                    contentDescription = null,
-                                                    tint = Brand500,
-                                                    modifier = Modifier.size(22.dp)
-                                                )
-                                            }
-                                            Spacer(modifier = Modifier.width(10.dp))
-                                            Column {
-                                                Text(
-                                                    text = "লাইসেন্স দিয়ে অ্যাপ সক্রিয় করুন",
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 15.sp,
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                )
-                                                Text(
-                                                    text = "ক্রয়কৃত লাইসেন্স ইমেইল দিয়ে নতুন দোকান শুরু করুন",
-                                                    fontSize = 11.sp,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                        }
-
-                                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-
-                                        DokanTextField(
-                                            value = emailInput,
-                                            onValueChange = {
-                                                emailInput = it
-                                                if (activationError != null) viewModel.clearActivationError()
-                                            },
-                                            label = "নিবন্ধিত ইমেইল এড্রেস",
-                                            placeholder = "যেমন: yourname@gmail.com",
-                                            keyboardType = KeyboardType.Email,
-                                            leadingIcon = Icons.Default.Email,
-                                            trailingIcon = {
-                                                if (emailInput.isNotEmpty()) {
-                                                    IconButton(onClick = { emailInput = "" }) {
-                                                        Icon(
-                                                            Icons.Default.Clear,
-                                                            contentDescription = "Clear",
-                                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        )
-
-                                        AnimatedVisibility(visible = activationError != null) {
-                                            Surface(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                shape = RoundedCornerShape(Radius.sm),
-                                                color = StatusDanger.copy(alpha = 0.12f),
-                                                border = BorderStroke(1.dp, StatusDanger.copy(alpha = 0.35f))
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier.padding(Spacing.sm),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.ErrorOutline,
-                                                        contentDescription = null,
-                                                        tint = StatusDanger,
-                                                        modifier = Modifier.size(18.dp)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(8.dp))
-                                                    Text(
-                                                        text = activationError ?: "",
-                                                        fontSize = 12.sp,
-                                                        color = StatusDanger,
-                                                        lineHeight = 16.sp
-                                                    )
-                                                }
-                                            }
-                                        }
-
-                                        DokanPrimaryButton(
-                                            text = if (isActivating) "যাচাই করা হচ্ছে..." else "অ্যাপ সক্রিয় করে প্রবেশ করুন",
-                                            isLoading = isActivating,
-                                            enabled = emailInput.isNotBlank() && !isActivating,
-                                            onClick = {
-                                                keyboardController?.hide()
-                                                viewModel.activateApp(emailInput.trim())
-                                            }
-                                        )
-
-                                        Surface(
-                                            shape = RoundedCornerShape(Radius.sm),
-                                            color = Brand500.copy(alpha = 0.08f),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(Spacing.sm),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Info,
-                                                    contentDescription = null,
-                                                    tint = Brand500,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text(
-                                                    text = "ইমেইল সক্রিয় করার পর আপনি নিজের দোকানের নাম ও তথ্য দিয়ে নতুন দোকান সেটআপ করতে পারবেন।",
+                                                    text = "🔒 শতভাগ সুরক্ষিত: সঠিক মাস্টার পিন যাচাই ছাড়া ক্লাউড থেকে তথ্য উন্মুক্ত করা হয় না।",
                                                     fontSize = 11.sp,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                     lineHeight = 15.sp
@@ -795,12 +856,12 @@ fun AppActivationScreen(
                                 }
                             }
 
-                            // FREE DEMO / TRIAL CARD
+                            // FREE DEMO / TRIAL CARD (INSIDE OWNER FLOW)
                             if (!isDemoUsed || !isDemoExpired) {
                                 Surface(
                                     shape = RoundedCornerShape(Radius.md),
                                     color = Color.White.copy(alpha = 0.08f),
-                                    border = BorderStroke(1.dp, Brand500.copy(alpha = 0.35f)),
+                                    border = BorderStroke(1.dp, Gold500.copy(alpha = 0.40f)),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Row(
@@ -820,7 +881,7 @@ fun AppActivationScreen(
                                                 )
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Text(
-                                                    text = "১ দিনের ফ্রি ডেমো টেস্ট (২৪ ঘণ্টা)",
+                                                    text = "১ দিনের ফ্রি ট্রায়াল টেস্ট (২৪ ঘণ্টা)",
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 13.sp,
                                                     color = Color.White
@@ -837,78 +898,31 @@ fun AppActivationScreen(
                                             onClick = { viewModel.startOneHourDemo() },
                                             enabled = !isActivating,
                                             shape = RoundedCornerShape(Radius.sm),
-                                            colors = ButtonDefaults.buttonColors(containerColor = Brand500),
+                                            colors = ButtonDefaults.buttonColors(containerColor = Gold500),
                                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                                         ) {
                                             Text(
                                                 text = "ফ্রি ট্রায়াল",
                                                 fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold
+                                                fontWeight = FontWeight.Bold,
+                                                color = Brand900
                                             )
                                         }
                                     }
-                                }
-                            }
-
-                            // LICENSE PURCHASE CARD (Webix Solution Official Link)
-                            Surface(
-                                shape = RoundedCornerShape(Radius.md),
-                                color = Color.White.copy(alpha = 0.05f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(Spacing.md),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "আজীবন মেয়াদের অফিসিয়াল লাইসেন্স",
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 13.sp,
-                                            color = Color.White
-                                        )
-                                        Text(
-                                            text = "ওয়েবসাইট থেকে সহজেই লাইসেন্স সংগ্রহ করুন",
-                                            fontSize = 11.sp,
-                                            color = Color.White.copy(alpha = 0.65f)
-                                        )
-                                    }
-                                    DokanSecondaryButton(
-                                        text = "লাইসেন্স নিন",
-                                        onClick = {
-                                            try {
-                                                val intent = Intent(
-                                                    Intent.ACTION_VIEW,
-                                                    Uri.parse("https://webixsolution.store/product/dokan-pro")
-                                                )
-                                                context.startActivity(intent)
-                                            } catch (_: Exception) {
-                                                Toast.makeText(
-                                                    context,
-                                                    "ব্রাউজারে ভিজিট করুন: webixsolution.store/product/dokan-pro",
-                                                    Toast.LENGTH_LONG
-                                                ).show()
-                                            }
-                                        }
-                                    )
                                 }
                             }
                         }
                     }
 
                     // =================================================================
-                    // 🌟 STEP 2 (B): 👤 STAFF FLOW (কর্মচারী লগইন)
+                    // 🌟 SCREEN 3: 👤 STAFF FLOW (কর্মচারী লগইন)
                     // =================================================================
                     "staff_flow" -> {
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(Spacing.md)
                         ) {
-                            // Back Navigation Bar
+                            // Back Navigation Button
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -971,19 +985,6 @@ fun AppActivationScreen(
                                                 text = "মালিকের দেওয়া কোড ও কর্মচারী পিন দিয়ে প্রবেশ করুন",
                                                 fontSize = 11.sp,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.weight(1f))
-                                        Surface(
-                                            shape = RoundedCornerShape(Radius.xs),
-                                            color = Success
-                                        ) {
-                                            Text(
-                                                text = "ফ্রি এক্সেস",
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                             )
                                         }
                                     }
@@ -1107,7 +1108,7 @@ fun AppActivationScreen(
             }
 
             // =========================================================================
-            // 🌟 4. FOOTER: DEVICE ID & SUPPORT INFO
+            // 🌟 3. FOOTER: DEVICE ID & WEBIX SUPPORT INFO
             // =========================================================================
             Spacer(modifier = Modifier.height(Spacing.xs))
 
