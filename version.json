@@ -1,6 +1,6 @@
 {
-  "versionCode": 69,
-  "versionName": "1.0.69",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v69/app-debug.apk",
-  "releaseNotes": "fix(compile): define now and invoice in checkoutSale"
+  "versionCode": 71,
+  "versionName": "1.0.71",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v71/app-debug.apk",
+  "releaseNotes": "fix(compile): Add missing coroutine/Log imports and close OnboardingScreen function brace"
 }
