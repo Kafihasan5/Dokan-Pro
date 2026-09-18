@@ -1,12 +1,12 @@
 {
-  "versionCode": 88,
-  "versionName": "1.0.88",
+  "versionCode": 89,
+  "versionName": "1.0.89",
   "applicationId": "com.webix.dokanpro",
   "bundleFile": "app-release.aab",
   "format": "Android App Bundle (AAB)",
   "targetSdk": 36,
   "minSdk": 24,
-  "buildTime": "2026-09-18T17:58:29Z",
-  "releaseNotes": "Fix: prevent historic broadcast notices from popping up on fresh app install",
+  "buildTime": "2026-09-18T19:48:07Z",
+  "releaseNotes": "Fix: prevent app crashes when entering as staff or owner",
   "note": "Ready for Google Play Console upload"
 }

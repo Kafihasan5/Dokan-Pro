@@ -1,7 +1,7 @@
 {
-  "versionCode": 88,
-  "versionName": "1.0.88",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v88/app-debug.apk",
-  "playstoreBundleUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v88/app-release.aab",
-  "releaseNotes": "Fix: prevent historic broadcast notices from popping up on fresh app install"
+  "versionCode": 89,
+  "versionName": "1.0.89",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v89/app-debug.apk",
+  "playstoreBundleUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v89/app-release.aab",
+  "releaseNotes": "Fix: prevent app crashes when entering as staff or owner"
 }
