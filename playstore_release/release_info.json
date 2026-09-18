@@ -1,12 +1,12 @@
 {
-  "versionCode": 81,
-  "versionName": "1.0.81",
+  "versionCode": 83,
+  "versionName": "1.0.83",
   "applicationId": "com.webix.dokanpro",
   "bundleFile": "app-release.aab",
   "format": "Android App Bundle (AAB)",
   "targetSdk": 36,
   "minSdk": 24,
-  "buildTime": "2026-09-18T15:53:21Z",
-  "releaseNotes": "Enhance activation screen: landing free trial, Webix Solution branding & license purchase, and ordered owner flow",
+  "buildTime": "2026-09-18T17:03:42Z",
+  "releaseNotes": "Add missing tween import in AppActivationScreen",
   "note": "Ready for Google Play Console upload"
 }

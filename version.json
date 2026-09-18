@@ -1,7 +1,7 @@
 {
-  "versionCode": 81,
-  "versionName": "1.0.81",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v81/app-debug.apk",
-  "playstoreBundleUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v81/app-release.aab",
-  "releaseNotes": "Enhance activation screen: landing free trial, Webix Solution branding & license purchase, and ordered owner flow"
+  "versionCode": 83,
+  "versionName": "1.0.83",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v83/app-debug.apk",
+  "playstoreBundleUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v83/app-release.aab",
+  "releaseNotes": "Add missing tween import in AppActivationScreen"
 }
