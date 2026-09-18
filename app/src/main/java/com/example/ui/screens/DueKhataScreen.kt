@@ -633,15 +633,23 @@ private fun CustomerDetailBottomSheet(
     }
 
     fun shareDueStatementImage() {
-        val bmp = InvoiceImageHelper.generateDueStatementBitmap(context, config, customer, ledgerItems, balance)
-        val uri = InvoiceImageHelper.saveBitmapToCache(context, bmp, "statement_${customer.name}")
-        val caption = InvoiceImageHelper.buildDueStatementCaption(config, customer, balance)
-        InvoiceImageHelper.shareToWhatsApp(context, uri, customer.phone, caption)
+        try {
+            val bmp = InvoiceImageHelper.generateDueStatementBitmap(context, config, customer, ledgerItems, balance)
+            val uri = InvoiceImageHelper.saveBitmapToCache(context, bmp, "statement_${customer.name}")
+            val caption = InvoiceImageHelper.buildDueStatementCaption(config, customer, balance)
+            InvoiceImageHelper.shareToWhatsApp(context, uri, customer.phone, caption)
+        } catch (e: Exception) {
+            viewModel.showToast("শেয়ার করতে সমস্যা হয়েছে: ${e.message}")
+        }
     }
 
     fun saveDueStatementImage() {
-        val bmp = InvoiceImageHelper.generateDueStatementBitmap(context, config, customer, ledgerItems, balance)
-        InvoiceImageHelper.saveBitmapToGallery(context, bmp, "statement_${customer.name}")
+        try {
+            val bmp = InvoiceImageHelper.generateDueStatementBitmap(context, config, customer, ledgerItems, balance)
+            InvoiceImageHelper.saveBitmapToGallery(context, bmp, "statement_${customer.name}")
+        } catch (e: Exception) {
+            viewModel.showToast("ছবি সেভ করতে সমস্যা হয়েছে: ${e.message}")
+        }
     }
 
     ModalBottomSheet(

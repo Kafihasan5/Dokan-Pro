@@ -1,5 +1,7 @@
 package com.example.util
 
+import android.app.Activity
+import android.content.ClipData
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -74,6 +76,37 @@ object InvoiceImageHelper {
     }
 
     /**
+     * Extracts readable salesperson or cashier name from sale tag or shop configuration.
+     */
+    fun getSalespersonName(sale: Sale, config: ShopConfig): String {
+        val note = sale.note?.trim() ?: ""
+        if (note.startsWith("staff:", ignoreCase = true)) {
+            val afterStaff = note.substringAfter("staff:").trim()
+            val parenStart = afterStaff.indexOf('(')
+            val parenEnd = afterStaff.indexOf(')')
+            if (parenStart != -1 && parenEnd > parenStart) {
+                val insideName = afterStaff.substring(parenStart + 1, parenEnd).trim()
+                if (insideName.isNotBlank()) return insideName
+            }
+            val firstPart = if (parenStart != -1) afterStaff.substring(0, parenStart).trim() else afterStaff
+            if (firstPart.isNotBlank() && !firstPart.contains("@")) return firstPart
+            if (firstPart.contains("@")) return firstPart.substringBefore("@")
+            return "কর্মচারী"
+        } else if (note.startsWith("owner:", ignoreCase = true)) {
+            val afterOwner = note.substringAfter("owner:").trim()
+            return if (afterOwner.isNotBlank()) afterOwner else "দোকান মালিক"
+        } else if (note.contains("staff", ignoreCase = true)) {
+            return "কর্মচারী"
+        }
+
+        return if (config.userRole == "staff") {
+            config.staffName.ifBlank { "কর্মচারী" }
+        } else {
+            "দোকান মালিক"
+        }
+    }
+
+    /**
      * Generate Sales Invoice Bitmap (Cash, Due, or Returned sale)
      * High-res 1080px width, 3x density sharp rendering.
      */
@@ -89,16 +122,17 @@ object InvoiceImageHelper {
         val isDue = sale.dueAmountPoisha > 0
         val hasCustomer = !sale.customerName.isNullOrBlank()
         val hasChange = sale.paymentMethod == "cash" && cashTenderedPoisha > sale.paidAmountPoisha
+        val salesmanName = getSalespersonName(sale, config)
 
         val displayBold = getDisplayFontBold(context)
         val bodyRegular = getBodyFontRegular(context)
         val bodyMedium = getBodyFontMedium(context)
         val bodyBold = getBodyFontBold(context)
 
-        // Height calculation for 1080px layout
+        // Height calculation for 1080px layout (increased footer & safety buffer to prevent bottom clipping)
         val headerBandHeight = if (config.tagline.isNotBlank()) 250 else 220
         val badgeHeight = 60
-        val metaHeight = if (hasCustomer) 160 else 130
+        val metaHeight = if (hasCustomer) 195 else 165
         val tableHeaderHeight = 56
         val itemsHeight = items.size.coerceAtLeast(1) * 76
         val calcBoxHeight = when {
@@ -109,8 +143,8 @@ object InvoiceImageHelper {
             sale.discountPoisha > 0 || sale.vatPoisha > 0 -> 280
             else -> 230
         }
-        val footerHeight = 160
-        val totalHeight = headerBandHeight + badgeHeight + metaHeight + tableHeaderHeight + itemsHeight + calcBoxHeight + footerHeight + 60
+        val footerHeight = 220
+        val totalHeight = headerBandHeight + badgeHeight + metaHeight + tableHeaderHeight + itemsHeight + calcBoxHeight + footerHeight + 100
 
         val bitmap = Bitmap.createBitmap(BITMAP_WIDTH, totalHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -234,6 +268,11 @@ object InvoiceImageHelper {
         val phoneText = if (hasCustomer) "নিয়মিত গ্রাহক" else "নগদ কাউন্টার খরিদ্দার"
         canvas.drawText(phoneText, 76f, metaY + 68f, paint)
 
+        paint.typeface = bodyMedium
+        paint.textSize = 20f
+        paint.color = Ink2Color
+        canvas.drawText("বিক্রয়কর্মী: $salesmanName", 76f, metaY + 100f, paint)
+
         // Middle Divider
         paint.color = BorderColor
         paint.strokeWidth = 1.5f
@@ -266,6 +305,11 @@ object InvoiceImageHelper {
         paint.textSize = 19f
         paint.color = if (sale.paymentMethod == "due") StatusDangerColor else Brand700
         canvas.drawText("পেমেন্ট মাধ্যম: $paymentTitle", 570f, metaY + 96f, paint)
+
+        paint.typeface = bodyBold
+        paint.textSize = 20f
+        paint.color = Brand700
+        canvas.drawText("ক্যাশিয়ার/বিক্রেতা: $salesmanName", 570f, metaY + 126f, paint)
 
         // 5) ITEMS TABLE HEADER BAND
         y += metaHeight + 26f
@@ -463,8 +507,8 @@ object InvoiceImageHelper {
             }
         }
 
-        // 7) FOOTER
-        y = (totalHeight - 120).toFloat()
+        // 7) FOOTER (Calculated with safe margin so bottom text and ribbon never get cut off)
+        y = (totalHeight - 190).toFloat()
         paint.color = BorderColor
         paint.strokeWidth = 2f
         canvas.drawLine(50f, y, (BITMAP_WIDTH - 50).toFloat(), y, paint)
@@ -482,12 +526,12 @@ object InvoiceImageHelper {
         paint.color = Ink2Color
         canvas.drawText("যেকোনো প্রয়োজনে কল করুন: ${config.shopPhone}", BITMAP_WIDTH / 2f, y, paint)
 
-        y += 32f
+        y += 34f
         paint.textSize = 24f
         paint.color = Ink3Color
         canvas.drawText("Dokan Pro ডিজিটাল ইনভয়েস সিস্টেম", BITMAP_WIDTH / 2f, y, paint)
 
-        // Bottom Accent Ribbon
+        // Bottom Accent Ribbon (14px from bottom edge, 60px+ away from last text)
         paint.color = Brand700
         canvas.drawRect(0f, (totalHeight - 14).toFloat(), BITMAP_WIDTH.toFloat(), totalHeight.toFloat(), paint)
 
@@ -765,13 +809,17 @@ object InvoiceImageHelper {
     // Storage & Sharing Helpers
     fun saveBitmapToCache(context: Context, bitmap: Bitmap, baseName: String): Uri {
         val cachePath = File(context.cacheDir, "images")
-        cachePath.mkdirs()
+        if (!cachePath.exists()) cachePath.mkdirs()
         val file = File(cachePath, "${baseName}_${System.currentTimeMillis()}.png")
-        val stream = FileOutputStream(file)
-        bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
-        stream.flush()
-        stream.close()
-        return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        FileOutputStream(file).use { stream ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+            stream.flush()
+        }
+        return try {
+            FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+        } catch (_: Exception) {
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        }
     }
 
     fun saveBitmapToGallery(context: Context, bitmap: Bitmap, title: String): Boolean {
@@ -815,50 +863,78 @@ object InvoiceImageHelper {
     }
 
     fun shareToWhatsApp(context: Context, imageUri: Uri, phoneNumber: String?, captionText: String) {
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "image/png"
-            putExtra(Intent.EXTRA_STREAM, imageUri)
-            putExtra(Intent.EXTRA_TEXT, captionText)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-
-        val cleanPhone = phoneNumber?.replace(Regex("[^0-9+]"), "")?.let {
-            if (it.startsWith("01")) "88$it" else it
-        }
-
-        if (!cleanPhone.isNullOrBlank()) {
-            intent.setPackage("com.whatsapp")
-            intent.putExtra("jid", "$cleanPhone@s.whatsapp.net")
-            try {
-                context.startActivity(intent)
-                return
-            } catch (_: Exception) {
-                // WhatsApp direct failed, fall back to general intent with whatsapp package
-            }
-        }
-
-        intent.setPackage("com.whatsapp")
         try {
-            context.startActivity(intent)
-        } catch (_: Exception) {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "image/png"
+                clipData = ClipData.newRawUri("invoice_image", imageUri)
+                putExtra(Intent.EXTRA_STREAM, imageUri)
+                putExtra(Intent.EXTRA_TEXT, captionText)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                if (context !is Activity) {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            }
+
+            val cleanPhone = phoneNumber?.replace(Regex("[^0-9+]"), "")?.let {
+                if (it.startsWith("01")) "88$it" else it
+            }
+
+            if (!cleanPhone.isNullOrBlank()) {
+                intent.setPackage("com.whatsapp")
+                intent.putExtra("jid", "$cleanPhone@s.whatsapp.net")
+                try {
+                    context.startActivity(intent)
+                    return
+                } catch (_: Exception) {
+                    // WhatsApp direct failed, fall back to general intent with whatsapp package
+                }
+            }
+
+            intent.setPackage("com.whatsapp")
             try {
-                intent.setPackage("com.whatsapp.w4b") // WhatsApp Business
                 context.startActivity(intent)
             } catch (_: Exception) {
-                intent.setPackage(null)
-                context.startActivity(Intent.createChooser(intent, "ইনভয়েস ছবি শেয়ার করুন"))
+                try {
+                    intent.setPackage("com.whatsapp.w4b") // WhatsApp Business
+                    context.startActivity(intent)
+                } catch (_: Exception) {
+                    intent.setPackage(null)
+                    val chooser = Intent.createChooser(intent, "ইনভয়েস ছবি শেয়ার করুন").apply {
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        if (context !is Activity) {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                    }
+                    context.startActivity(chooser)
+                }
             }
+        } catch (e: Exception) {
+            Toast.makeText(context, "শেয়ার করতে সমস্যা হয়েছে: ${e.message ?: "অন্য মাধ্যমে চেষ্টা করুন"}", Toast.LENGTH_SHORT).show()
         }
     }
 
     fun shareToGeneral(context: Context, imageUri: Uri, captionText: String) {
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "image/png"
-            putExtra(Intent.EXTRA_STREAM, imageUri)
-            putExtra(Intent.EXTRA_TEXT, captionText)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        try {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "image/png"
+                clipData = ClipData.newRawUri("invoice_image", imageUri)
+                putExtra(Intent.EXTRA_STREAM, imageUri)
+                putExtra(Intent.EXTRA_TEXT, captionText)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                if (context !is Activity) {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            }
+            val chooser = Intent.createChooser(intent, "ইনভয়েস ছবি শেয়ার করুন").apply {
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                if (context !is Activity) {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            }
+            context.startActivity(chooser)
+        } catch (e: Exception) {
+            Toast.makeText(context, "শেয়ার করতে সমস্যা হয়েছে: ${e.message ?: "অন্য মাধ্যমে চেষ্টা করুন"}", Toast.LENGTH_SHORT).show()
         }
-        context.startActivity(Intent.createChooser(intent, "ইনভয়েস ছবি শেয়ার করুন"))
     }
 
     fun buildSaleInvoiceCaption(config: ShopConfig, sale: Sale, customerPreviousDue: Long = 0L): String {
@@ -866,13 +942,14 @@ object InvoiceImageHelper {
         val inv = sale.invoiceNo
         val total = Formatters.formatMoney(sale.totalPoisha, config.useBengaliNumerals, config.currencySymbol)
         val paid = Formatters.formatMoney(sale.paidAmountPoisha, config.useBengaliNumerals, config.currencySymbol)
-        val isDue = sale.dueAmountPoisha > 0
+        val salesman = getSalespersonName(sale, config)
 
         val sb = StringBuilder()
         sb.appendLine("🧾 *$shopName*")
         if (config.tagline.isNotBlank()) sb.appendLine(config.tagline)
         sb.appendLine("চালান নং: #$inv")
         sb.appendLine("তারিখ: ${Formatters.formatDateTime(sale.saleDate, config.useBengaliNumerals)}")
+        sb.appendLine("বিক্রয়কর্মী: $salesman")
         sb.appendLine("-------------------------")
         sb.appendLine("মোট বিল: $total")
         sb.appendLine("পরিশোধিত: $paid")

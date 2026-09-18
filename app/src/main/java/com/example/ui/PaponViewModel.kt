@@ -1725,109 +1725,121 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         staffName: String,
         onComplete: (Boolean, String) -> Unit
     ) {
-        val cleanInput = com.example.util.Formatters.replaceBengaliDigits(shopCodeOrEmail).trim()
-        val cleanPin = com.example.util.Formatters.fromBengaliDigits(staffPin).trim()
-        val rawPin = staffPin.trim()
-        val assignedName = staffName.trim().ifBlank { "কর্মচারী" }
-        if (cleanInput.isBlank()) {
-            onComplete(false, "মালিকের দোকান কোড অথবা ইমেইল লিখুন")
-            return
-        }
-        if (cleanPin.isBlank()) {
-            onComplete(false, "কর্মচারী ৪-ডিজিট পিন লিখুন")
-            return
-        }
+        try {
+            val cleanInput = com.example.util.Formatters.replaceBengaliDigits(shopCodeOrEmail).trim()
+            val cleanPin = com.example.util.Formatters.fromBengaliDigits(staffPin).trim()
+            val rawPin = staffPin.trim()
+            val assignedName = staffName.trim().ifBlank { "কর্মচারী" }
+            if (cleanInput.isBlank()) {
+                onComplete(false, "মালিকের দোকান কোড অথবা ইমেইল লিখুন")
+                return
+            }
+            if (cleanPin.isBlank()) {
+                onComplete(false, "কর্মচারী ৪-ডিজিট পিন লিখুন")
+                return
+            }
 
-        viewModelScope.launch {
-            try {
-                val resolvedCode = if (cleanInput.contains("@")) {
-                    firebaseSyncManager.resolveShopCode(cleanInput)
-                } else {
-                    firebaseSyncManager.resolveShopCode(cleanInput) ?: firebaseSyncManager.sanitizeFirebaseKey(cleanInput.uppercase())
-                }
+            viewModelScope.launch {
+                try {
+                    val resolvedCode = if (cleanInput.contains("@")) {
+                        firebaseSyncManager.resolveShopCode(cleanInput)
+                    } else {
+                        firebaseSyncManager.resolveShopCode(cleanInput) ?: firebaseSyncManager.sanitizeFirebaseKey(cleanInput.uppercase())
+                    }
 
-                if (resolvedCode.isNullOrBlank()) {
-                    val msg = "দোকানটি খুঁজে পাওয়া যায়নি। সঠিক কোড বা মালিকের ইমেইল লিখুন।"
+                    if (resolvedCode.isNullOrBlank()) {
+                        val msg = "দোকানটি খুঁজে পাওয়া যায়নি। সঠিক কোড বা মালিকের ইমেইল লিখুন।"
+                        showToast(msg)
+                        withContext(Dispatchers.Main) {
+                            onComplete(false, msg)
+                        }
+                        return@launch
+                    }
+
+                    // Verify specific staff pin using employee name or fallback identifier
+                    val staffIdentifier = if (staffName.trim().isNotBlank()) staffName.trim() else if (cleanInput.contains("@")) cleanInput else ""
+                    val (isPinValid, matchedStaff) = try {
+                        firebaseSyncManager.verifySpecificStaffPin(
+                            resolvedCode,
+                            staffEmailOrName = staffIdentifier,
+                            pinInput = cleanPin
+                        )
+                    } catch (t: Throwable) {
+                        Log.w("PaponViewModel", "Error checking staff PIN: ${t.message}")
+                        Pair(false, null)
+                    }
+
+                    if (!isPinValid) {
+                        val msg = "ভুল কর্মচারী পিন! মালিকের দেওয়া সঠিক পিন লিখুন।"
+                        showToast(msg)
+                        withContext(Dispatchers.Main) {
+                            onComplete(false, msg)
+                        }
+                        return@launch
+                    }
+
+                    // Download staff catalog (products and categories ONLY) BEFORE transitioning!
+                    val restoreResult = firebaseSyncManager.restoreShopData(resolvedCode, "staff")
+                    if (restoreResult.isFailure) {
+                        val errMsg = restoreResult.exceptionOrNull()?.message ?: "পণ্য লোড করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।"
+                        showToast(errMsg)
+                        withContext(Dispatchers.Main) {
+                            onComplete(false, errMsg)
+                        }
+                        return@launch
+                    }
+
+                    val cloudInfo = firebaseSyncManager.fetchShopInfo(resolvedCode)
+                    val shopName = cloudInfo?.get("shopName")?.takeIf { it.isNotBlank() } ?: _shopConfig.value.shopName
+                    val finalStaffName = matchedStaff?.name?.takeIf { it.isNotBlank() } ?: assignedName
+                    val finalStaffEmail = matchedStaff?.email?.takeIf { it.isNotBlank() } ?: (if (cleanInput.contains("@")) cleanInput else "")
+
+                    val updated = _shopConfig.value.copy(
+                        shopName = shopName,
+                        firebaseShopCode = resolvedCode,
+                        firebaseSyncEnabled = true,
+                        userRole = "staff",
+                        staffPin = cleanPin,
+                        staffName = finalStaffName,
+                        staffEmail = finalStaffEmail,
+                        isOnboardingCompleted = true
+                    )
+                    _shopConfig.value = updated
+                    saveShopConfig(updated)
+
+                    // Activate locally as staff so license screen is bypassed forever!
+                    licenseManager.activateAsStaff(resolvedCode, finalStaffName)
+                    _licenseInfo.value = licenseManager.getLicenseInfo()
+
+                    // Connect live syncing for staff
+                    firebaseSyncManager.connectShop(resolvedCode, "staff")
+
+                    _isDemoMode.value = false
+                    _isPinUnlocked.value = true
+                    _isAppActivated.value = true
+                    _currentScreen.value = AppScreen.DASHBOARD
+
+                    showToast("কর্মচারী ($finalStaffName) হিসেবে সফলভাবে যুক্ত হয়েছেন!")
+                    withContext(Dispatchers.Main) {
+                        onComplete(true, "কর্মচারী হিসেবে যুক্ত সম্পন্ন!")
+                    }
+                } catch (t: Throwable) {
+                    Log.e("PaponViewModel", "Error in secureJoinAsStaff", t)
+                    val rawMsg = t.message ?: ""
+                    val msg = if (rawMsg.contains("Firebase Database path", ignoreCase = true) || rawMsg.contains("must not contain", ignoreCase = true)) {
+                        "দোকান কোড বা ইমেইল ফরম্যাট সঠিক নয়। সঠিক তথ্য দিয়ে চেষ্টা করুন।"
+                    } else {
+                        "যুক্ত হতে সমস্যা: ${if (rawMsg.isNotBlank()) rawMsg else "ইন্টারনেট সংযোগ চেক করুন"}"
+                    }
                     showToast(msg)
                     withContext(Dispatchers.Main) {
                         onComplete(false, msg)
                     }
-                    return@launch
-                }
-
-                // Verify specific staff pin
-                val (isPinValid, matchedStaff) = firebaseSyncManager.verifySpecificStaffPin(
-                    resolvedCode,
-                    staffEmailOrName = cleanInput,
-                    pinInput = cleanPin
-                )
-                if (!isPinValid) {
-                    val msg = "ভুল কর্মচারী পিন! মালিকের দেওয়া সঠিক পিন লিখুন।"
-                    showToast(msg)
-                    withContext(Dispatchers.Main) {
-                        onComplete(false, msg)
-                    }
-                    return@launch
-                }
-
-                // Download staff catalog (products and categories ONLY) BEFORE transitioning!
-                val restoreResult = firebaseSyncManager.restoreShopData(resolvedCode, "staff")
-                if (restoreResult.isFailure) {
-                    val errMsg = restoreResult.exceptionOrNull()?.message ?: "পণ্য লোড করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।"
-                    showToast(errMsg)
-                    withContext(Dispatchers.Main) {
-                        onComplete(false, errMsg)
-                    }
-                    return@launch
-                }
-
-                val cloudInfo = firebaseSyncManager.fetchShopInfo(resolvedCode)
-                val shopName = cloudInfo?.get("shopName")?.takeIf { it.isNotBlank() } ?: _shopConfig.value.shopName
-                val finalStaffName = matchedStaff?.name?.takeIf { it.isNotBlank() } ?: assignedName
-                val finalStaffEmail = matchedStaff?.email?.takeIf { it.isNotBlank() } ?: (if (cleanInput.contains("@")) cleanInput else "")
-
-                val updated = _shopConfig.value.copy(
-                    shopName = shopName,
-                    firebaseShopCode = resolvedCode,
-                    firebaseSyncEnabled = true,
-                    userRole = "staff",
-                    staffPin = cleanPin,
-                    staffName = finalStaffName,
-                    staffEmail = finalStaffEmail,
-                    isOnboardingCompleted = true
-                )
-                _shopConfig.value = updated
-                saveShopConfig(updated)
-
-                // Activate locally as staff so license screen is bypassed forever!
-                licenseManager.activateAsStaff(resolvedCode, finalStaffName)
-                _licenseInfo.value = licenseManager.getLicenseInfo()
-
-                // Connect live syncing for staff
-                firebaseSyncManager.connectShop(resolvedCode, "staff")
-
-                _isDemoMode.value = false
-                _isPinUnlocked.value = true
-                _isAppActivated.value = true
-                _currentScreen.value = AppScreen.DASHBOARD
-
-                showToast("কর্মচারী ($finalStaffName) হিসেবে সফলভাবে যুক্ত হয়েছেন!")
-                withContext(Dispatchers.Main) {
-                    onComplete(true, "কর্মচারী হিসেবে যুক্ত সম্পন্ন!")
-                }
-            } catch (e: Exception) {
-                Log.e("PaponViewModel", "Error in secureJoinAsStaff", e)
-                val rawMsg = e.message ?: ""
-                val msg = if (rawMsg.contains("Firebase Database path", ignoreCase = true) || rawMsg.contains("must not contain", ignoreCase = true)) {
-                    "দোকান কোড বা ইমেইল ফরম্যাট সঠিক নয়। সঠিক তথ্য দিয়ে চেষ্টা করুন।"
-                } else {
-                    "যুক্ত হতে সমস্যা: ${if (rawMsg.isNotBlank()) rawMsg else "ইন্টারনেট সংযোগ চেক করুন"}"
-                }
-                showToast(msg)
-                withContext(Dispatchers.Main) {
-                    onComplete(false, msg)
                 }
             }
+        } catch (t: Throwable) {
+            Log.e("PaponViewModel", "Outer error in secureJoinAsStaff", t)
+            onComplete(false, "সমস্যা হয়েছে: ${t.message ?: "আবার চেষ্টা করুন"}")
         }
     }
 
@@ -1860,6 +1872,96 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) {
             emptyList()
         }
+    }
+
+    /**
+     * Calculate sales breakdown by employee/staff for a given list of sales.
+     * Shows how much each employee sold, total invoices, cash collected, and due.
+     */
+    fun calculateStaffSalesSummaries(salesList: List<Sale>): List<StaffSalesSummary> {
+        val staffMembers = getStaffMembers()
+        val map = mutableMapOf<String, StaffSalesSummary>()
+
+        // Pre-populate with configured staff members so the owner can see them even if sales are 0
+        staffMembers.forEach { member ->
+            val key = member.email.trim().lowercase().ifBlank { member.name.trim().lowercase() }
+            if (key.isNotBlank()) {
+                map[key] = StaffSalesSummary(
+                    staffKey = key,
+                    staffName = member.name.ifBlank { "স্টাফ" },
+                    staffEmail = member.email,
+                    totalSalesPoisha = 0L,
+                    totalOrdersCount = 0,
+                    totalCashPoisha = 0L,
+                    totalDuePoisha = 0L,
+                    isOwner = false
+                )
+            }
+        }
+
+        var ownerSalesPoisha = 0L
+        var ownerOrdersCount = 0
+        var ownerCashPoisha = 0L
+        var ownerDuePoisha = 0L
+
+        for (sale in salesList) {
+            if (sale.isReturned) continue
+            val note = sale.note?.trim() ?: ""
+            if (note.startsWith("staff:", ignoreCase = true) || note.contains("staff", ignoreCase = true)) {
+                val parts = note.split(":")
+                val sEmail = if (parts.size >= 3) parts[1].trim().lowercase() else ""
+                val sName = if (parts.size >= 3) parts[2].trim() else if (parts.size >= 2) parts[1].trim() else "স্টাফ"
+
+                val matchedKey = map.keys.firstOrNull { k ->
+                    (sEmail.isNotBlank() && k == sEmail) ||
+                    (sName.isNotBlank() && k.equals(sName, ignoreCase = true)) ||
+                    (sName.isNotBlank() && map[k]?.staffName.equals(sName, ignoreCase = true))
+                } ?: (sEmail.ifBlank { sName.lowercase().ifBlank { "staff_misc" } })
+
+                val existing = map[matchedKey] ?: StaffSalesSummary(
+                    staffKey = matchedKey,
+                    staffName = sName.ifBlank { "স্টাফ" },
+                    staffEmail = sEmail,
+                    totalSalesPoisha = 0L,
+                    totalOrdersCount = 0,
+                    totalCashPoisha = 0L,
+                    totalDuePoisha = 0L,
+                    isOwner = false
+                )
+
+                map[matchedKey] = existing.copy(
+                    totalSalesPoisha = existing.totalSalesPoisha + sale.totalPoisha,
+                    totalOrdersCount = existing.totalOrdersCount + 1,
+                    totalCashPoisha = existing.totalCashPoisha + sale.paidAmountPoisha,
+                    totalDuePoisha = existing.totalDuePoisha + sale.dueAmountPoisha
+                )
+            } else {
+                ownerSalesPoisha += sale.totalPoisha
+                ownerOrdersCount += 1
+                ownerCashPoisha += sale.paidAmountPoisha
+                ownerDuePoisha += sale.dueAmountPoisha
+            }
+        }
+
+        val result = map.values.toMutableList()
+        result.sortByDescending { it.totalSalesPoisha }
+
+        if (ownerOrdersCount > 0 || ownerSalesPoisha > 0) {
+            result.add(
+                StaffSalesSummary(
+                    staffKey = "owner",
+                    staffName = "দোকান মালিক (সরাসরি)",
+                    staffEmail = _shopConfig.value.ownerEmail,
+                    totalSalesPoisha = ownerSalesPoisha,
+                    totalOrdersCount = ownerOrdersCount,
+                    totalCashPoisha = ownerCashPoisha,
+                    totalDuePoisha = ownerDuePoisha,
+                    isOwner = true
+                )
+            )
+        }
+
+        return result
     }
 
     fun saveStaffMember(staff: com.example.data.entity.StaffMember, onComplete: ((Boolean, String) -> Unit)? = null) {

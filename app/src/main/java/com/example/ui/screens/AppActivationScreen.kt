@@ -1115,18 +1115,23 @@ fun AppActivationScreen(
                                         isLoading = isStaffJoining,
                                         enabled = !isStaffJoining && staffShopCodeInput.isNotBlank() && staffPinInput.isNotBlank(),
                                         onClick = {
-                                            keyboardController?.hide()
-                                            staffJoinError = null
-                                            isStaffJoining = true
-                                            viewModel.secureJoinAsStaff(
-                                                staffShopCodeInput.trim(),
-                                                staffPinInput.trim(),
-                                                staffNameInput.trim()
-                                            ) { success, msg ->
-                                                isStaffJoining = false
-                                                if (!success) {
-                                                    staffJoinError = msg
+                                            try {
+                                                keyboardController?.hide()
+                                                staffJoinError = null
+                                                isStaffJoining = true
+                                                viewModel.secureJoinAsStaff(
+                                                    staffShopCodeInput.trim(),
+                                                    staffPinInput.trim(),
+                                                    staffNameInput.trim()
+                                                ) { success, msg ->
+                                                    isStaffJoining = false
+                                                    if (!success) {
+                                                        staffJoinError = msg
+                                                    }
                                                 }
+                                            } catch (t: Throwable) {
+                                                isStaffJoining = false
+                                                staffJoinError = "যুক্ত হতে সমস্যা হয়েছে: ${t.message ?: "আবার চেষ্টা করুন"}"
                                             }
                                         }
                                     )

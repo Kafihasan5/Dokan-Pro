@@ -1090,23 +1090,21 @@ private fun ProductFormBottomSheet(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(Spacing.md)
                     ) {
-                        if (config.userRole != "staff") {
-                            DokanTextField(
-                                value = purchasePrice,
-                                onValueChange = { purchasePrice = it.filter { c -> c.isDigit() || c == '.' } },
-                                label = "ক্রয় মূল্য (৳)",
-                                keyboardType = KeyboardType.Decimal,
-                                prefix = {
-                                    Text(
-                                        text = "৳ ",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
+                        DokanTextField(
+                            value = purchasePrice,
+                            onValueChange = { purchasePrice = it.filter { c -> c.isDigit() || c == '.' } },
+                            label = "ক্রয় মূল্য (৳)",
+                            keyboardType = KeyboardType.Decimal,
+                            prefix = {
+                                Text(
+                                    text = "৳ ",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
 
                         DokanTextField(
                             value = salePrice,
@@ -1173,11 +1171,7 @@ private fun ProductFormBottomSheet(
                         onClick = {
                             if (isValid) {
                                 val sPricePoisha = ((salePrice.toDoubleOrNull() ?: 0.0) * 100).toLong()
-                                val pPricePoisha = if (config.userRole == "staff") {
-                                    initialProduct?.purchasePricePoisha ?: 0L
-                                } else {
-                                    ((purchasePrice.toDoubleOrNull() ?: 0.0) * 100).toLong()
-                                }
+                                val pPricePoisha = ((purchasePrice.toDoubleOrNull() ?: 0.0) * 100).toLong()
                                 val stock = stockQty.toDoubleOrNull() ?: 0.0
                                 val minStk = minStock.toDoubleOrNull() ?: 5.0
 

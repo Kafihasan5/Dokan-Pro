@@ -12,8 +12,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
+import com.example.data.entity.StaffSalesSummary
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -91,6 +93,11 @@ fun ReportsScreen(
     val periodExpenses = expenses.filter { it.expenseDate >= filterStartTime }
     val periodExpenseTotalPoisha = periodExpenses.sumOf { it.amountPoisha }
     val periodNetProfitPoisha = periodGrossProfitPoisha - periodExpenseTotalPoisha
+
+    val isStaff = config.userRole == "staff"
+    val staffSalesSummaries = remember(periodSales, config.staffMembersJson) {
+        viewModel.calculateStaffSalesSummaries(periodSales)
+    }
 
     // Stock Valuation (All current active products)
     val totalStockCostPoisha = products.sumOf { (it.stockQty * it.purchasePricePoisha).toLong() }
@@ -198,6 +205,21 @@ fun ReportsScreen(
                     topProducts = topProducts,
                     config = config
                 )
+            }
+        }
+
+        // 6) EMPLOYEE SALES BREAKDOWN (কর্মচারীভিত্তিক বিক্রয় ও পারফরম্যান্স)
+        if (!isStaff) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    SectionHeader(title = "কর্মচারীভিত্তিক বিক্রয় হিসাব ($selectedPeriod)")
+
+                    EmployeeSalesCard(
+                        summaries = staffSalesSummaries,
+                        totalPeriodSales = periodSalesTotalPoisha,
+                        config = config
+                    )
+                }
             }
         }
     }
@@ -735,6 +757,223 @@ private fun TopProductsCard(
 
                         if (idx < topProducts.size - 1) {
                             Spacer(modifier = Modifier.height(Spacing.xs))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==============================================================================
+// 6. EMPLOYEE SALES BREAKDOWN CARD (কর্মচারীভিত্তিক বিক্রয় হিসাব)
+// ==============================================================================
+@Composable
+private fun EmployeeSalesCard(
+    summaries: List<StaffSalesSummary>,
+    totalPeriodSales: Long,
+    config: ShopConfig
+) {
+    if (summaries.isEmpty()) {
+        Surface(
+            shape = RoundedCornerShape(Radius.lg),
+            color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier
+                .fillMaxWidth()
+                .softShadow(1, RoundedCornerShape(Radius.lg))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.xl),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+                Text(
+                    text = "কোনো কর্মচারীর বিক্রয় তথ্য নেই",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "কর্মচারীরা তাদের আইডি দিয়ে অ্যাপে লগইন করে বিক্রি শুরু করলে স্বয়ংক্রিয়ভাবে এখানে তাদের বিক্রয় ও মেমোর হিসাব যুক্ত হবে।",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
+        return
+    }
+
+    Surface(
+        shape = RoundedCornerShape(Radius.lg),
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier
+            .fillMaxWidth()
+            .softShadow(1, RoundedCornerShape(Radius.lg))
+    ) {
+        Column(
+            modifier = Modifier.padding(Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            summaries.forEachIndexed { index, summary ->
+                if (index > 0) {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                        thickness = 1.dp
+                    )
+                }
+
+                val fraction = if (totalPeriodSales > 0) {
+                    (summary.totalSalesPoisha.toFloat() / totalPeriodSales.toFloat()).coerceIn(0f, 1f)
+                } else 0f
+                val percent = (fraction * 100).toInt()
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Avatar Circle
+                        val avatarColor = if (summary.isOwner) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(avatarColor.copy(alpha = 0.14f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = summary.staffName.take(1).uppercase(),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = avatarColor
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(Spacing.md))
+
+                        // Staff Name + Role
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = summary.staffName,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                if (summary.isOwner) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(Radius.xs),
+                                        color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)
+                                    ) {
+                                        Text(
+                                            text = "মালিক",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.tertiary,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            val subText = if (summary.staffEmail.isNotBlank()) summary.staffEmail else "অর্ডার: ${if (config.useBengaliNumerals) Formatters.toBengaliDigits(summary.totalOrdersCount.toString()) else summary.totalOrdersCount} টি"
+                            Text(
+                                text = subText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        // Total Sales Value + Invoices Count Badge
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = Formatters.formatMoney(summary.totalSalesPoisha, config.useBengaliNumerals, config.currencySymbol),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (summary.totalSalesPoisha > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(Radius.pill),
+                                color = MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                Text(
+                                    text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(summary.totalOrdersCount.toString()) else summary.totalOrdersCount} টি মেমো",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Progress bar for percentage share of total store sales
+                    if (totalPeriodSales > 0 && summary.totalSalesPoisha > 0) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            LinearProgressIndicator(
+                                progress = fraction,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(Radius.pill)),
+                                color = if (summary.isOwner) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                            Text(
+                                text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(percent.toString()) else percent}%",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // Sub row: Cash & Due breakdown
+                    if (summary.totalSalesPoisha > 0) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "নগদ: ${Formatters.formatMoney(summary.totalCashPoisha, config.useBengaliNumerals, config.currencySymbol)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF15803D)
+                            )
+                            if (summary.totalDuePoisha > 0) {
+                                Text(
+                                    text = "বাকি: ${Formatters.formatMoney(summary.totalDuePoisha, config.useBengaliNumerals, config.currencySymbol)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
                 }

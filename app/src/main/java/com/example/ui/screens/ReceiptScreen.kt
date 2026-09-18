@@ -98,22 +98,34 @@ fun ReceiptScreen(
     }
 
     fun handleSendWhatsApp() {
-        val bmp = getOrGenerateBitmap()
-        val uri = InvoiceImageHelper.saveBitmapToCache(context, bmp, "invoice_${currentSale.invoiceNo}")
-        val caption = InvoiceImageHelper.buildSaleInvoiceCaption(config, currentSale, previousDue)
-        InvoiceImageHelper.shareToWhatsApp(context, uri, customerPhone, caption)
+        try {
+            val bmp = getOrGenerateBitmap()
+            val uri = InvoiceImageHelper.saveBitmapToCache(context, bmp, "invoice_${currentSale.invoiceNo}")
+            val caption = InvoiceImageHelper.buildSaleInvoiceCaption(config, currentSale, previousDue)
+            InvoiceImageHelper.shareToWhatsApp(context, uri, customerPhone, caption)
+        } catch (e: Exception) {
+            Toast.makeText(context, "হোয়াটসঅ্যাপে শেয়ার করতে সমস্যা হয়েছে: ${e.message ?: "অন্য মাধ্যমে শেয়ার করুন"}", Toast.LENGTH_LONG).show()
+        }
     }
 
     fun handleSaveToPhone() {
-        val bmp = getOrGenerateBitmap()
-        InvoiceImageHelper.saveBitmapToGallery(context, bmp, "invoice_${currentSale.invoiceNo}")
+        try {
+            val bmp = getOrGenerateBitmap()
+            InvoiceImageHelper.saveBitmapToGallery(context, bmp, "invoice_${currentSale.invoiceNo}")
+        } catch (e: Exception) {
+            Toast.makeText(context, "ছবি সেভ করতে সমস্যা হয়েছে: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     fun handleShareGeneral() {
-        val bmp = getOrGenerateBitmap()
-        val uri = InvoiceImageHelper.saveBitmapToCache(context, bmp, "invoice_${currentSale.invoiceNo}")
-        val caption = InvoiceImageHelper.buildSaleInvoiceCaption(config, currentSale, previousDue)
-        InvoiceImageHelper.shareToGeneral(context, uri, caption)
+        try {
+            val bmp = getOrGenerateBitmap()
+            val uri = InvoiceImageHelper.saveBitmapToCache(context, bmp, "invoice_${currentSale.invoiceNo}")
+            val caption = InvoiceImageHelper.buildSaleInvoiceCaption(config, currentSale, previousDue)
+            InvoiceImageHelper.shareToGeneral(context, uri, caption)
+        } catch (e: Exception) {
+            Toast.makeText(context, "শেয়ার করতে সমস্যা হয়েছে: ${e.message ?: "অন্য মাধ্যমে শেয়ার করুন"}", Toast.LENGTH_LONG).show()
+        }
     }
 
     // Success checkmark animation (scale and fade in over 400ms)
@@ -395,11 +407,30 @@ private fun PaperReceiptCard(
                     )
                 }
 
-                if (!sale.customerName.isNullOrBlank()) {
+                val salesman = InvoiceImageHelper.getSalespersonName(sale, config)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (!sale.customerName.isNullOrBlank()) {
+                        Text(
+                            text = "ক্রেতা: ${sale.customerName}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        Text(
+                            text = "ক্রেতা: সাধারণ খরিদ্দার",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     Text(
-                        text = "ক্রেতা: ${sale.customerName}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary
+                        text = "বিক্রেতা: $salesman",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 

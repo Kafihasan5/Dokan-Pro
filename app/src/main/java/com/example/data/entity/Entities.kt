@@ -197,3 +197,14 @@ data class StaffMember(
     val isActive: Boolean = true,
     val createdAt: Long = System.currentTimeMillis()
 )
+
+data class StaffSalesSummary(
+    val staffKey: String,
+    val staffName: String,
+    val staffEmail: String = "",
+    val totalSalesPoisha: Long = 0L,
+    val totalOrdersCount: Int = 0,
+    val totalCashPoisha: Long = 0L,
+    val totalDuePoisha: Long = 0L,
+    val isOwner: Boolean = false
+)

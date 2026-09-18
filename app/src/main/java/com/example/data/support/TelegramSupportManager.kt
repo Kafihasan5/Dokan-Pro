@@ -98,6 +98,12 @@ object TelegramSupportManager {
         val saved = prefs.getString(KEY_SUPPORT_CHAT_ID, "") ?: ""
         _configuredChatId.value = if (saved.isNotBlank()) saved else DEFAULT_SUPPORT_CHAT_ID
 
+        // Fresh install protection: Set last cleared timestamp to now if not set yet,
+        // so old broadcast messages sent prior to installation date NEVER pop up on fresh install!
+        if (!prefs.contains(KEY_NOTIFS_LAST_CLEARED_AT) || prefs.getLong(KEY_NOTIFS_LAST_CLEARED_AT, 0L) == 0L) {
+            prefs.edit().putLong(KEY_NOTIFS_LAST_CLEARED_AT, System.currentTimeMillis()).apply()
+        }
+
         val savedDismissed = prefs.getStringSet(KEY_DISMISSED_NOTIF_IDS, emptySet()) ?: emptySet()
         synchronized(dismissedNotificationIds) {
             dismissedNotificationIds.clear()

@@ -635,9 +635,21 @@ fun DashboardScreen(
                     onAddExpense = { showExpenseDialog = true }
                 )
 
-                // 4) WEEKLY CHART (Owner only)
+                // 4) WEEKLY CHART & EMPLOYEE SALES (Owner only)
                 if (!isStaff) {
                     DashboardWeeklyChart(sales = sales, config = config, onNavigateToReports = { onNavigate(AppScreen.REPORTS) })
+
+                    val staffSalesSummaries = remember(periodSales, config.staffMembersJson) {
+                        viewModel.calculateStaffSalesSummaries(periodSales)
+                    }
+                    if (staffSalesSummaries.isNotEmpty()) {
+                        DashboardEmployeeSalesWidget(
+                            summaries = staffSalesSummaries,
+                            periodLabel = periodLabel,
+                            config = config,
+                            onNavigateToReports = { onNavigate(AppScreen.REPORTS) }
+                        )
+                    }
                 }
 
                 // 5) LOW STOCK SECTION
@@ -1262,6 +1274,89 @@ private fun DashboardWeeklyChart(
 }
 
 // ==============================================================================
+// 4.5 EMPLOYEE SALES QUICK WIDGET (Owner only)
+// ==============================================================================
+@Composable
+private fun DashboardEmployeeSalesWidget(
+    summaries: List<com.example.data.entity.StaffSalesSummary>,
+    periodLabel: String,
+    config: ShopConfig,
+    onNavigateToReports: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .softShadow(1, RoundedCornerShape(Radius.md)),
+        shape = RoundedCornerShape(Radius.md),
+        color = MaterialTheme.colorScheme.surface
+    ) {
+        Column(modifier = Modifier.padding(Spacing.lg)) {
+            SectionHeader(
+                title = "👨‍💼 $periodLabel কর্মচারী বিক্রয় হিসাব",
+                actionLabel = "বিস্তারিত রিপোর্ট",
+                onAction = onNavigateToReports
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.sm))
+
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                summaries.take(4).forEachIndexed { index, summary ->
+                    if (index > 0) {
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                            thickness = 1.dp
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val avatarColor = if (summary.isOwner) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(avatarColor.copy(alpha = 0.14f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = summary.staffName.take(1).uppercase(),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = avatarColor
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(Spacing.sm))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = summary.staffName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(summary.totalOrdersCount.toString()) else summary.totalOrdersCount} টি মেমো",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Text(
+                            text = Formatters.formatMoney(summary.totalSalesPoisha, config.useBengaliNumerals, config.currencySymbol),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (summary.totalSalesPoisha > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==============================================================================
 // 5. LOW STOCK SECTION
 // ==============================================================================
 @Composable
@@ -1614,10 +1709,14 @@ private fun SaleRowCard(
             ) {
                 IconButton(
                     onClick = {
-                        val bmp = InvoiceImageHelper.generateSaleInvoiceBitmap(context, config, sale, items)
-                        val uri = InvoiceImageHelper.saveBitmapToCache(context, bmp, "invoice_${sale.invoiceNo}")
-                        val caption = InvoiceImageHelper.buildSaleInvoiceCaption(config, sale)
-                        InvoiceImageHelper.shareToWhatsApp(context, uri, sale.customerName, caption)
+                        try {
+                            val bmp = InvoiceImageHelper.generateSaleInvoiceBitmap(context, config, sale, items)
+                            val uri = InvoiceImageHelper.saveBitmapToCache(context, bmp, "invoice_${sale.invoiceNo}")
+                            val caption = InvoiceImageHelper.buildSaleInvoiceCaption(config, sale)
+                            InvoiceImageHelper.shareToWhatsApp(context, uri, null, caption)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "ইনভয়েস শেয়ার করতে সমস্যা হয়েছে: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
                     },
                     modifier = Modifier.size(32.dp)
                 ) {

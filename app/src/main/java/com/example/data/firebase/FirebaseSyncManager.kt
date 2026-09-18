@@ -1083,6 +1083,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
                     val customerName = sChild.readString("customerName").takeIf { it.isNotBlank() }
                     val saleDate = sChild.readLong("saleDate", System.currentTimeMillis())
                     val paymentMethod = sChild.readString("paymentMethod", "cash")
+                    val note = sChild.readString("note").takeIf { it.isNotBlank() }
 
                     val sale = Sale(
                         id = saleId,
@@ -1096,7 +1097,8 @@ class FirebaseSyncManager(private val dao: PaponDao) {
                         totalPoisha = totalPoisha,
                         paidAmountPoisha = paidAmountPoisha,
                         dueAmountPoisha = dueAmountPoisha,
-                        paymentMethod = paymentMethod
+                        paymentMethod = paymentMethod,
+                        note = note
                     )
                     salesToInsert.add(sale)
 
@@ -1316,6 +1318,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
                 val customerName = snapshot.child("customerName").getValue(String::class.java)?.takeIf { it.isNotBlank() }
                 val saleDate = snapshot.child("saleDate").getValue(Long::class.java) ?: System.currentTimeMillis()
                 val paymentMethod = snapshot.child("paymentMethod").getValue(String::class.java) ?: "cash"
+                val note = snapshot.child("note").getValue(String::class.java)?.takeIf { it.isNotBlank() }
 
                 val sale = Sale(
                     id = saleId,
@@ -1329,7 +1332,8 @@ class FirebaseSyncManager(private val dao: PaponDao) {
                     totalPoisha = totalPoisha,
                     paidAmountPoisha = paidAmountPoisha,
                     dueAmountPoisha = dueAmountPoisha,
-                    paymentMethod = paymentMethod
+                    paymentMethod = paymentMethod,
+                    note = note
                 )
                 dao.insertSale(sale)
 
@@ -1395,6 +1399,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             "customerName" to (sale.customerName ?: ""),
             "saleDate" to sale.saleDate,
             "paymentMethod" to sale.paymentMethod,
+            "note" to (sale.note ?: ""),
             "items" to items.map {
                 mapOf(
                     "id" to it.id,
