@@ -1,7 +1,7 @@
 {
-  "versionCode": 79,
-  "versionName": "1.0.79",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v79/app-debug.apk",
-  "playstoreBundleUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v79/app-release.aab",
-  "releaseNotes": "Fix master PIN cloud restore verification and modernize activation UI with Bengali copywriting"
+  "versionCode": 80,
+  "versionName": "1.0.80",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v80/app-debug.apk",
+  "playstoreBundleUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v80/app-release.aab",
+  "releaseNotes": "Redesign activation screen with simple 2-step role selection for owner and staff"
 }
