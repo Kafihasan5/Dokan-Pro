@@ -1627,10 +1627,11 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 // Zero Data Leak: STRICTLY VERIFY MASTER PIN BEFORE DOWNLOADING ANY DATA!
-                val isPinValid = firebaseSyncManager.verifyMasterPin(resolvedCode, cleanPin) ||
-                                 firebaseSyncManager.verifyMasterPin(resolvedCode, rawPin)
+                val emailHint = if (cleanInput.contains("@")) cleanInput else _shopConfig.value.ownerEmail.takeIf { it.isNotBlank() }
+                val isPinValid = firebaseSyncManager.verifyMasterPin(resolvedCode, cleanPin, emailHint) ||
+                                 firebaseSyncManager.verifyMasterPin(resolvedCode, rawPin, emailHint)
                 if (!isPinValid) {
-                    val msg = "ভুল সিকিউরিটি পিন! সঠিক মাস্টার পিন ছাড়া দোকানের গোপনীয় তথ্য নামানো অসম্ভব।"
+                    val msg = "প্রদত্ত মাস্টার সিকিউরিটি পিনটি সঠিক নয়। অনুগ্রহ করে আপনার ৪-৬ ডিজিটের সঠিক পিন লিখুন (যেমন: 1234 বা আপনার সেট করা পিন)।"
                     showToast(msg)
                     withContext(Dispatchers.Main) {
                         onComplete(false, msg)
