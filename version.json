@@ -1,6 +1,6 @@
 {
-  "versionCode": 63,
-  "versionName": "1.0.63",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v63/app-debug.apk",
-  "releaseNotes": "fix: resolve Firebase region URL, add timeout, add owner restore options in onboarding, backup and settings"
+  "versionCode": 64,
+  "versionName": "1.0.64",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v64/app-debug.apk",
+  "releaseNotes": "feat: link shop code to owner email and support 1-click restore and join via email or shop code"
 }
