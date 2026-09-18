@@ -1,6 +1,6 @@
 {
-  "versionCode": 64,
-  "versionName": "1.0.64",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v64/app-debug.apk",
-  "releaseNotes": "feat: link shop code to owner email and support 1-click restore and join via email or shop code"
+  "versionCode": 67,
+  "versionName": "1.0.67",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v67/app-debug.apk",
+  "releaseNotes": "fix: change appLicenseManager to licenseManager in secureJoinAsStaff"
 }
