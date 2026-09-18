@@ -1,6 +1,6 @@
 {
-  "versionCode": 71,
-  "versionName": "1.0.71",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v71/app-debug.apk",
-  "releaseNotes": "fix(compile): Add missing coroutine/Log imports and close OnboardingScreen function brace"
+  "versionCode": 72,
+  "versionName": "1.0.72",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v72/app-debug.apk",
+  "releaseNotes": "Fix Firebase database path error by preserving email format in replaceBengaliDigits and adding sanitizeFirebaseKey"
 }
