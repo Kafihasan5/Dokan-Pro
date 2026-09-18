@@ -1593,120 +1593,125 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         masterPin: String,
         onComplete: (Boolean, String) -> Unit
     ) {
-        val cleanInput = com.example.util.Formatters.replaceBengaliDigits(shopCodeOrEmail).trim()
-        val cleanPin = com.example.util.Formatters.fromBengaliDigits(masterPin).trim()
-        val rawPin = masterPin.trim()
-        if (cleanInput.isBlank()) {
-            onComplete(false, "দোকান কোড অথবা নিবন্ধিত ইমেইল লিখুন")
-            return
-        }
-        if (cleanPin.isBlank() || cleanPin.length < 4) {
-            onComplete(false, "মালিকের ৪-৬ ডিজিটের মাস্টার সিকিউরিটি পিন লিখুন")
-            return
-        }
+        try {
+            val cleanInput = com.example.util.Formatters.replaceBengaliDigits(shopCodeOrEmail).trim()
+            val cleanPin = com.example.util.Formatters.fromBengaliDigits(masterPin).trim()
+            val rawPin = masterPin.trim()
+            if (cleanInput.isBlank()) {
+                onComplete(false, "দোকান কোড অথবা নিবন্ধিত ইমেইল লিখুন")
+                return
+            }
+            if (cleanPin.isBlank() || cleanPin.length < 4) {
+                onComplete(false, "মালিকের ৪-৬ ডিজিটের মাস্টার সিকিউরিটি পিন লিখুন")
+                return
+            }
 
-        viewModelScope.launch {
-            try {
-                val resolvedCode = if (cleanInput.contains("@")) {
-                    firebaseSyncManager.resolveShopCode(cleanInput)
-                } else {
-                    firebaseSyncManager.resolveShopCode(cleanInput) ?: firebaseSyncManager.sanitizeFirebaseKey(cleanInput.uppercase())
-                }
-
-                if (resolvedCode.isNullOrBlank()) {
-                    val msg = if (cleanInput.contains("@")) {
-                        "এই ইমেইল দিয়ে পূর্বে কোনো দোকান পাওয়া যায়নি। অনুগ্রহ করে সঠিক ইমেইল অথবা দোকান কোড (যেমন: SHOP-XXXXXX) লিখুন।"
+            viewModelScope.launch {
+                try {
+                    val resolvedCode = if (cleanInput.contains("@")) {
+                        firebaseSyncManager.resolveShopCode(cleanInput)
                     } else {
-                        "এই কোড দিয়ে কোনো দোকান পাওয়া যায়নি। সঠিক দোকান কোড লিখুন।"
+                        firebaseSyncManager.resolveShopCode(cleanInput) ?: firebaseSyncManager.sanitizeFirebaseKey(cleanInput.uppercase())
+                    }
+
+                    if (resolvedCode.isNullOrBlank()) {
+                        val msg = if (cleanInput.contains("@")) {
+                            "এই ইমেইল দিয়ে পূর্বে কোনো দোকান পাওয়া যায়নি। অনুগ্রহ করে সঠিক ইমেইল অথবা দোকান কোড (যেমন: SHOP-XXXXXX) লিখুন।"
+                        } else {
+                            "এই কোড দিয়ে কোনো দোকান পাওয়া যায়নি। সঠিক দোকান কোড লিখুন।"
+                        }
+                        showToast(msg)
+                        withContext(Dispatchers.Main) {
+                            onComplete(false, msg)
+                        }
+                        return@launch
+                    }
+
+                    // Zero Data Leak: STRICTLY VERIFY MASTER PIN BEFORE DOWNLOADING ANY DATA!
+                    val emailHint = if (cleanInput.contains("@")) cleanInput else _shopConfig.value.ownerEmail.takeIf { it.isNotBlank() }
+                    val isPinValid = firebaseSyncManager.verifyMasterPin(resolvedCode, cleanPin, emailHint) ||
+                                     firebaseSyncManager.verifyMasterPin(resolvedCode, rawPin, emailHint)
+                    if (!isPinValid) {
+                        val msg = "প্রদত্ত মাস্টার সিকিউরিটি পিনটি সঠিক নয়। অনুগ্রহ করে আপনার ৪-৬ ডিজিটের সঠিক পিন লিখুন (যেমন: 1234 বা আপনার সেট করা পিন)।"
+                        showToast(msg)
+                        withContext(Dispatchers.Main) {
+                            onComplete(false, msg)
+                        }
+                        return@launch
+                    }
+
+                    // STEP 1: Download & Restore all cloud data FIRST while user is safely on activation screen!
+                    val restoreResult = firebaseSyncManager.restoreShopData(resolvedCode, "owner")
+                    if (restoreResult.isFailure) {
+                        val errMsg = restoreResult.exceptionOrNull()?.message ?: "ডাটা রিস্টোর ব্যর্থ হয়েছে। আবার চেষ্টা করুন।"
+                        showToast(errMsg)
+                        withContext(Dispatchers.Main) {
+                            onComplete(false, errMsg)
+                        }
+                        return@launch
+                    }
+
+                    // STEP 2: Restore shop name, phone, address if available from cloud info
+                    val cloudInfo = firebaseSyncManager.fetchShopInfo(resolvedCode)
+                    val ownerEmail = if (cleanInput.contains("@")) cleanInput else cloudInfo?.get("ownerEmail") ?: _shopConfig.value.ownerEmail
+                    val shopName = cloudInfo?.get("shopName")?.takeIf { it.isNotBlank() } ?: _shopConfig.value.shopName
+                    val shopPhone = cloudInfo?.get("shopPhone")?.takeIf { it.isNotBlank() } ?: _shopConfig.value.shopPhone
+                    val shopAddress = cloudInfo?.get("shopAddress")?.takeIf { it.isNotBlank() } ?: _shopConfig.value.shopAddress
+
+                    val updated = _shopConfig.value.copy(
+                        shopName = shopName,
+                        shopPhone = shopPhone,
+                        shopAddress = shopAddress,
+                        firebaseShopCode = resolvedCode,
+                        firebaseSyncEnabled = true,
+                        userRole = "owner",
+                        ownerEmail = ownerEmail,
+                        pinCode = cleanPin,
+                        pinEnabled = true,
+                        isOnboardingCompleted = true
+                    )
+                    _shopConfig.value = updated
+                    saveShopConfig(updated)
+
+                    // STEP 3: Activate license locally as restored owner
+                    licenseManager.activateAsRestoredOwner(ownerEmail, resolvedCode)
+                    _licenseInfo.value = licenseManager.getLicenseInfo()
+
+                    // STEP 4: Attach live background sync listeners for ongoing live updates
+                    firebaseSyncManager.connectShop(resolvedCode, "owner")
+
+                    if (ownerEmail.isNotBlank() && ownerEmail.contains("@")) {
+                        firebaseSyncManager.linkEmailToShop(ownerEmail, resolvedCode)
+                    }
+
+                    // STEP 5: Unlock PIN and transition smoothly to Dashboard!
+                    prefs.edit().putBoolean("telegram_setup_notified", true).apply()
+                    _isDemoMode.value = false
+                    _isPinUnlocked.value = true
+                    _isAppActivated.value = true
+                    _currentScreen.value = AppScreen.DASHBOARD
+
+                    showToast("দোকানের সমস্ত তথ্য সফলভাবে রিস্টোর হয়েছে!")
+                    withContext(Dispatchers.Main) {
+                        onComplete(true, "দোকান সফলভাবে রিস্টোর সম্পন্ন হয়েছে!")
+                    }
+                } catch (t: Throwable) {
+                    Log.e("PaponViewModel", "Error in secureRestoreOwnerShop", t)
+                    val rawMsg = t.message ?: ""
+                    val msg = if (rawMsg.contains("Firebase Database path", ignoreCase = true) || rawMsg.contains("must not contain", ignoreCase = true)) {
+                        "দোকান কোড বা ইমেইল ফরম্যাট সঠিক নয়। সঠিক তথ্য দিয়ে চেষ্টা করুন।"
+                    } else {
+                        "রিস্টোর ত্রুটি: ${if (rawMsg.isNotBlank()) rawMsg else "ইন্টারনেট সংযোগ চেক করুন"}"
                     }
                     showToast(msg)
                     withContext(Dispatchers.Main) {
                         onComplete(false, msg)
                     }
-                    return@launch
-                }
-
-                // Zero Data Leak: STRICTLY VERIFY MASTER PIN BEFORE DOWNLOADING ANY DATA!
-                val emailHint = if (cleanInput.contains("@")) cleanInput else _shopConfig.value.ownerEmail.takeIf { it.isNotBlank() }
-                val isPinValid = firebaseSyncManager.verifyMasterPin(resolvedCode, cleanPin, emailHint) ||
-                                 firebaseSyncManager.verifyMasterPin(resolvedCode, rawPin, emailHint)
-                if (!isPinValid) {
-                    val msg = "প্রদত্ত মাস্টার সিকিউরিটি পিনটি সঠিক নয়। অনুগ্রহ করে আপনার ৪-৬ ডিজিটের সঠিক পিন লিখুন (যেমন: 1234 বা আপনার সেট করা পিন)।"
-                    showToast(msg)
-                    withContext(Dispatchers.Main) {
-                        onComplete(false, msg)
-                    }
-                    return@launch
-                }
-
-                // STEP 1: Download & Restore all cloud data FIRST while user is safely on activation screen!
-                val restoreResult = firebaseSyncManager.restoreShopData(resolvedCode, "owner")
-                if (restoreResult.isFailure) {
-                    val errMsg = restoreResult.exceptionOrNull()?.message ?: "ডাটা রিস্টোর ব্যর্থ হয়েছে। আবার চেষ্টা করুন।"
-                    showToast(errMsg)
-                    withContext(Dispatchers.Main) {
-                        onComplete(false, errMsg)
-                    }
-                    return@launch
-                }
-
-                // STEP 2: Restore shop name, phone, address if available from cloud info
-                val cloudInfo = firebaseSyncManager.fetchShopInfo(resolvedCode)
-                val ownerEmail = if (cleanInput.contains("@")) cleanInput else cloudInfo?.get("ownerEmail") ?: _shopConfig.value.ownerEmail
-                val shopName = cloudInfo?.get("shopName")?.takeIf { it.isNotBlank() } ?: _shopConfig.value.shopName
-                val shopPhone = cloudInfo?.get("shopPhone")?.takeIf { it.isNotBlank() } ?: _shopConfig.value.shopPhone
-                val shopAddress = cloudInfo?.get("shopAddress")?.takeIf { it.isNotBlank() } ?: _shopConfig.value.shopAddress
-
-                val updated = _shopConfig.value.copy(
-                    shopName = shopName,
-                    shopPhone = shopPhone,
-                    shopAddress = shopAddress,
-                    firebaseShopCode = resolvedCode,
-                    firebaseSyncEnabled = true,
-                    userRole = "owner",
-                    ownerEmail = ownerEmail,
-                    pinCode = cleanPin,
-                    pinEnabled = true,
-                    isOnboardingCompleted = true
-                )
-                _shopConfig.value = updated
-                saveShopConfig(updated)
-
-                // STEP 3: Activate license locally as restored owner
-                licenseManager.activateAsRestoredOwner(ownerEmail, resolvedCode)
-                _licenseInfo.value = licenseManager.getLicenseInfo()
-
-                // STEP 4: Attach live background sync listeners for ongoing live updates
-                firebaseSyncManager.connectShop(resolvedCode, "owner")
-
-                if (ownerEmail.isNotBlank() && ownerEmail.contains("@")) {
-                    firebaseSyncManager.linkEmailToShop(ownerEmail, resolvedCode)
-                }
-
-                // STEP 5: Unlock PIN and transition smoothly to Dashboard!
-                prefs.edit().putBoolean("telegram_setup_notified", true).apply()
-                _isDemoMode.value = false
-                _isPinUnlocked.value = true
-                _isAppActivated.value = true
-                _currentScreen.value = AppScreen.DASHBOARD
-
-                showToast("দোকানের সমস্ত তথ্য সফলভাবে রিস্টোর হয়েছে!")
-                withContext(Dispatchers.Main) {
-                    onComplete(true, "দোকান সফলভাবে রিস্টোর সম্পন্ন হয়েছে!")
-                }
-            } catch (e: Exception) {
-                Log.e("PaponViewModel", "Error in secureRestoreOwnerShop", e)
-                val rawMsg = e.message ?: ""
-                val msg = if (rawMsg.contains("Firebase Database path", ignoreCase = true) || rawMsg.contains("must not contain", ignoreCase = true)) {
-                    "দোকান কোড বা ইমেইল ফরম্যাট সঠিক নয়। সঠিক তথ্য দিয়ে চেষ্টা করুন।"
-                } else {
-                    "রিস্টোর ত্রুটি: ${if (rawMsg.isNotBlank()) rawMsg else "ইন্টারনেট সংযোগ চেক করুন"}"
-                }
-                showToast(msg)
-                withContext(Dispatchers.Main) {
-                    onComplete(false, msg)
                 }
             }
+        } catch (t: Throwable) {
+            Log.e("PaponViewModel", "Synchronous error in secureRestoreOwnerShop", t)
+            onComplete(false, "ত্রুটি: ${t.message ?: "পুনরায় চেষ্টা করুন"}")
         }
     }
 

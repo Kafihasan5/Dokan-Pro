@@ -99,6 +99,11 @@ fun AppActivationScreen(
     var copiedRecently by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
 
+    // Automatically reset scroll position when navigating flows or switching tabs
+    LaunchedEffect(activeFlow, ownerChoice) {
+        scrollState.scrollTo(0)
+    }
+
     // Intercept hardware back button when inside a sub-flow
     BackHandler(enabled = activeFlow != "role_select") {
         activeFlow = "role_select"
@@ -208,12 +213,9 @@ fun AppActivationScreen(
             // =========================================================================
             AnimatedContent(
                 targetState = activeFlow,
+                modifier = Modifier.fillMaxWidth(),
                 transitionSpec = {
-                    if (targetState == "role_select") {
-                        slideInHorizontally { -it } + fadeIn() togetherWith slideOutHorizontally { it } + fadeOut()
-                    } else {
-                        slideInHorizontally { it } + fadeIn() togetherWith slideOutHorizontally { -it } + fadeOut()
-                    }
+                    fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(180))
                 },
                 label = "FlowTransition"
             ) { currentFlow ->
@@ -422,35 +424,61 @@ fun AppActivationScreen(
                                 }
                             }
 
-                            // 🛍️ ৪. WEBIX SOLUTION অফিসিয়াল লাইসেন্স ক্রয় কার্ড
+                            // 🛍️ ৪. WEBIX SOLUTION অফিসিয়াল লাইসেন্স কার্ড (আজীবন লাইসেন্স ও ব্র্যান্ডিং)
                             Surface(
-                                shape = RoundedCornerShape(Radius.md),
+                                shape = RoundedCornerShape(Radius.lg),
                                 color = Color.White.copy(alpha = 0.06f),
-                                border = BorderStroke(1.dp, Brand500.copy(alpha = 0.35f)),
+                                border = BorderStroke(1.5.dp, Brand500.copy(alpha = 0.45f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Row(
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(Spacing.md),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "আজীবন মেয়াদের অফিসিয়াল লাইসেন্স",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp,
-                                            color = Color.White
-                                        )
-                                        Text(
-                                            text = "Webix Solution স্টোর থেকে সরাসরি লাইসেন্স সংগ্রহ করুন",
-                                            fontSize = 11.sp,
-                                            color = Color.White.copy(alpha = 0.70f)
-                                        )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .clip(RoundedCornerShape(Radius.sm))
+                                                .background(Brand500.copy(alpha = 0.20f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Verified,
+                                                contentDescription = null,
+                                                tint = Brand300,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "Webix Solution অফিসিয়াল লাইসেন্স",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 15.sp,
+                                                color = Color.White
+                                            )
+                                            Text(
+                                                text = "আজীবন মেয়াদের লাইসেন্স কী (Lifetime License)",
+                                                fontSize = 11.sp,
+                                                color = Brand300
+                                            )
+                                        }
                                     }
-                                    DokanSecondaryButton(
-                                        text = "লাইসেন্স নিন",
+
+                                    Text(
+                                        text = "দোকানের সমস্ত ফিচার, ক্লাউড ব্যাকআপ ও সার্বক্ষণিক সাপোর্ট পেতে Webix Solution স্টোর থেকে সরাসরি লাইসেন্স সংগ্রহ করুন।",
+                                        fontSize = 12.sp,
+                                        color = Color.White.copy(alpha = 0.80f),
+                                        lineHeight = 16.sp
+                                    )
+
+                                    Button(
                                         onClick = {
                                             try {
                                                 val intent = Intent(
@@ -465,8 +493,30 @@ fun AppActivationScreen(
                                                     Toast.LENGTH_LONG
                                                 ).show()
                                             }
-                                        }
-                                    )
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(46.dp),
+                                        shape = RoundedCornerShape(Radius.md),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Brand500,
+                                            contentColor = Color.White
+                                        )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.ShoppingCart,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                            tint = Color.White
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "লাইসেন্স নিন (webixsolution.store)",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -813,17 +863,22 @@ fun AppActivationScreen(
                                             isLoading = isRestoringCloud,
                                             enabled = !isRestoringCloud && restoreShopCodeOrEmail.isNotBlank() && restoreMasterPin.isNotBlank(),
                                             onClick = {
-                                                keyboardController?.hide()
-                                                restoreErrorMessage = null
-                                                isRestoringCloud = true
-                                                viewModel.secureRestoreOwnerShop(
-                                                    restoreShopCodeOrEmail.trim(),
-                                                    restoreMasterPin.trim()
-                                                ) { success, msg ->
-                                                    isRestoringCloud = false
-                                                    if (!success) {
-                                                        restoreErrorMessage = msg
+                                                try {
+                                                    keyboardController?.hide()
+                                                    restoreErrorMessage = null
+                                                    isRestoringCloud = true
+                                                    viewModel.secureRestoreOwnerShop(
+                                                        restoreShopCodeOrEmail.trim(),
+                                                        restoreMasterPin.trim()
+                                                    ) { success, msg ->
+                                                        isRestoringCloud = false
+                                                        if (!success) {
+                                                            restoreErrorMessage = msg
+                                                        }
                                                     }
+                                                } catch (e: Exception) {
+                                                    isRestoringCloud = false
+                                                    restoreErrorMessage = "ত্রুটি: ${e.message ?: "পুনরায় চেষ্টা করুন"}"
                                                 }
                                             }
                                         )

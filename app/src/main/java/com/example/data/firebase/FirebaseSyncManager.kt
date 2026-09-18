@@ -941,27 +941,46 @@ class FirebaseSyncManager(private val dao: PaponDao) {
     private suspend fun pullInitialDataFromCloud(shopRef: DatabaseReference) = withContext(Dispatchers.IO) {
         val snapshot = shopRef.get().await()
 
+        // Safe snapshot helper extensions
+        fun DataSnapshot.readLong(childKey: String, default: Long = 0L): Long =
+            this.child(childKey).value?.toString()?.toLongOrNull() ?: default
+
+        fun DataSnapshot.readDouble(childKey: String, default: Double = 0.0): Double =
+            this.child(childKey).value?.toString()?.toDoubleOrNull() ?: default
+
+        fun DataSnapshot.readString(childKey: String, default: String = ""): String =
+            this.child(childKey).value?.toString()?.trim() ?: default
+
+        fun DataSnapshot.readBoolean(childKey: String, default: Boolean = true): Boolean {
+            val v = this.child(childKey).value ?: return default
+            return when (v) {
+                is Boolean -> v
+                is Number -> v.toLong() == 1L
+                is String -> v.equals("true", ignoreCase = true) || v == "1"
+                else -> default
+            }
+        }
+
         // Pull Products
         val productsSnap = snapshot.child("products")
         val productList = mutableListOf<Product>()
         for (pChild in productsSnap.children) {
             try {
-                val id = pChild.child("id").getValue(Long::class.java) ?: pChild.key?.toLongOrNull() ?: continue
-                val nameBn = pChild.child("nameBn").getValue(String::class.java) ?: ""
-                val nameEn = pChild.child("nameEn").getValue(String::class.java) ?: ""
-                val barcode = pChild.child("barcode").getValue(String::class.java) ?: ""
-                val salePrice = pChild.child("salePricePoisha").getValue(Long::class.java)
-                    ?: pChild.child("sellingPricePoisha").getValue(Long::class.java) ?: 0L
-                val purchasePrice = pChild.child("purchasePricePoisha").getValue(Long::class.java) ?: 0L
-                val wholesalePrice = pChild.child("wholesalePricePoisha").getValue(Long::class.java) ?: 0L
-                val stockQty = pChild.child("stockQty").getValue(Double::class.java)
-                    ?: pChild.child("stockQty").getValue(Long::class.java)?.toDouble() ?: 0.0
-                val minStock = pChild.child("minStock").getValue(Double::class.java)
-                    ?: pChild.child("minStock").getValue(Long::class.java)?.toDouble() ?: 5.0
-                val unitName = pChild.child("unitName").getValue(String::class.java) ?: "কেজি"
-                val categoryId = pChild.child("categoryId").getValue(Long::class.java) ?: 1L
-                val isActive = (pChild.child("isActive").getValue(Long::class.java) ?: 1L) == 1L
-                val updatedAt = pChild.child("updatedAt").getValue(Long::class.java) ?: System.currentTimeMillis()
+                val id = pChild.readLong("id", 0L).takeIf { it > 0 }
+                    ?: pChild.key?.toLongOrNull() ?: continue
+                val nameBn = pChild.readString("nameBn")
+                val nameEn = pChild.readString("nameEn")
+                val barcode = pChild.readString("barcode")
+                val salePrice = pChild.readLong("salePricePoisha", 0L).takeIf { it > 0 }
+                    ?: pChild.readLong("sellingPricePoisha", 0L)
+                val purchasePrice = pChild.readLong("purchasePricePoisha", 0L)
+                val wholesalePrice = pChild.readLong("wholesalePricePoisha", 0L)
+                val stockQty = pChild.readDouble("stockQty", 0.0)
+                val minStock = pChild.readDouble("minStock", 5.0)
+                val unitName = pChild.readString("unitName", "কেজি")
+                val categoryId = pChild.readLong("categoryId", 1L)
+                val isActive = pChild.readBoolean("isActive", true)
+                val updatedAt = pChild.readLong("updatedAt", System.currentTimeMillis())
 
                 val p = Product(
                     id = id,
@@ -993,141 +1012,148 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             // Pull Customers
             val customersSnap = snapshot.child("customers")
             val customerList = mutableListOf<Customer>()
-        for (cChild in customersSnap.children) {
-            try {
-                val c = Customer(
-                    id = cChild.child("id").getValue(Long::class.java) ?: cChild.key?.toLongOrNull() ?: continue,
-                    name = cChild.child("name").getValue(String::class.java) ?: "",
-                    phone = cChild.child("phone").getValue(String::class.java) ?: "",
-                    address = cChild.child("address").getValue(String::class.java),
-                    creditLimitPoisha = cChild.child("creditLimitPoisha").getValue(Long::class.java) ?: 500000L,
-                    isActive = (cChild.child("isActive").getValue(Long::class.java) ?: 1L) == 1L,
-                    createdAt = cChild.child("createdAt").getValue(Long::class.java) ?: System.currentTimeMillis()
-                )
-                customerList.add(c)
-            } catch (e: Exception) {
-                Log.w(tag, "Error parsing customer from cloud", e)
-            }
-        }
-        if (customerList.isNotEmpty()) {
-            dao.insertCustomers(customerList)
-        }
-
-        // Pull Suppliers
-        val suppliersSnap = snapshot.child("suppliers")
-        val supplierList = mutableListOf<Supplier>()
-        for (sChild in suppliersSnap.children) {
-            try {
-                val s = Supplier(
-                    id = sChild.child("id").getValue(Long::class.java) ?: sChild.key?.toLongOrNull() ?: continue,
-                    name = sChild.child("name").getValue(String::class.java) ?: "",
-                    phone = sChild.child("phone").getValue(String::class.java) ?: "",
-                    company = sChild.child("company").getValue(String::class.java),
-                    address = sChild.child("address").getValue(String::class.java),
-                    isActive = (sChild.child("isActive").getValue(Long::class.java) ?: 1L) == 1L,
-                    createdAt = sChild.child("createdAt").getValue(Long::class.java) ?: System.currentTimeMillis()
-                )
-                supplierList.add(s)
-            } catch (e: Exception) {
-                Log.w(tag, "Error parsing supplier from cloud", e)
-            }
-        }
-        if (supplierList.isNotEmpty()) {
-            dao.insertSuppliers(supplierList)
-        }
-
-        // Pull Sales & Sale Items in BATCH (Atomic & Ultra-Fast)
-        val salesSnap = snapshot.child("sales")
-        val salesToInsert = mutableListOf<Sale>()
-        val saleItemsToInsert = mutableListOf<SaleItem>()
-        val ledgersToInsert = mutableListOf<CustomerLedger>()
-
-        for (sChild in salesSnap.children) {
-            try {
-                val saleId = sChild.child("id").getValue(Long::class.java) ?: sChild.key?.toLongOrNull() ?: continue
-                if (dao.getSaleById(saleId) != null) continue
-                val invoiceNo = sChild.child("invoiceNo").getValue(String::class.java) ?: "INV-$saleId"
-                val subtotalPoisha = sChild.child("subtotalPoisha").getValue(Long::class.java) ?: 0L
-                val discountPoisha = sChild.child("discountPoisha").getValue(Long::class.java) ?: 0L
-                val vatPoisha = sChild.child("vatPoisha").getValue(Long::class.java) ?: 0L
-                val totalPoisha = sChild.child("totalPoisha").getValue(Long::class.java) ?: (subtotalPoisha - discountPoisha + vatPoisha)
-                val paidAmountPoisha = sChild.child("paidAmountPoisha").getValue(Long::class.java) ?: totalPoisha
-                val dueAmountPoisha = sChild.child("dueAmountPoisha").getValue(Long::class.java) ?: 0L
-                val customerId = sChild.child("customerId").getValue(Long::class.java)?.takeIf { it > 0 }
-                val customerName = sChild.child("customerName").getValue(String::class.java)?.takeIf { it.isNotBlank() }
-                val saleDate = sChild.child("saleDate").getValue(Long::class.java) ?: System.currentTimeMillis()
-                val paymentMethod = sChild.child("paymentMethod").getValue(String::class.java) ?: "cash"
-
-                val sale = Sale(
-                    id = saleId,
-                    invoiceNo = invoiceNo,
-                    customerId = customerId,
-                    customerName = customerName,
-                    saleDate = saleDate,
-                    subtotalPoisha = subtotalPoisha,
-                    discountPoisha = discountPoisha,
-                    vatPoisha = vatPoisha,
-                    totalPoisha = totalPoisha,
-                    paidAmountPoisha = paidAmountPoisha,
-                    dueAmountPoisha = dueAmountPoisha,
-                    paymentMethod = paymentMethod
-                )
-                salesToInsert.add(sale)
-
-                val itemsSnap = sChild.child("items")
-                for (itemChild in itemsSnap.children) {
-                    val itemId = itemChild.child("id").getValue(Long::class.java) ?: 0L
-                    val productId = itemChild.child("productId").getValue(Long::class.java) ?: 0L
-                    val productName = itemChild.child("productName").getValue(String::class.java) ?: ""
-                    val unitName = itemChild.child("unitName").getValue(String::class.java) ?: "পিস"
-                    val qty = itemChild.child("qty").getValue(Double::class.java) ?: 1.0
-                    val unitPrice = itemChild.child("unitPricePoisha").getValue(Long::class.java) ?: 0L
-                    val purchasePrice = itemChild.child("purchasePriceAtSalePoisha").getValue(Long::class.java) ?: 0L
-                    val discount = itemChild.child("discountPoisha").getValue(Long::class.java) ?: 0L
-                    val lineTotal = itemChild.child("lineTotalPoisha").getValue(Long::class.java) ?: 0L
-                    saleItemsToInsert.add(
-                        SaleItem(
-                            id = itemId,
-                            saleId = saleId,
-                            productId = productId,
-                            productName = productName,
-                            unitName = unitName,
-                            qty = qty,
-                            unitPricePoisha = unitPrice,
-                            purchasePriceAtSalePoisha = purchasePrice,
-                            discountPoisha = discount,
-                            lineTotalPoisha = lineTotal
-                        )
+            for (cChild in customersSnap.children) {
+                try {
+                    val cId = cChild.readLong("id", 0L).takeIf { it > 0 }
+                        ?: cChild.key?.toLongOrNull() ?: continue
+                    val c = Customer(
+                        id = cId,
+                        name = cChild.readString("name"),
+                        phone = cChild.readString("phone"),
+                        address = cChild.readString("address").takeIf { it.isNotBlank() },
+                        creditLimitPoisha = cChild.readLong("creditLimitPoisha", 500000L),
+                        isActive = cChild.readBoolean("isActive", true),
+                        createdAt = cChild.readLong("createdAt", System.currentTimeMillis())
                     )
+                    customerList.add(c)
+                } catch (e: Exception) {
+                    Log.w(tag, "Error parsing customer from cloud", e)
                 }
-
-                if (dueAmountPoisha > 0 && customerId != null) {
-                    ledgersToInsert.add(
-                        CustomerLedger(
-                            customerId = customerId,
-                            refType = "sale",
-                            refId = saleId,
-                            debitPoisha = dueAmountPoisha,
-                            creditPoisha = 0L,
-                            note = "বাকিতে বিক্রয় (রিস্টোর): $invoiceNo",
-                            entryDate = saleDate
-                        )
-                    )
-                }
-            } catch (e: Exception) {
-                Log.w(tag, "Error parsing sale in initial pull", e)
             }
-        }
+            if (customerList.isNotEmpty()) {
+                dao.insertCustomers(customerList)
+            }
 
-        if (salesToInsert.isNotEmpty()) {
-            dao.insertSales(salesToInsert)
-        }
-        if (saleItemsToInsert.isNotEmpty()) {
-            dao.insertSaleItems(saleItemsToInsert)
-        }
-        if (ledgersToInsert.isNotEmpty()) {
-            dao.insertCustomerLedgers(ledgersToInsert)
-        }
+            // Pull Suppliers
+            val suppliersSnap = snapshot.child("suppliers")
+            val supplierList = mutableListOf<Supplier>()
+            for (sChild in suppliersSnap.children) {
+                try {
+                    val sId = sChild.readLong("id", 0L).takeIf { it > 0 }
+                        ?: sChild.key?.toLongOrNull() ?: continue
+                    val s = Supplier(
+                        id = sId,
+                        name = sChild.readString("name"),
+                        phone = sChild.readString("phone"),
+                        company = sChild.readString("company").takeIf { it.isNotBlank() },
+                        address = sChild.readString("address").takeIf { it.isNotBlank() },
+                        isActive = sChild.readBoolean("isActive", true),
+                        createdAt = sChild.readLong("createdAt", System.currentTimeMillis())
+                    )
+                    supplierList.add(s)
+                } catch (e: Exception) {
+                    Log.w(tag, "Error parsing supplier from cloud", e)
+                }
+            }
+            if (supplierList.isNotEmpty()) {
+                dao.insertSuppliers(supplierList)
+            }
+
+            // Pull Sales & Sale Items in BATCH (Atomic & Ultra-Fast)
+            val salesSnap = snapshot.child("sales")
+            val salesToInsert = mutableListOf<Sale>()
+            val saleItemsToInsert = mutableListOf<SaleItem>()
+            val ledgersToInsert = mutableListOf<CustomerLedger>()
+
+            for (sChild in salesSnap.children) {
+                try {
+                    val saleId = sChild.readLong("id", 0L).takeIf { it > 0 }
+                        ?: sChild.key?.toLongOrNull() ?: continue
+                    if (dao.getSaleById(saleId) != null) continue
+                    val invoiceNo = sChild.readString("invoiceNo", "INV-$saleId")
+                    val subtotalPoisha = sChild.readLong("subtotalPoisha", 0L)
+                    val discountPoisha = sChild.readLong("discountPoisha", 0L)
+                    val vatPoisha = sChild.readLong("vatPoisha", 0L)
+                    val totalPoisha = sChild.readLong("totalPoisha", 0L).takeIf { it > 0 }
+                        ?: (subtotalPoisha - discountPoisha + vatPoisha)
+                    val paidAmountPoisha = sChild.readLong("paidAmountPoisha", 0L).takeIf { it > 0 }
+                        ?: totalPoisha
+                    val dueAmountPoisha = sChild.readLong("dueAmountPoisha", 0L)
+                    val customerId = sChild.readLong("customerId", 0L).takeIf { it > 0 }
+                    val customerName = sChild.readString("customerName").takeIf { it.isNotBlank() }
+                    val saleDate = sChild.readLong("saleDate", System.currentTimeMillis())
+                    val paymentMethod = sChild.readString("paymentMethod", "cash")
+
+                    val sale = Sale(
+                        id = saleId,
+                        invoiceNo = invoiceNo,
+                        customerId = customerId,
+                        customerName = customerName,
+                        saleDate = saleDate,
+                        subtotalPoisha = subtotalPoisha,
+                        discountPoisha = discountPoisha,
+                        vatPoisha = vatPoisha,
+                        totalPoisha = totalPoisha,
+                        paidAmountPoisha = paidAmountPoisha,
+                        dueAmountPoisha = dueAmountPoisha,
+                        paymentMethod = paymentMethod
+                    )
+                    salesToInsert.add(sale)
+
+                    val itemsSnap = sChild.child("items")
+                    for (itemChild in itemsSnap.children) {
+                        val itemId = itemChild.readLong("id", 0L)
+                        val productId = itemChild.readLong("productId", 0L)
+                        val productName = itemChild.readString("productName")
+                        val unitName = itemChild.readString("unitName", "পিস")
+                        val qty = itemChild.readDouble("qty", 1.0)
+                        val unitPrice = itemChild.readLong("unitPricePoisha", 0L)
+                        val purchasePrice = itemChild.readLong("purchasePriceAtSalePoisha", 0L)
+                        val discount = itemChild.readLong("discountPoisha", 0L)
+                        val lineTotal = itemChild.readLong("lineTotalPoisha", 0L)
+                        saleItemsToInsert.add(
+                            SaleItem(
+                                id = itemId,
+                                saleId = saleId,
+                                productId = productId,
+                                productName = productName,
+                                unitName = unitName,
+                                qty = qty,
+                                unitPricePoisha = unitPrice,
+                                purchasePriceAtSalePoisha = purchasePrice,
+                                discountPoisha = discount,
+                                lineTotalPoisha = lineTotal
+                            )
+                        )
+                    }
+
+                    if (dueAmountPoisha > 0 && customerId != null) {
+                        ledgersToInsert.add(
+                            CustomerLedger(
+                                customerId = customerId,
+                                refType = "sale",
+                                refId = saleId,
+                                debitPoisha = dueAmountPoisha,
+                                creditPoisha = 0L,
+                                note = "বাকিতে বিক্রয় (রিস্টোর): $invoiceNo",
+                                entryDate = saleDate
+                            )
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.w(tag, "Error parsing sale in initial pull", e)
+                }
+            }
+
+            if (salesToInsert.isNotEmpty()) {
+                dao.insertSales(salesToInsert)
+            }
+            if (saleItemsToInsert.isNotEmpty()) {
+                dao.insertSaleItems(saleItemsToInsert)
+            }
+            if (ledgersToInsert.isNotEmpty()) {
+                dao.insertCustomerLedgers(ledgersToInsert)
+            }
         }
     }
 
@@ -1453,10 +1479,18 @@ class FirebaseSyncManager(private val dao: PaponDao) {
 
 private suspend fun <T> com.google.android.gms.tasks.Task<T>.await(): T =
     suspendCancellableCoroutine { cont ->
-        addOnSuccessListener { result ->
-            cont.resume(result, null)
-        }
-        addOnFailureListener { exception ->
-            cont.resumeWith(Result.failure(exception))
+        addOnCompleteListener { task ->
+            if (cont.isActive) {
+                val ex = task.exception
+                if (ex == null) {
+                    if (task.isCanceled) {
+                        cont.cancel()
+                    } else {
+                        cont.resume(task.result, null)
+                    }
+                } else {
+                    cont.resumeWith(Result.failure(ex))
+                }
+            }
         }
     }
