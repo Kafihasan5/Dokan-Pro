@@ -1,12 +1,12 @@
 {
-  "versionCode": 90,
-  "versionName": "1.0.90",
+  "versionCode": 91,
+  "versionName": "1.0.91",
   "applicationId": "com.webix.dokanpro",
   "bundleFile": "app-release.aab",
   "format": "Android App Bundle (AAB)",
   "targetSdk": 36,
   "minSdk": 24,
-  "buildTime": "2026-09-18T23:01:35Z",
-  "releaseNotes": "Fix: prevent crash on credential submission when clicking probesh button (v90)",
+  "buildTime": "2026-09-19T02:43:10Z",
+  "releaseNotes": "Fix: resolve fatal Task<Void> NPE in FirebaseSyncManager and composition crash in DashboardScreen (v91)",
   "note": "Ready for Google Play Console upload"
 }

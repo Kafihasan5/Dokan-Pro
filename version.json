@@ -3,5 +3,5 @@
   "versionName": "1.0.91",
   "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v91/app-debug.apk",
   "playstoreBundleUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v91/app-release.aab",
-  "releaseNotes": "Fix: fatal Task<Void> NPE in FirebaseSyncManager and composition crash in DashboardScreen (v91)"
+  "releaseNotes": "Fix: resolve fatal Task<Void> NPE in FirebaseSyncManager and composition crash in DashboardScreen (v91)"
 }
