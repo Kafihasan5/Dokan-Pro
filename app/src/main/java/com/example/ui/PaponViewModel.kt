@@ -1470,7 +1470,13 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
             val useBengaliNumerals = prefs.getBoolean("use_bengali_numerals", true)
             val themeMode = prefs.getString("theme_mode", "system") ?: "system"
             val vatEnabled = prefs.getBoolean("vat_enabled", false)
-            val vatPercentage = prefs.getFloat("vat_percentage", 0.0f).toDouble()
+            val vatPercentage = try {
+                prefs.getFloat("vat_percentage", 0.0f).toDouble()
+            } catch (_: Throwable) {
+                try {
+                    prefs.getString("vat_percentage", "0.0")?.toDoubleOrNull() ?: 0.0
+                } catch (_: Throwable) { 0.0 }
+            }
             val pinEnabled = prefs.getBoolean("pin_enabled", false)
             val pinCode = prefs.getString("pin_code", "1234") ?: "1234"
             val staffPin = prefs.getString("staff_pin", "0000") ?: "0000"
@@ -1508,7 +1514,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 firebaseShopCode = firebaseShopCode,
                 firebaseSyncEnabled = firebaseSyncEnabled
             )
-        } catch (_: Exception) {}
+        } catch (_: Throwable) {}
     }
 
     private fun saveShopConfig(config: ShopConfig) {
@@ -1552,7 +1558,9 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
             }
-        } catch (_: Exception) {}
+        } catch (t: Throwable) {
+            Log.e("PaponViewModel", "Error in saveShopConfig: ${t.message}")
+        }
     }
 
     fun getDefaultShopCode(): String {
@@ -1706,18 +1714,17 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     // STEP 5: Unlock PIN and transition smoothly to Dashboard!
-                    prefs.edit().putBoolean("telegram_setup_notified", true).apply()
-                    _isDemoMode.value = false
-                    _isPinUnlocked.value = true
-                    _isAppActivated.value = true
-                    _currentScreen.value = AppScreen.DASHBOARD
-
-                    showToast("দোকানের সমস্ত তথ্য সফলভাবে রিস্টোর হয়েছে!")
                     withContext(Dispatchers.Main) {
                         try {
                             onComplete(true, "দোকান সফলভাবে রিস্টোর সম্পন্ন হয়েছে!")
                         } catch (_: Throwable) {}
+                        prefs.edit().putBoolean("telegram_setup_notified", true).apply()
+                        _isDemoMode.value = false
+                        _isPinUnlocked.value = true
+                        _isAppActivated.value = true
+                        _currentScreen.value = AppScreen.DASHBOARD
                     }
+                    showToast("দোকানের সমস্ত তথ্য সফলভাবে রিস্টোর হয়েছে!")
                 } catch (t: Throwable) {
                     Log.e("PaponViewModel", "Error in secureRestoreOwnerShop", t)
                     val rawMsg = t.message ?: ""
@@ -1841,17 +1848,16 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                     // Connect live syncing for staff
                     firebaseSyncManager.connectShop(resolvedCode, "staff")
 
-                    _isDemoMode.value = false
-                    _isPinUnlocked.value = true
-                    _isAppActivated.value = true
-                    _currentScreen.value = AppScreen.DASHBOARD
-
-                    showToast("কর্মচারী ($finalStaffName) হিসেবে সফলভাবে যুক্ত হয়েছেন!")
                     withContext(Dispatchers.Main) {
                         try {
                             onComplete(true, "কর্মচারী হিসেবে যুক্ত সম্পন্ন!")
                         } catch (_: Throwable) {}
+                        _isDemoMode.value = false
+                        _isPinUnlocked.value = true
+                        _isAppActivated.value = true
+                        _currentScreen.value = AppScreen.DASHBOARD
                     }
+                    showToast("কর্মচারী ($finalStaffName) হিসেবে সফলভাবে যুক্ত হয়েছেন!")
                 } catch (t: Throwable) {
                     Log.e("PaponViewModel", "Error in secureJoinAsStaff", t)
                     val rawMsg = t.message ?: ""

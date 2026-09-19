@@ -82,7 +82,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -191,26 +190,35 @@ fun DashboardScreen(
     var dashboardFilterMode by remember { mutableStateOf("today") }
     var customSelectedDate by remember { mutableStateOf<Long?>(null) }
 
-    val datePickerDialog = remember {
-        DatePickerDialog(
-            context,
-            { _, year, month, dayOfMonth ->
-                val cal = Calendar.getInstance().apply {
-                    set(Calendar.YEAR, year)
-                    set(Calendar.MONTH, month)
-                    set(Calendar.DAY_OF_MONTH, dayOfMonth)
-                    set(Calendar.HOUR_OF_DAY, 0)
-                    set(Calendar.MINUTE, 0)
-                    set(Calendar.SECOND, 0)
-                    set(Calendar.MILLISECOND, 0)
-                }
-                customSelectedDate = cal.timeInMillis
-                dashboardFilterMode = "custom"
-            },
-            calendar.get(Calendar.YEAR),
-            calendar.get(Calendar.MONTH),
-            calendar.get(Calendar.DAY_OF_MONTH)
-        )
+    fun showDatePickerDialog() {
+        try {
+            val cal = Calendar.getInstance().apply {
+                customSelectedDate?.let { timeInMillis = it }
+            }
+            DatePickerDialog(
+                context,
+                { _, year, month, dayOfMonth ->
+                    try {
+                        val newCal = Calendar.getInstance().apply {
+                            set(Calendar.YEAR, year)
+                            set(Calendar.MONTH, month)
+                            set(Calendar.DAY_OF_MONTH, dayOfMonth)
+                            set(Calendar.HOUR_OF_DAY, 0)
+                            set(Calendar.MINUTE, 0)
+                            set(Calendar.SECOND, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }
+                        customSelectedDate = newCal.timeInMillis
+                        dashboardFilterMode = "custom"
+                    } catch (_: Throwable) {}
+                },
+                cal.get(Calendar.YEAR),
+                cal.get(Calendar.MONTH),
+                cal.get(Calendar.DAY_OF_MONTH)
+            ).show()
+        } catch (t: Throwable) {
+            android.util.Log.e("DashboardScreen", "Error displaying DatePickerDialog", t)
+        }
     }
 
     val isStaff = config.userRole == "staff"
@@ -255,7 +263,11 @@ fun DashboardScreen(
                 val end = start + 86400000L
                 val s = staffPersonalSales.filter { it.saleDate in start until end && !it.isReturned }
                 val e = if (isStaff) emptyList() else expenses.filter { it.expenseDate in start until end }
-                val dateStr = SimpleDateFormat("dd MMM", Locale("bn", "BD")).format(Date(start))
+                val dateStr = try {
+                    SimpleDateFormat("dd MMM", Locale("bn", "BD")).format(Date(start))
+                } catch (_: Throwable) {
+                    SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(start))
+                }
                 Triple(s, e, if (isStaff) "$dateStr আপনার" else dateStr)
             }
             else -> {
@@ -314,16 +326,7 @@ fun DashboardScreen(
     val supportNotifications by viewModel.supportNotifications.collectAsState()
     var showNotificationsSheet by remember { mutableStateOf(false) }
 
-    PullToRefreshBox(
-        isRefreshing = isManualRefreshing,
-        onRefresh = {
-            isManualRefreshing = true
-            coroutineScope.launch {
-                viewModel.pushAllDataToFirebase()
-                delay(600)
-                isManualRefreshing = false
-            }
-        },
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
@@ -612,7 +615,7 @@ fun DashboardScreen(
                         dashboardFilterMode = mode
                         currentSalesPage = 1
                     },
-                    onOpenDatePicker = { datePickerDialog.show() }
+                    onOpenDatePicker = { showDatePickerDialog() }
                 )
 
                 // 2) SECONDARY STATS (2-Column Grid)
@@ -779,9 +782,13 @@ private fun DashboardHeroSummary(
                                     text = when (dashboardFilterMode) {
                                         "today" -> "আজ (${if (config.useBengaliNumerals) Formatters.toBengaliDigits(todaySalesCount.toString()) else todaySalesCount})"
                                         "yesterday" -> "গতকাল (${if (config.useBengaliNumerals) Formatters.toBengaliDigits(yesterdaySalesCount.toString()) else yesterdaySalesCount})"
-                                        "custom" -> if (customSelectedDate != null) {
-                                            SimpleDateFormat("dd MMM", Locale("bn", "BD")).format(Date(customSelectedDate))
-                                        } else "তারিখ"
+                                        "custom" -> customSelectedDate?.let { dateMs ->
+                                            try {
+                                                SimpleDateFormat("dd MMM", Locale("bn", "BD")).format(Date(dateMs))
+                                            } catch (_: Throwable) {
+                                                SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(dateMs))
+                                            }
+                                        } ?: "তারিখ"
                                         else -> "সব (${if (config.useBengaliNumerals) Formatters.toBengaliDigits(totalSalesCount.toString()) else totalSalesCount})"
                                     },
                                     style = MaterialTheme.typography.labelSmall,

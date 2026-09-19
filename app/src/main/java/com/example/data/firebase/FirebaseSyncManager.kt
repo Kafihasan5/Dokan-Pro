@@ -131,7 +131,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             db.getReference("email_to_shop").child(encodedKey).setValue(cleanShop).await()
             db.getReference("shops").child(cleanShop).child("info").child("ownerEmail").setValue(cleanEmail).await()
             Log.d(tag, "Successfully linked email $cleanEmail to shop $cleanShop in Firebase")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.w(tag, "Error linking email to shop: ${e.message}")
         }
     }
@@ -206,7 +206,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
                     }
                 }
                 return@withContext null
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e(tag, "Error resolving shop code by email: ${e.message}")
                 return@withContext null
             }
@@ -284,13 +284,13 @@ class FirebaseSyncManager(private val dao: PaponDao) {
                         "pinCode" to cleanMaster
                     )
                 ).await()
-            } catch (_: Exception) {}
+            } catch (_: Throwable) {}
 
             if (sanitizedEmail.isNotBlank() && sanitizedEmail.contains("@")) {
                 linkEmailToShop(sanitizedEmail, cleanCode)
             }
             Log.d(tag, "Shop security successfully saved in Firebase for $cleanCode")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.w(tag, "Error saving shop security: ${e.message}")
         }
     }
@@ -676,7 +676,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
         } catch (e: TimeoutCancellationException) {
             Log.e(tag, "Timeout restoring shop data", e)
             Result.failure(Exception("ডাটা রিস্টোর করার সময় শেষ হয়েছে (টাইমআউট)। ইন্টারনেট কানেকশন চেক করে আবার চেষ্টা করুন।"))
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(tag, "Error restoring shop data", e)
             Result.failure(Exception(e.message ?: "ডাটা রিস্টোর করতে সমস্যা হয়েছে। ইন্টারনেট চেক করুন।"))
         }
@@ -701,7 +701,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             infoSnap.child("ownerEmail").getValue(String::class.java)?.let { if (it.isNotBlank()) map["ownerEmail"] = it }
             infoSnap.child("tagline").getValue(String::class.java)?.let { if (it.isNotBlank()) map["tagline"] = it }
             map
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.w(tag, "Error fetching shop info: ${e.message}")
             null
         }
@@ -1485,20 +1485,54 @@ class FirebaseSyncManager(private val dao: PaponDao) {
     }
 }
 
-private suspend fun <T> com.google.android.gms.tasks.Task<T>.await(): T =
-    suspendCancellableCoroutine { cont ->
+@JvmName("awaitVoid")
+private suspend fun com.google.android.gms.tasks.Task<Void>.await(): Unit = suspendCancellableCoroutine { cont ->
+    if (isComplete) {
+        val ex = exception
+        if (ex != null) cont.resumeWith(Result.failure(ex))
+        else if (isCanceled) cont.cancel()
+        else cont.resumeWith(Result.success(Unit))
+        return@suspendCancellableCoroutine
+    }
+    addOnCompleteListener { task ->
+        if (cont.isActive) {
+            val ex = task.exception
+            if (ex != null) {
+                cont.resumeWith(Result.failure(ex))
+            } else if (task.isCanceled) {
+                cont.cancel()
+            } else {
+                cont.resumeWith(Result.success(Unit))
+            }
+        }
+    }
+}
+
+private suspend fun <T> com.google.android.gms.tasks.Task<T>.await(): T {
+    if (isComplete) {
+        val ex = exception
+        if (ex != null) throw ex
+        if (isCanceled) throw kotlinx.coroutines.CancellationException("Task was cancelled.")
+        @Suppress("UNCHECKED_CAST")
+        return result as T
+    }
+    return suspendCancellableCoroutine { cont ->
         addOnCompleteListener { task ->
             if (cont.isActive) {
                 val ex = task.exception
-                if (ex == null) {
-                    if (task.isCanceled) {
-                        cont.cancel()
-                    } else {
-                        cont.resume(task.result, null)
-                    }
-                } else {
+                if (ex != null) {
                     cont.resumeWith(Result.failure(ex))
+                } else if (task.isCanceled) {
+                    cont.cancel()
+                } else {
+                    try {
+                        @Suppress("UNCHECKED_CAST")
+                        cont.resumeWith(Result.success(task.result as T))
+                    } catch (t: Throwable) {
+                        cont.resumeWith(Result.failure(t))
+                    }
                 }
             }
         }
     }
+}
