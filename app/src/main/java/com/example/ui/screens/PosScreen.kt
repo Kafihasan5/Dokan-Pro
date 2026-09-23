@@ -165,6 +165,7 @@ fun PosScreen(
     var showLooseItemDialog by remember { mutableStateOf(false) }
     var showBarcodeDialog by remember { mutableStateOf(false) }
     var productForQuantityDialog by remember { mutableStateOf<Product?>(null) }
+    var isEditingCartItem by remember { mutableStateOf(false) }
     var showHeldCartsDialog by remember { mutableStateOf(false) }
     var isListView by remember { mutableStateOf(true) }
 
@@ -424,29 +425,27 @@ fun PosScreen(
                             config = config,
                             onTap = {
                                 view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                                val isWeighable = product.unitName.trim().let {
-                                    it == "কেজি" || it == "গ্রাম" || it.contains("কেজি") || it.contains("গ্রাম") || it.contains("kg", ignoreCase = true) || it.contains("gm", ignoreCase = true)
+                                if (searchQuery.isNotEmpty()) {
+                                    viewModel.setPosSearchQuery("")
                                 }
-                                if (isWeighable) {
-                                    productForQuantityDialog = product
-                                } else {
-                                    viewModel.addProductToCart(product, 1.0)
-                                }
+                                isEditingCartItem = false
+                                productForQuantityDialog = product
                             },
                             onLongTap = {
                                 view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                if (searchQuery.isNotEmpty()) {
+                                    viewModel.setPosSearchQuery("")
+                                }
+                                isEditingCartItem = false
                                 productForQuantityDialog = product
                             },
                             onAddToCart = {
                                 view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                val isWeighable = product.unitName.trim().let {
-                                    it == "কেজি" || it == "গ্রাম" || it.contains("কেজি") || it.contains("গ্রাম") || it.contains("kg", ignoreCase = true) || it.contains("gm", ignoreCase = true)
+                                if (searchQuery.isNotEmpty()) {
+                                    viewModel.setPosSearchQuery("")
                                 }
-                                if (isWeighable) {
-                                    productForQuantityDialog = product
-                                } else {
-                                    viewModel.addProductToCart(product, 1.0)
-                                }
+                                isEditingCartItem = false
+                                productForQuantityDialog = product
                             },
                             onIncreaseQty = {
                                 view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -458,6 +457,7 @@ fun PosScreen(
                                 viewModel.updateCartItemQty(product.id, newQty)
                             },
                             onOpenQuantityDialog = {
+                                isEditingCartItem = true
                                 productForQuantityDialog = product
                             }
                         )
@@ -485,17 +485,18 @@ fun PosScreen(
                             config = config,
                             onTap = {
                                 view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                                val isWeighable = product.unitName.trim().let {
-                                    it == "কেজি" || it == "গ্রাম" || it.contains("কেজি") || it.contains("গ্রাম") || it.contains("kg", ignoreCase = true) || it.contains("gm", ignoreCase = true)
+                                if (searchQuery.isNotEmpty()) {
+                                    viewModel.setPosSearchQuery("")
                                 }
-                                if (isWeighable) {
-                                    productForQuantityDialog = product
-                                } else {
-                                    viewModel.addProductToCart(product, 1.0)
-                                }
+                                isEditingCartItem = false
+                                productForQuantityDialog = product
                             },
                             onLongTap = {
                                 view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                if (searchQuery.isNotEmpty()) {
+                                    viewModel.setPosSearchQuery("")
+                                }
+                                isEditingCartItem = false
                                 productForQuantityDialog = product
                             }
                         )
@@ -557,6 +558,7 @@ fun PosScreen(
                 onEditItemQty = { item ->
                     val prod = products.find { it.id == item.productId }
                     if (prod != null) {
+                        isEditingCartItem = true
                         productForQuantityDialog = prod
                     }
                 },
@@ -602,6 +604,7 @@ fun PosScreen(
                 }
             },
             onOpenWeightDialog = { prod ->
+                isEditingCartItem = false
                 productForQuantityDialog = prod
             },
             onDismiss = { showBarcodeDialog = false },
@@ -626,15 +629,21 @@ fun PosScreen(
     // Modal: Quick Weight / Decimal Quantity Keypad (1 Gram precision)
     productForQuantityDialog?.let { product ->
         val existingQty = cartItems.find { it.productId == product.id }?.qty
+        val initQty = if (isEditingCartItem) (existingQty ?: 1.0) else 1.0
         WeightQuantityDialog(
             product = product,
             config = config,
-            initialQty = existingQty ?: 1.0,
+            initialQty = initQty,
+            isEditing = isEditingCartItem,
             onDismiss = { productForQuantityDialog = null },
             onConfirm = { qty ->
-                viewModel.setProductInCart(product, qty)
+                if (isEditingCartItem) {
+                    viewModel.setProductInCart(product, qty)
+                } else {
+                    viewModel.addProductToCart(product, qty)
+                }
                 productForQuantityDialog = null
-                viewModel.showToast("${product.nameBn}: ${Formatters.formatWeightDetailed(qty, product.unitName, config.useBengaliNumerals)} যোগ করা হয়েছে")
+                viewModel.showToast("${product.nameBn}: ${Formatters.formatWeightDetailed(qty, product.unitName, config.useBengaliNumerals)} ${if (isEditingCartItem) "আপডেট করা হয়েছে" else "কার্টে যোগ করা হয়েছে"}")
             }
         )
     }
@@ -2179,6 +2188,7 @@ fun WeightQuantityDialog(
     product: Product,
     config: ShopConfig,
     initialQty: Double = 1.0,
+    isEditing: Boolean = false,
     onDismiss: () -> Unit,
     onConfirm: (Double) -> Unit
 ) {
@@ -2226,18 +2236,22 @@ fun WeightQuantityDialog(
     // Live calculated quantity in standard unit (e.g. KG for weighable)
     val finalQty: Double = remember(selectedMode, gramText, kgText, takaText, isWeighable, product.salePricePoisha) {
         if (!isWeighable) {
-            kgText.toDoubleOrNull() ?: 1.0
+            val clean = Formatters.replaceBengaliDigits(kgText)
+            clean.toDoubleOrNull() ?: 0.0
         } else {
             when (selectedMode) {
                 0 -> { // Gram
-                    val grams = gramText.toDoubleOrNull() ?: 0.0
+                    val clean = Formatters.replaceBengaliDigits(gramText)
+                    val grams = clean.toDoubleOrNull() ?: 0.0
                     grams / 1000.0
                 }
                 1 -> { // KG
-                    kgText.toDoubleOrNull() ?: 0.0
+                    val clean = Formatters.replaceBengaliDigits(kgText)
+                    clean.toDoubleOrNull() ?: 0.0
                 }
                 2 -> { // Taka
-                    val taka = takaText.toDoubleOrNull() ?: 0.0
+                    val clean = Formatters.replaceBengaliDigits(takaText)
+                    val taka = clean.toDoubleOrNull() ?: 0.0
                     if (product.salePricePoisha > 0 && taka > 0) {
                         val rawKg = (taka * 100.0) / product.salePricePoisha.toDouble()
                         val grams = kotlin.math.round(rawKg * 1000).toLong().coerceAtLeast(1)
@@ -2541,11 +2555,72 @@ fun WeightQuantityDialog(
                     }
                 } else {
                     // Non-weighable product (পিস, প্যাকেট, ইত্যাদি)
-                    DokanTextField(
-                        value = kgText,
-                        onValueChange = { kgText = it.filter { c -> c.isDigit() || c == '.' } },
-                        label = "পরিমাণ (${product.unitName})",
-                        keyboardType = KeyboardType.Decimal
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                    ) {
+                        Surface(
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                val cur = Formatters.replaceBengaliDigits(kgText).toDoubleOrNull() ?: 1.0
+                                val nextVal = (cur - 1.0).coerceAtLeast(1.0)
+                                kgText = if (nextVal % 1.0 == 0.0) nextVal.toLong().toString() else nextVal.toString()
+                            },
+                            shape = CircleShape,
+                            color = MaterialTheme.dokanColors.surfaceAlt,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Remove, contentDescription = "কমান", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+
+                        DokanTextField(
+                            value = kgText,
+                            onValueChange = { input ->
+                                kgText = input.filter { c -> c.isDigit() || c == '.' }
+                            },
+                            label = "পরিমাণ লিখুন (${product.unitName})",
+                            placeholder = "1",
+                            keyboardType = KeyboardType.Number,
+                            modifier = Modifier.weight(1f),
+                            trailingIcon = if (kgText.isNotEmpty()) {
+                                {
+                                    IconButton(
+                                        onClick = { kgText = "" },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(Icons.Default.Clear, contentDescription = "পরিষ্কার", modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            } else null
+                        )
+
+                        Surface(
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                val cur = Formatters.replaceBengaliDigits(kgText).toDoubleOrNull() ?: 0.0
+                                val nextVal = cur + 1.0
+                                kgText = if (nextVal % 1.0 == 0.0) nextVal.toLong().toString() else nextVal.toString()
+                            },
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Add, contentDescription = "বাড়ান", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                            }
+                        }
+                    }
+
+                    // Quick Selection Chips
+                    Text(
+                        text = "দ্রুত বাছাই (১ ট্যাপ):",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     Row(
@@ -2554,8 +2629,10 @@ fun WeightQuantityDialog(
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
                     ) {
-                        val pieceChips = listOf(1, 2, 3, 4, 5, 6, 10, 12, 24)
+                        val pieceChips = listOf(1, 2, 3, 4, 5, 6, 10, 12, 20, 24, 50)
+                        val currentNum = Formatters.replaceBengaliDigits(kgText).toDoubleOrNull()
                         pieceChips.forEach { p ->
+                            val isCurrent = currentNum == p.toDouble()
                             AssistChip(
                                 onClick = {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -2564,10 +2641,13 @@ fun WeightQuantityDialog(
                                 label = {
                                     Text(
                                         text = "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(p.toString()) else p}টি",
-                                        style = MaterialTheme.typography.labelSmall
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isCurrent) MaterialTheme.colorScheme.primary else Color.Unspecified
                                     )
                                 },
-                                shape = RoundedCornerShape(Radius.pill)
+                                shape = RoundedCornerShape(Radius.pill),
+                                border = if (isCurrent) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null
                             )
                         }
                     }
@@ -2589,12 +2669,16 @@ fun WeightQuantityDialog(
                     ) {
                         Column {
                             Text(
-                                text = "হিসাবকৃত ওজন:",
+                                text = if (isWeighable) "হিসাবকৃত ওজন:" else "হিসাবকৃত পরিমাণ:",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = Formatters.formatWeightDetailed(finalQty, product.unitName, config.useBengaliNumerals),
+                                text = if (isWeighable) {
+                                    Formatters.formatWeightDetailed(finalQty, product.unitName, config.useBengaliNumerals)
+                                } else {
+                                    Formatters.formatQty(finalQty, product.unitName, config.useBengaliNumerals)
+                                },
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -2629,7 +2713,11 @@ fun WeightQuantityDialog(
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
                 Text(
-                    text = "কার্টে যোগ (${Formatters.formatMoney(calculatedPricePoisha, config.useBengaliNumerals, config.currencySymbol)})",
+                    text = if (isEditing) {
+                        "আপডেট (${Formatters.formatMoney(calculatedPricePoisha, config.useBengaliNumerals, config.currencySymbol)})"
+                    } else {
+                        "কার্টে যোগ (${Formatters.formatMoney(calculatedPricePoisha, config.useBengaliNumerals, config.currencySymbol)})"
+                    },
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold
                 )
