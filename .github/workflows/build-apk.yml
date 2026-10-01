@@ -26,27 +26,21 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Ensure Debug Keystore
+      # Signing keys are no longer committed (this repository is public). They come from secrets:
+      #   LEGACY_DEBUG_KEYSTORE_BASE64  – signs the GitHub APK (same key as before, so installed apps update)
+      #   PLAY_UPLOAD_KEYSTORE_BASE64, PLAY_UPLOAD_STORE_PASSWORD, PLAY_UPLOAD_KEY_ALIAS, PLAY_UPLOAD_KEY_PASSWORD
+      - name: Restore Signing Keys
+        env:
+          LEGACY_DEBUG_KEYSTORE_BASE64: ${{ secrets.LEGACY_DEBUG_KEYSTORE_BASE64 }}
+          PLAY_UPLOAD_KEYSTORE_BASE64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
         run: |
-          if [ ! -f debug.keystore ]; then
-            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add debug.keystore
-            git commit -m "Generate persistent debug.keystore for consistent in-app update signatures [skip ci]" || true
-            git push origin main || true
+          if [ -z "$LEGACY_DEBUG_KEYSTORE_BASE64" ] || [ -z "$PLAY_UPLOAD_KEYSTORE_BASE64" ]; then
+            echo "::error::Signing key secrets are missing; refusing to build with a new or public key."
+            exit 1
           fi
-
-      - name: Ensure PlayStore Upload Keystore
-        run: |
-          if [ ! -f playstore-upload.jks ]; then
-            keytool -genkey -v -keystore playstore-upload.jks -storepass dokanpro2026 -alias dokanpro -keypass dokanpro2026 -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Dokan Pro,OU=Mobile,O=Webix,L=Dhaka,ST=Dhaka,C=BD"
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add playstore-upload.jks
-            git commit -m "Generate persistent playstore-upload.jks for Google Play App Signing [skip ci]" || true
-            git push origin main || true
-          fi
+          echo "$LEGACY_DEBUG_KEYSTORE_BASE64" | base64 --decode > debug.keystore
+          echo "$PLAY_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.jks"
+          echo "KEYSTORE_PATH=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
 
       - name: Accept Android SDK Licenses
         run: |
@@ -71,8 +65,16 @@ jobs:
           gradle assembleDebug -PversionCode=${{ github.run_number }} -PversionName="1.0.${{ github.run_number }}" --no-daemon --stacktrace
 
       - name: Build Play Store Version (Release AAB)
+        env:
+          STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
         run: |
           gradle bundleRelease -PversionCode=${{ github.run_number }} -PversionName="1.0.${{ github.run_number }}" --no-daemon --stacktrace
+
+      - name: Remove Signing Keys
+        if: always()
+        run: rm -f debug.keystore "$RUNNER_TEMP/upload.jks"
 
       - name: Prepare PlayStore Release Folder
         run: |

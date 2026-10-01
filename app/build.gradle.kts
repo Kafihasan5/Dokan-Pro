@@ -1,3 +1,5 @@
+import java.util.Properties
+
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
 
 plugins {
@@ -8,6 +10,15 @@ plugins {
   alias(libs.plugins.secrets)
   alias(libs.plugins.google.services)
 }
+
+// Release signing values come only from the environment (CI secrets) or an untracked keystore.properties.
+val keystoreProps = Properties().apply {
+  val f = rootProject.file("keystore.properties")
+  if (f.exists()) f.inputStream().use { load(it) }
+}
+fun signingValue(env: String, prop: String): String? =
+  System.getenv(env)?.takeIf { it.isNotBlank() } ?: keystoreProps.getProperty(prop)?.takeIf { it.isNotBlank() }
+val releaseKeystorePath: String? = signingValue("KEYSTORE_PATH", "storeFile")
 
 android {
   namespace = "com.example"
@@ -27,23 +38,18 @@ android {
   }
 
   signingConfigs {
-    create("release") {
-      val uploadKey = file("${rootDir}/playstore-upload.jks")
-      val fallbackKey = file("${rootDir}/debug.keystore")
-      val customPath = System.getenv("KEYSTORE_PATH")
-      val keystoreFile = if (!customPath.isNullOrBlank()) file(customPath) else if (uploadKey.exists()) uploadKey else fallbackKey
-
-      storeFile = keystoreFile
-      if (keystoreFile == uploadKey || !customPath.isNullOrBlank()) {
-        storePassword = System.getenv("STORE_PASSWORD") ?: "dokanpro2026"
-        keyAlias = System.getenv("KEY_ALIAS") ?: "dokanpro"
-        keyPassword = System.getenv("KEY_PASSWORD") ?: "dokanpro2026"
-      } else {
-        storePassword = "android"
-        keyAlias = "androiddebugkey"
-        keyPassword = "android"
+    // Play Store upload key: path and passwords come only from the environment (CI secrets)
+    // or an untracked keystore.properties — never from this public repository.
+    if (releaseKeystorePath != null) {
+      create("release") {
+        storeFile = file(releaseKeystorePath)
+        storePassword = signingValue("STORE_PASSWORD", "storePassword")
+        keyAlias = signingValue("KEY_ALIAS", "keyAlias")
+        keyPassword = signingValue("KEY_PASSWORD", "keyPassword")
       }
     }
+    // The GitHub APK keeps its existing signature so installed apps update normally.
+    // debug.keystore is no longer committed; CI restores it from a secret.
     create("debugConfig") {
       storeFile = file("${rootDir}/debug.keystore")
       storePassword = "android"
@@ -57,7 +63,7 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      signingConfig = signingConfigs.findByName("release")
     }
     debug {
       signingConfig = signingConfigs.getByName("debugConfig")

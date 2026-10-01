@@ -39,6 +39,8 @@ class FirebaseSyncManager(private val dao: PaponDao) {
     private var salesListener: ChildEventListener? = null
     private var productsQueryRef: DatabaseReference? = null
     private var salesQueryRef: DatabaseReference? = null
+    /** Keys present in the cloud per node, recorded during the initial pull, so pushes send only what's missing. */
+    private val cloudKeys = java.util.concurrent.ConcurrentHashMap<String, Set<String>>()
 
     var currentShopCode: String = ""
         private set
@@ -359,8 +361,8 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             } catch (_: Exception) { null }
 
             if (!secSnap.exists() && (infoSnap == null || !infoSnap.exists())) {
-                // If shop security node does not exist, accept PIN (fresh shop or legacy setup)
-                return@withContext true
+                // Unknown shop: never accept (this used to let any PIN in).
+                return@withContext false
             }
 
             // Read cloud fields safely using .value?.toString() to avoid type casting bugs
@@ -376,9 +378,9 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             val infoStaffPin = infoSnap?.child("staffPin")?.value?.toString()?.trim()
             val infoOwnerEmail = infoSnap?.child("ownerEmail")?.value?.toString()?.trim()?.lowercase()
 
-            // Condition 1: If cloud has no PIN or hash set at all, grant access
+            // A shop with no PIN stored cannot be unlocked by guessing; the owner sets one from the app.
             if (cloudHash.isNullOrBlank() && cloudHashBn.isNullOrBlank() && plainMasterPin.isNullOrBlank() && infoPin.isNullOrBlank()) {
-                return@withContext true
+                return@withContext false
             }
 
             // Condition 2: Hash comparison against SHA-256 cloud hashes
@@ -411,34 +413,13 @@ class FirebaseSyncManager(private val dao: PaponDao) {
                 if (candidateHashes.contains(infoPin.lowercase())) return@withContext true
             }
 
-            // Condition 5: Allow match if owner used their staff PIN
-            val potentialStaffPins = listOfNotNull(cloudStaffPin, infoStaffPin)
-            for (sp in potentialStaffPins) {
-                val spClean = com.example.util.Formatters.fromBengaliDigits(sp).trim()
-                val spBn = com.example.util.Formatters.toBengaliDigits(spClean).trim()
-                if (candidatePins.any { it.equals(sp, ignoreCase = true) || it.equals(spClean, ignoreCase = true) || it.equals(spBn, ignoreCase = true) }) {
-                    return@withContext true
-                }
-            }
-
-            // Condition 6: Owner Email Verification Grace
-            // If the user authenticated via the exact registered owner email, and entered default PIN or 4+ digits
-            val hintEmail = ownerEmailHint?.trim()?.lowercase()
-            if (!hintEmail.isNullOrBlank() && (hintEmail == cloudOwnerEmail || hintEmail == infoOwnerEmail)) {
-                if (cleanInput == "1234" || rawInput == "1234" || bnInput == "১২৩৪" || cloudHash.isNullOrBlank()) {
-                    return@withContext true
-                }
-            }
-
-            // Condition 7: Universal fallback for standard default PIN "1234"
-            if (cleanInput == "1234" || rawInput == "1234" || bnInput == "১২৩৪") {
-                return@withContext true
-            }
-
+            // Removed: the staff PIN, the registered e-mail with "1234", and "1234" itself used to
+            // be accepted as the owner's master PIN for every shop.
             return@withContext false
         } catch (e: Exception) {
             Log.e(tag, "Error verifying master pin: ${e.message}")
-            return@withContext masterPinInput.isNotBlank()
+            // A network error must not log anyone in.
+            return@withContext false
         }
     }
 
@@ -459,7 +440,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
                 db.getReference("shops").child(cleanCode).child("security").get().await()
             }
             if (!secSnap.exists()) {
-                return@withContext true
+                return@withContext false
             }
 
             val cloudStaffPin = secSnap.child("staffPin").value?.toString()?.trim()
@@ -467,7 +448,8 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             val cloudHash = secSnap.child("masterPinHash").value?.toString()?.trim()?.lowercase()
 
             if (cloudStaffPin.isNullOrBlank()) {
-                return@withContext cleanInput == "0000" || cleanInput == "1234" || cleanInput.length in 4..6
+                // No shared staff PIN configured: staff must use their own PIN from the staff list.
+                return@withContext false
             }
 
             val cleanCloud = com.example.util.Formatters.fromBengaliDigits(cloudStaffPin).trim()
@@ -488,14 +470,10 @@ class FirebaseSyncManager(private val dao: PaponDao) {
                 if (inputHash == cloudHash) return@withContext true
             }
 
-            if (cleanInput == "0000" || cleanInput == "1234" || rawInput == "0000" || rawInput == "1234") {
-                return@withContext true
-            }
-
             return@withContext false
         } catch (e: Exception) {
             Log.e(tag, "Error verifying staff pin: ${e.message}")
-            return@withContext staffPinInput.isNotBlank()
+            return@withContext false
         }
     }
 
@@ -610,10 +588,9 @@ class FirebaseSyncManager(private val dao: PaponDao) {
                 }
 
                 if (matchedStaff != null && matchedStaff.isActive) {
-                    val pinMatches = matchedStaff.pin.trim() == cleanPin ||
-                                     matchedStaff.pin.trim() == rawPin ||
-                                     hashPin(cleanPin) == hashPin(matchedStaff.pin) ||
-                                     rawPin == "1234" || cleanPin == "1234"
+                    val pinMatches = matchedStaff.pin.isNotBlank() && (
+                                     matchedStaff.pin.trim() == cleanPin ||
+                                     matchedStaff.pin.trim() == rawPin)
                     if (pinMatches) {
                         return@withContext Pair(true, matchedStaff)
                     }
@@ -634,7 +611,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             return@withContext Pair(false, null)
         } catch (e: Exception) {
             Log.e(tag, "Error in verifySpecificStaffPin: ${e.message}")
-            return@withContext Pair(pinInput.isNotBlank(), null)
+            return@withContext Pair(false, null)
         }
     }
 
@@ -815,134 +792,106 @@ class FirebaseSyncManager(private val dao: PaponDao) {
     }
 
     /**
-     * Push all local Room DB data to Firebase (Zero data loss for existing users).
+     * Push local Room data to Firebase (zero data loss for existing users).
+     * Products, customers and suppliers are always pushed (they change in place). Sales, expenses,
+     * purchases and ledger rows are append-only, so only the ones missing in the cloud are sent.
      */
     suspend fun pushAllLocalDataToCloud(targetRef: DatabaseReference? = null) = withContext(Dispatchers.IO) {
         val shopRef = targetRef ?: currentShopRef ?: return@withContext
+        val known = { node: String -> cloudKeys[node] ?: emptySet() }
         try {
             // 1. Products
-            val products = dao.getAllActiveProducts().first()
-            val productMap = mutableMapOf<String, Any>()
-            products.forEach { prod ->
-                productMap[prod.id.toString()] = mapOf(
-                    "id" to prod.id,
-                    "nameBn" to prod.nameBn,
-                    "nameEn" to prod.nameEn,
-                    "barcode" to prod.barcode,
-                    "salePricePoisha" to prod.salePricePoisha,
-                    "purchasePricePoisha" to prod.purchasePricePoisha,
-                    "wholesalePricePoisha" to prod.wholesalePricePoisha,
-                    "stockQty" to prod.stockQty,
-                    "minStock" to prod.minStock,
-                    "unitName" to prod.unitName,
-                    "categoryId" to prod.categoryId,
-                    "isActive" to if (prod.isActive) 1 else 0,
-                    "updatedAt" to prod.updatedAt
-                )
-            }
-            if (productMap.isNotEmpty()) {
-                shopRef.child("products").updateChildren(productMap)
-            }
+            val productMap = dao.getAllActiveProducts().first().associate { it.id.toString() to CloudMappers.product(it) }
+            if (productMap.isNotEmpty()) shopRef.child("products").updateChildren(productMap)
 
-            // 2. Customers
-            val customers = dao.getAllCustomers().first()
-            val customerMap = mutableMapOf<String, Any>()
-            customers.forEach { cust ->
-                customerMap[cust.id.toString()] = mapOf(
-                    "id" to cust.id,
-                    "name" to cust.name,
-                    "phone" to cust.phone,
-                    "address" to (cust.address ?: ""),
-                    "creditLimitPoisha" to cust.creditLimitPoisha,
-                    "isActive" to if (cust.isActive) 1 else 0,
-                    "createdAt" to cust.createdAt
-                )
+            // 2. Customers, with their current balance so the web app shows the same due
+            val ledgers = dao.getAllCustomerLedgersSync()
+            val dueByCustomer = ledgers.groupBy { it.customerId }.mapValues { (_, l) -> l.sumOf { it.debitPoisha - it.creditPoisha } }
+            val customerMap = dao.getAllCustomers().first().associate {
+                it.id.toString() to CloudMappers.customer(it, dueByCustomer[it.id] ?: 0L)
             }
-            if (customerMap.isNotEmpty()) {
-                shopRef.child("customers").updateChildren(customerMap)
-            }
+            if (customerMap.isNotEmpty()) shopRef.child("customers").updateChildren(customerMap)
 
             // 3. Suppliers
-            val suppliers = dao.getAllSuppliers().first()
-            val supplierMap = mutableMapOf<String, Any>()
-            suppliers.forEach { sup ->
-                supplierMap[sup.id.toString()] = mapOf(
-                    "id" to sup.id,
-                    "name" to sup.name,
-                    "company" to (sup.company ?: ""),
-                    "phone" to sup.phone,
-                    "address" to (sup.address ?: ""),
-                    "isActive" to if (sup.isActive) 1 else 0,
-                    "createdAt" to sup.createdAt
-                )
-            }
-            if (supplierMap.isNotEmpty()) {
-                shopRef.child("suppliers").updateChildren(supplierMap)
-            }
+            val supplierMap = dao.getAllSuppliers().first().associate { it.id.toString() to CloudMappers.supplier(it) }
+            if (supplierMap.isNotEmpty()) shopRef.child("suppliers").updateChildren(supplierMap)
 
-            // 4. Sales and Sale Items
-            try {
-                val sales = dao.getAllSalesSync()
-                val allSaleItems = dao.getAllSaleItemsSync().groupBy { it.saleId }
-                val saleMap = mutableMapOf<String, Any>()
-                sales.takeLast(1000).forEach { sale ->
-                    val items = allSaleItems[sale.id] ?: emptyList()
-                    saleMap[sale.id.toString()] = mapOf(
-                        "id" to sale.id,
-                        "invoiceNo" to sale.invoiceNo,
-                        "subtotalPoisha" to sale.subtotalPoisha,
-                        "discountPoisha" to sale.discountPoisha,
-                        "vatPoisha" to sale.vatPoisha,
-                        "totalPoisha" to sale.totalPoisha,
-                        "paidAmountPoisha" to sale.paidAmountPoisha,
-                        "dueAmountPoisha" to sale.dueAmountPoisha,
-                        "customerId" to (sale.customerId ?: 0L),
-                        "customerName" to (sale.customerName ?: ""),
-                        "saleDate" to sale.saleDate,
-                        "paymentMethod" to sale.paymentMethod,
-                        "items" to items.map {
-                            mapOf(
-                                "id" to it.id,
-                                "productId" to it.productId,
-                                "productName" to it.productName,
-                                "unitName" to it.unitName,
-                                "qty" to it.qty,
-                                "unitPricePoisha" to it.unitPricePoisha,
-                                "purchasePriceAtSalePoisha" to it.purchasePriceAtSalePoisha,
-                                "discountPoisha" to it.discountPoisha,
-                                "lineTotalPoisha" to it.lineTotalPoisha
-                            )
-                        }
-                    )
-                }
-                if (saleMap.isNotEmpty()) {
-                    shopRef.child("sales").updateChildren(saleMap)
-                }
-            } catch (e: Exception) {
-                Log.w(tag, "Error pushing sales to Firebase", e)
-            }
+            // 4. Sales (all of them, not just the last 1000) that the cloud doesn't have yet
+            val itemsBySale = dao.getAllSaleItemsSync().groupBy { it.saleId }
+            val saleMap = dao.getAllSalesSync()
+                .filter { it.id.toString() !in known("sales") }
+                .associate { it.id.toString() to saleRecord(it, itemsBySale[it.id].orEmpty()) }
+            saleMap.entries.chunked(500).forEach { chunk -> shopRef.child("sales").updateChildren(chunk.associate { it.key to it.value }) }
 
-            // 5. Update metadata
+            // 5. Expenses, purchases and the customer due ledger (previously never backed up)
+            val expenseMap = dao.getAllExpensesSync()
+                .filter { it.id.toString() !in known("expenses") }
+                .associate { it.id.toString() to CloudMappers.expense(it) }
+            if (expenseMap.isNotEmpty()) shopRef.child("expenses").updateChildren(expenseMap)
+
+            val itemsByPurchase = dao.getAllPurchaseItemsSync().groupBy { it.purchaseId }
+            val purchaseMap = dao.getAllPurchasesSync()
+                .filter { it.id.toString() !in known("purchases") }
+                .associate { it.id.toString() to CloudMappers.purchase(it, itemsByPurchase[it.id].orEmpty()) }
+            if (purchaseMap.isNotEmpty()) shopRef.child("purchases").updateChildren(purchaseMap)
+
+            val ledgerMap = ledgers
+                .filter { it.id.toString() !in known("customer_ledger") }
+                .associate { it.id.toString() to CloudMappers.ledger(it) }
+            ledgerMap.entries.chunked(500).forEach { chunk -> shopRef.child("customer_ledger").updateChildren(chunk.associate { it.key to it.value }) }
+
+            // 6. Metadata
             shopRef.child("info").updateChildren(mapOf(
                 "shopCode" to currentShopCode,
                 "lastBackupAt" to ServerValue.TIMESTAMP
             ))
 
-            _syncStatus.value = _syncStatus.value.copy(
-                lastSyncTime = System.currentTimeMillis()
-            )
-
-            Log.d(tag, "Local data successfully pushed to Firebase for shop $currentShopCode")
+            _syncStatus.value = _syncStatus.value.copy(lastSyncTime = System.currentTimeMillis())
+            Log.d(tag, "Local data pushed to Firebase for shop $currentShopCode")
         } catch (e: Exception) {
             Log.e(tag, "Error pushing all local data to Firebase", e)
         }
     }
+
+    private fun saleRecord(sale: Sale, items: List<SaleItem>): Map<String, Any?> = mapOf(
+        "id" to sale.id,
+        "invoiceNo" to sale.invoiceNo,
+        "subtotalPoisha" to sale.subtotalPoisha,
+        "discountPoisha" to sale.discountPoisha,
+        "vatPoisha" to sale.vatPoisha,
+        "totalPoisha" to sale.totalPoisha,
+        "paidAmountPoisha" to sale.paidAmountPoisha,
+        "dueAmountPoisha" to sale.dueAmountPoisha,
+        "customerId" to (sale.customerId ?: 0L),
+        "customerName" to (sale.customerName ?: ""),
+        "saleDate" to sale.saleDate,
+        "createdAt" to sale.createdAt,
+        "paymentMethod" to sale.paymentMethod,
+        "note" to (sale.note ?: ""),
+        "isReturned" to sale.isReturned,
+        "items" to items.map {
+            mapOf(
+                "id" to it.id,
+                "productId" to it.productId,
+                "productName" to it.productName,
+                "unitName" to it.unitName,
+                "qty" to it.qty,
+                "unitPricePoisha" to it.unitPricePoisha,
+                "purchasePriceAtSalePoisha" to it.purchasePriceAtSalePoisha,
+                "discountPoisha" to it.discountPoisha,
+                "lineTotalPoisha" to it.lineTotalPoisha
+            )
+        }
+    )
 
     /**
      * Pull data from cloud on employee first connection.
      */
     private suspend fun pullInitialDataFromCloud(shopRef: DatabaseReference) = withContext(Dispatchers.IO) {
         val snapshot = shopRef.get().await()
+        for (node in listOf("products", "customers", "suppliers", "sales", "customer_ledger", "expenses", "purchases")) {
+            cloudKeys[node] = snapshot.child(node).children.mapNotNull { it.key }.toSet()
+        }
 
         // Safe snapshot helper extensions
         fun DataSnapshot.readLong(childKey: String, default: Long = 0L): Long =
@@ -982,7 +931,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
                 val minStock = pChild.readDouble("minStock", 5.0)
                 val unitName = pChild.readString("unitName", "কেজি")
                 val categoryId = pChild.readLong("categoryId", 1L)
-                val isActive = pChild.readBoolean("isActive", true)
+                val isActive = CloudMappers.readActive(pChild, true)
                 val updatedAt = pChild.readLong("updatedAt", System.currentTimeMillis())
 
                 val p = Product(
@@ -1118,7 +1067,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
                         val lineTotal = itemChild.readLong("lineTotalPoisha", 0L)
                         saleItemsToInsert.add(
                             SaleItem(
-                                id = itemId,
+                                id = 0L,
                                 saleId = saleId,
                                 productId = productId,
                                 productName = productName,
@@ -1156,8 +1105,24 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             if (saleItemsToInsert.isNotEmpty()) {
                 dao.insertSaleItems(saleItemsToInsert)
             }
-            if (ledgersToInsert.isNotEmpty()) {
+            // Due ledger: prefer the real ledger backup (includes payments); older backups only
+            // have sales, so fall back to rebuilding the ledger from sale dues.
+            val cloudLedgers = snapshot.child("customer_ledger").children.mapNotNull { CloudMappers.readLedger(it) }
+            if (cloudLedgers.isNotEmpty()) {
+                dao.insertCustomerLedgers(cloudLedgers)
+            } else if (ledgersToInsert.isNotEmpty()) {
                 dao.insertCustomerLedgers(ledgersToInsert)
+            }
+
+            val expenses = snapshot.child("expenses").children.mapNotNull { CloudMappers.readExpense(it) }
+            if (expenses.isNotEmpty()) dao.insertExpenses(expenses)
+
+            val newPurchases = snapshot.child("purchases").children
+                .mapNotNull { CloudMappers.readPurchase(it) }
+                .filter { dao.getPurchaseById(it.first.id) == null }
+            if (newPurchases.isNotEmpty()) {
+                dao.insertPurchases(newPurchases.map { it.first })
+                dao.insertPurchaseItems(newPurchases.flatMap { it.second })
             }
         }
     }
@@ -1276,7 +1241,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
                 val barcode = snapshot.child("barcode").getValue(String::class.java) ?: local?.barcode ?: ""
                 val unitName = snapshot.child("unitName").getValue(String::class.java) ?: local?.unitName ?: "কেজি"
                 val categoryId = snapshot.child("categoryId").getValue(Long::class.java) ?: local?.categoryId ?: 1L
-                val isActive = (snapshot.child("isActive").getValue(Long::class.java) ?: if (local?.isActive == false) 0L else 1L) == 1L
+                val isActive = CloudMappers.readActive(snapshot, local?.isActive ?: true)
 
                 val product = Product(
                     id = id,
@@ -1357,7 +1322,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
 
                     items.add(
                         SaleItem(
-                            id = itemId,
+                            id = 0L,
                             saleId = saleId,
                             productId = productId,
                             productName = productName,
@@ -1370,11 +1335,28 @@ class FirebaseSyncManager(private val dao: PaponDao) {
                         )
                     )
 
-                    // Adjust local stock if not already adjusted
-                    dao.adjustProductStock(productId, -qty)
+                    // No local stock change here: the seller already adjusted the cloud stock with a
+                    // transaction, and the products listener delivers that value. Deducting again here
+                    // counted every remote sale twice.
                 }
                 if (items.isNotEmpty()) {
                     dao.insertSaleItems(items)
+                }
+
+                // A due sale from another phone (e.g. staff) must also raise the customer's due here.
+                if (dueAmountPoisha > 0 && customerId != null && dao.countCustomerLedgerByRef("sale", saleId) == 0) {
+                    dao.insertCustomerLedger(
+                        CustomerLedger(
+                            id = com.example.util.IdGen.next(),
+                            customerId = customerId,
+                            refType = "sale",
+                            refId = saleId,
+                            debitPoisha = dueAmountPoisha,
+                            creditPoisha = 0L,
+                            note = "বাকিতে বিক্রয়: $invoiceNo",
+                            entryDate = saleDate
+                        )
+                    )
                 }
 
                 _syncStatus.value = _syncStatus.value.copy(lastSyncTime = System.currentTimeMillis())
@@ -1385,87 +1367,85 @@ class FirebaseSyncManager(private val dao: PaponDao) {
     }
 
     /**
-     * Broadcast a new sale to Firebase instantly.
+     * Applies a stock change atomically in the cloud. Several phones selling at once used to
+     * overwrite each other's absolute stock values; a transaction adds the deltas instead.
      */
-    fun pushSale(sale: Sale, items: List<SaleItem>) {
+    fun adjustCloudStock(productId: Long, delta: Double) {
         val ref = currentShopRef ?: return
-        val saleMap = mapOf(
-            "id" to sale.id,
-            "invoiceNo" to sale.invoiceNo,
-            "subtotalPoisha" to sale.subtotalPoisha,
-            "discountPoisha" to sale.discountPoisha,
-            "vatPoisha" to sale.vatPoisha,
-            "totalPoisha" to sale.totalPoisha,
-            "paidAmountPoisha" to sale.paidAmountPoisha,
-            "dueAmountPoisha" to sale.dueAmountPoisha,
-            "customerId" to (sale.customerId ?: 0L),
-            "customerName" to (sale.customerName ?: ""),
-            "saleDate" to sale.saleDate,
-            "paymentMethod" to sale.paymentMethod,
-            "note" to (sale.note ?: ""),
-            "items" to items.map {
-                mapOf(
-                    "id" to it.id,
-                    "productId" to it.productId,
-                    "productName" to it.productName,
-                    "unitName" to it.unitName,
-                    "qty" to it.qty,
-                    "unitPricePoisha" to it.unitPricePoisha,
-                    "purchasePriceAtSalePoisha" to it.purchasePriceAtSalePoisha,
-                    "discountPoisha" to it.discountPoisha,
-                    "lineTotalPoisha" to it.lineTotalPoisha
-                )
+        if (productId <= 0L || delta == 0.0) return
+        val productRef = ref.child("products").child(productId.toString())
+        productRef.child("stockQty").runTransaction(object : Transaction.Handler {
+            override fun doTransaction(current: MutableData): Transaction.Result {
+                val now = (current.value as? Number)?.toDouble() ?: current.value?.toString()?.toDoubleOrNull()
+                    ?: return Transaction.abort() // product not in the cloud yet; the next full push sends it
+                current.value = now + delta
+                return Transaction.success(current)
             }
-        )
-        ref.child("sales").child(sale.id.toString()).setValue(saleMap)
 
-        // Also update stock in cloud for each product
-        items.forEach { item ->
-            scope.launch {
-                val prod = dao.getProductById(item.productId)
-                if (prod != null) {
-                    ref.child("products").child(prod.id.toString()).child("stockQty").setValue(prod.stockQty)
-                }
+            override fun onComplete(error: DatabaseError?, committed: Boolean, snapshot: DataSnapshot?) {
+                if (error != null) Log.w(tag, "Stock transaction failed for $productId: ${error.message}")
+                else if (committed) productRef.child("updatedAt").setValue(System.currentTimeMillis())
             }
-        }
+        })
     }
 
-    /**
-     * Push product addition / price update to cloud.
-     */
+    /** Broadcast a new sale to Firebase instantly. */
+    fun pushSale(sale: Sale, items: List<SaleItem>) {
+        val ref = currentShopRef ?: return
+        ref.child("sales").child(sale.id.toString()).setValue(saleRecord(sale, items))
+        items.forEach { adjustCloudStock(it.productId, -it.qty) }
+    }
+
+    /** Re-sends a sale after a return/edit (owner only by the rules) and the stock that came back. */
+    fun pushSaleUpdate(sale: Sale, items: List<SaleItem>, restocked: Map<Long, Double>) {
+        val ref = currentShopRef ?: return
+        if (currentUserRole == "owner") ref.child("sales").child(sale.id.toString()).setValue(saleRecord(sale, items))
+        restocked.forEach { (productId, qty) -> adjustCloudStock(productId, qty) }
+    }
+
+    fun deleteSaleFromCloud(saleId: Long) {
+        if (currentUserRole != "owner") return
+        currentShopRef?.child("sales")?.child(saleId.toString())?.removeValue()
+    }
+
+    /** Push product addition / price update to cloud. */
     fun pushProduct(product: Product) {
         val ref = currentShopRef ?: return
-        val map = mapOf(
-            "id" to product.id,
-            "nameBn" to product.nameBn,
-            "nameEn" to product.nameEn,
-            "barcode" to product.barcode,
-            "salePricePoisha" to product.salePricePoisha,
-            "purchasePricePoisha" to product.purchasePricePoisha,
-            "wholesalePricePoisha" to product.wholesalePricePoisha,
-            "stockQty" to product.stockQty,
-            "minStock" to product.minStock,
-            "unitName" to product.unitName,
-            "categoryId" to product.categoryId,
-            "isActive" to if (product.isActive) 1 else 0,
-            "updatedAt" to product.updatedAt
-        )
-        ref.child("products").child(product.id.toString()).setValue(map)
+        ref.child("products").child(product.id.toString()).setValue(CloudMappers.product(product))
     }
 
     fun deleteProduct(productId: Long) {
         val ref = currentShopRef ?: return
-        ref.child("products").child(productId.toString()).child("isActive").setValue(0)
+        ref.child("products").child(productId.toString()).child("isActive").setValue(false)
     }
 
-    fun syncProductStock(productId: Long) {
+    /** Manual stock adjustment (damage, count correction…): sent as a delta. */
+    fun syncProductStock(productId: Long, delta: Double) = adjustCloudStock(productId, delta)
+
+    fun pushCustomer(customer: Customer, duePoisha: Long?) {
+        currentShopRef?.child("customers")?.child(customer.id.toString())?.updateChildren(CloudMappers.customer(customer, duePoisha))
+    }
+
+    fun pushSupplier(supplier: Supplier) {
+        currentShopRef?.child("suppliers")?.child(supplier.id.toString())?.updateChildren(CloudMappers.supplier(supplier))
+    }
+
+    fun pushExpense(expense: Expense) {
+        currentShopRef?.child("expenses")?.child(expense.id.toString())?.setValue(CloudMappers.expense(expense))
+    }
+
+    fun pushPurchase(purchase: Purchase, items: List<PurchaseItem>) {
         val ref = currentShopRef ?: return
-        scope.launch {
-            val prod = dao.getProductById(productId)
-            if (prod != null) {
-                ref.child("products").child(productId.toString()).child("stockQty").setValue(prod.stockQty)
-            }
-        }
+        ref.child("purchases").child(purchase.id.toString()).setValue(CloudMappers.purchase(purchase, items))
+        items.forEach { adjustCloudStock(it.productId, it.qty) }
+    }
+
+    /** Owner only (rules): staff phones' due sales reach the ledger through the owner's phone. */
+    fun pushCustomerLedger(entry: CustomerLedger, customer: Customer?, duePoisha: Long?) {
+        val ref = currentShopRef ?: return
+        if (currentUserRole != "owner") return
+        ref.child("customer_ledger").child(entry.id.toString()).setValue(CloudMappers.ledger(entry))
+        if (customer != null) pushCustomer(customer, duePoisha)
     }
 
     /**

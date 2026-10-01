@@ -208,7 +208,10 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.issue_app_license(TEXT, TEXT, TEXT, TEXT, INT, TIMESTAMPTZ) TO anon, authenticated, service_role;
+-- Only the service role (dashboard / server) may issue licenses. Never grant this to anon:
+-- the anon key ships inside the app, so anyone could mint free licenses.
+REVOKE EXECUTE ON FUNCTION public.issue_app_license(TEXT, TEXT, TEXT, TEXT, INT, TIMESTAMPTZ) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.issue_app_license(TEXT, TEXT, TEXT, TEXT, INT, TIMESTAMPTZ) TO service_role;
 
 -- ==============================================================================
 -- 7. Anti-Abuse 1-Hour Free Demo Device Registry
