@@ -430,6 +430,24 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
             startDemoTimerTicker()
         }
 
+        // Paid licenses: expired, blocked or removed licenses stop working (checked online at most daily).
+        if (licenseManager.isRealLicenseActive()) {
+            viewModelScope.launch {
+                when (val r = licenseManager.revalidateLicense()) {
+                    is com.example.data.license.LicenseCheckResult.Revoked -> {
+                        _activationError.value = r.message
+                        _isAppActivated.value = false
+                        showToast(r.message)
+                    }
+                    is com.example.data.license.LicenseCheckResult.NeedsOnline -> {
+                        _activationError.value = r.message
+                        _isAppActivated.value = false
+                    }
+                    else -> Unit
+                }
+            }
+        }
+
         // Anti-abuse: Check hardware device ID in cloud on launch (e.g. if user did 'Clear Storage')
         if (!licenseManager.isRealLicenseActive()) {
             viewModelScope.launch {
@@ -1048,10 +1066,19 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteSale(saleId: Long, onSuccess: (() -> Unit)? = null) {
         viewModelScope.launch {
             repository.deleteSale(saleId)
+            cloud { it.deleteSaleFromCloud(saleId) }
             showToast("বিক্রয় রেকর্ড মুছে ফেলা হয়েছে")
             onSuccess?.invoke()
         }
     }
+
+    /** Runs [block] only when live cloud sync is on. */
+    private fun cloud(block: (com.example.data.firebase.FirebaseSyncManager) -> Unit) {
+        if (::firebaseSyncManager.isInitialized && _shopConfig.value.firebaseSyncEnabled) block(firebaseSyncManager)
+    }
+
+    private suspend fun customerDue(customerId: Long): Long =
+        try { repository.getCustomerBalance(customerId).first() } catch (_: Exception) { 0L }
 
     fun returnSaleItems(
         saleId: Long,
@@ -1059,8 +1086,17 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         onSuccess: (() -> Unit)? = null
     ) {
         viewModelScope.launch {
+            val itemsBefore = repository.getSaleItems(saleId)
             val success = repository.returnSaleItems(saleId, returnedItems)
             if (success) {
+                // Send the corrected sale and the returned stock to the cloud.
+                val restocked = returnedItems.mapNotNull { (itemId, qty) ->
+                    itemsBefore.firstOrNull { it.id == itemId }?.takeIf { it.productId > 0 && qty > 0 }?.let { it.productId to qty }
+                }.groupBy({ it.first }, { it.second }).mapValues { it.value.sum() }
+                repository.getSaleById(saleId)?.let { updatedSale ->
+                    val remaining = repository.getSaleItems(saleId)
+                    cloud { it.pushSaleUpdate(updatedSale, remaining, restocked) }
+                }
                 showToast("পণ্য সফলভাবে ফেরত নেওয়া হয়েছে এবং স্টক সমন্বয় করা হয়েছে")
                 if (_lastCompletedSale.value?.id == saleId) {
                     val updated = repository.getSaleById(saleId)
@@ -1080,7 +1116,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.adjustStock(productId, productName, qtyChange, reason, note)
             if (::firebaseSyncManager.isInitialized && _shopConfig.value.firebaseSyncEnabled) {
-                firebaseSyncManager.syncProductStock(productId)
+                firebaseSyncManager.syncProductStock(productId, qtyChange)
             }
             showToast("স্টক সমন্বয় সম্পন্ন হয়েছে")
         }
@@ -1095,6 +1131,8 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         viewModelScope.launch {
             val id = repository.saveCustomer(customer, initialDuePoisha, initialDueNote)
+            val due = customerDue(id)
+            cloud { it.pushCustomer(customer.copy(id = id), due) }
             showToast("কাস্টমার সফলভাবে যোগ করা হয়েছে")
             onSuccess(id)
         }
@@ -1123,7 +1161,16 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
     fun collectDuePayment(customerId: Long, amountPoisha: Long, note: String?, onSuccess: () -> Unit) {
         viewModelScope.launch {
-            repository.collectDuePayment(customerId, amountPoisha, note)
+            val ledgerId = repository.collectDuePayment(customerId, amountPoisha, note)
+            val due = customerDue(customerId)
+            val customer = repository.getCustomerById(customerId)
+            cloud {
+                it.pushCustomerLedger(
+                    CustomerLedger(id = ledgerId, customerId = customerId, refType = "payment", creditPoisha = amountPoisha, note = note),
+                    customer,
+                    due
+                )
+            }
             showToast("বাকি আদায় সফল হয়েছে")
             onSuccess()
         }
@@ -1140,7 +1187,8 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     // --- SUPPLIER & PURCHASES ---
     fun saveSupplier(supplier: Supplier, onSuccess: () -> Unit) {
         viewModelScope.launch {
-            repository.saveSupplier(supplier)
+            val savedId = repository.saveSupplier(supplier)
+            cloud { it.pushSupplier(supplier.copy(id = savedId)) }
             showToast("সাপ্লায়ার যোগ করা হয়েছে")
             onSuccess()
         }
@@ -1150,6 +1198,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val id = repository.saveSupplier(supplier)
             val created = supplier.copy(id = id)
+            cloud { it.pushSupplier(created) }
             showToast("সাপ্লায়ার যোগ করা হয়েছে")
             onSaved(created)
         }
@@ -1223,7 +1272,8 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         onSuccess: () -> Unit
     ) {
         viewModelScope.launch {
-            repository.recordPurchase(purchase, items)
+            val purchaseId = repository.recordPurchase(purchase, items)
+            cloud { sync -> sync.pushPurchase(purchase.copy(id = purchaseId), items.map { it.copy(purchaseId = purchaseId) }) }
             showToast("ক্রয় এন্ট্রি সম্পন্ন হয়েছে ও স্টক বেড়েছে")
             onSuccess()
         }
@@ -1238,7 +1288,8 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 amountPoisha = amountPoisha,
                 note = note
             )
-            repository.addExpense(expense)
+            val expenseId = repository.addExpense(expense)
+            cloud { it.pushExpense(expense.copy(id = expenseId)) }
             showToast("খরচ যোগ করা হয়েছে")
             onSuccess()
         }
@@ -1478,12 +1529,14 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 } catch (_: Throwable) { 0.0 }
             }
             val pinEnabled = prefs.getBoolean("pin_enabled", false)
-            val pinCode = prefs.getString("pin_code", "1234") ?: "1234"
-            val staffPin = prefs.getString("staff_pin", "0000") ?: "0000"
+            // PINs and the staff list (which holds staff PINs) are stored encrypted with the Android Keystore.
+            com.example.util.SecureStore.migrate(prefs, "pin_code", "staff_pin", "staff_members_json")
+            val pinCode = com.example.util.SecureStore.getString(prefs, "pin_code", "1234")
+            val staffPin = com.example.util.SecureStore.getString(prefs, "staff_pin", "0000")
             val userRole = prefs.getString("user_role", "owner") ?: "owner"
             val staffName = prefs.getString("staff_name", "") ?: ""
             val staffEmail = prefs.getString("staff_email", "") ?: ""
-            val staffMembersJson = prefs.getString("staff_members_json", "[]") ?: "[]"
+            val staffMembersJson = com.example.util.SecureStore.getString(prefs, "staff_members_json", "[]").ifBlank { "[]" }
             val allowNegativeStock = prefs.getBoolean("allow_negative_stock", true)
             val isOnboardingCompleted = prefs.getBoolean("is_onboarding_completed", false)
             val noticeMessage = prefs.getString("notice_message", "") ?: ""
@@ -1531,12 +1584,12 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 putBoolean("vat_enabled", config.vatEnabled)
                 putFloat("vat_percentage", config.vatPercentage.toFloat())
                 putBoolean("pin_enabled", config.pinEnabled)
-                putString("pin_code", config.pinCode)
-                putString("staff_pin", config.staffPin)
+                com.example.util.SecureStore.putString(this, "pin_code", config.pinCode)
+                com.example.util.SecureStore.putString(this, "staff_pin", config.staffPin)
                 putString("user_role", config.userRole)
                 putString("staff_name", config.staffName)
                 putString("staff_email", config.staffEmail)
-                putString("staff_members_json", config.staffMembersJson)
+                com.example.util.SecureStore.putString(this, "staff_members_json", config.staffMembersJson)
                 putBoolean("allow_negative_stock", config.allowNegativeStock)
                 putBoolean("is_onboarding_completed", config.isOnboardingCompleted)
                 putString("notice_message", config.noticeMessage)
@@ -2257,13 +2310,12 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         val rawMaster = _shopConfig.value.pinCode.trim()
         val rawStaff = _shopConfig.value.staffPin.trim()
 
+        // The owner's phone unlocks only with the master PIN; a staff phone only with its staff PIN.
+        // (Previously "1234"/"0000" unlocked every phone, and the staff PIN unlocked the owner's.)
+        val isOwner = _shopConfig.value.userRole == "owner"
         val matches = !_shopConfig.value.pinEnabled ||
-                clean == cleanMaster ||
-                clean == cleanStaff ||
-                pin.trim() == rawMaster ||
-                pin.trim() == rawStaff ||
-                clean == "1234" ||
-                clean == "0000"
+                (isOwner && (cleanMaster.isEmpty() || clean == cleanMaster || pin.trim() == rawMaster)) ||
+                (!isOwner && (cleanStaff.isEmpty() || clean == cleanStaff || pin.trim() == rawStaff))
 
         return if (matches) {
             _isPinUnlocked.value = true
