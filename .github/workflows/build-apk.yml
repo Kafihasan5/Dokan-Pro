@@ -26,27 +26,20 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Ensure Debug Keystore
+      # Signing keys come only from repository secrets (Settings → Secrets and variables → Actions):
+      #   RELEASE_KEYSTORE_BASE64  base64 of the .jks file   (base64 -i release.jks | pbcopy)
+      #   RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD
+      # Never commit a keystore or its password: this repository is public.
+      - name: Restore Signing Key
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
         run: |
-          if [ ! -f debug.keystore ]; then
-            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add debug.keystore
-            git commit -m "Generate persistent debug.keystore for consistent in-app update signatures [skip ci]" || true
-            git push origin main || true
+          if [ -z "$RELEASE_KEYSTORE_BASE64" ]; then
+            echo "::error::RELEASE_KEYSTORE_BASE64 secret is missing; refusing to publish an unsigned or publicly-signed app."
+            exit 1
           fi
-
-      - name: Ensure PlayStore Upload Keystore
-        run: |
-          if [ ! -f playstore-upload.jks ]; then
-            keytool -genkey -v -keystore playstore-upload.jks -storepass dokanpro2026 -alias dokanpro -keypass dokanpro2026 -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Dokan Pro,OU=Mobile,O=Webix,L=Dhaka,ST=Dhaka,C=BD"
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add playstore-upload.jks
-            git commit -m "Generate persistent playstore-upload.jks for Google Play App Signing [skip ci]" || true
-            git push origin main || true
-          fi
+          echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+          echo "KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
       - name: Accept Android SDK Licenses
         run: |
@@ -66,13 +59,17 @@ jobs:
             cp .env.example .env
           fi
 
-      - name: Build GitHub Version (Debug APK)
+      - name: Build Signed APK and Play Store Bundle
+        env:
+          STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
-          gradle assembleDebug -PversionCode=${{ github.run_number }} -PversionName="1.0.${{ github.run_number }}" --no-daemon --stacktrace
+          gradle assembleRelease bundleRelease -PversionCode=${{ github.run_number }} -PversionName="1.0.${{ github.run_number }}" --no-daemon --stacktrace
 
-      - name: Build Play Store Version (Release AAB)
-        run: |
-          gradle bundleRelease -PversionCode=${{ github.run_number }} -PversionName="1.0.${{ github.run_number }}" --no-daemon --stacktrace
+      - name: Remove Signing Key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"
 
       - name: Prepare PlayStore Release Folder
         run: |
@@ -98,8 +95,8 @@ jobs:
       - name: Upload GitHub APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/*.apk
+          name: app-release
+          path: app/build/outputs/apk/release/*.apk
           retention-days: 7
 
       - name: Upload PlayStore AAB Artifact
@@ -115,13 +112,13 @@ jobs:
         run: |
           COMMIT_MSG=$(git log -1 --pretty=%s)
           gh release create "v${{ github.run_number }}" \
-            app/build/outputs/apk/debug/app-debug.apk \
+            app/build/outputs/apk/release/app-release.apk \
             playstore_release/app-release.aab \
             --title "Release v1.0.${{ github.run_number }}" \
             --notes "Automated release: $COMMIT_MSG (Includes GitHub APK and Play Store AAB Bundle)" \
             --latest || \
           gh release upload "v${{ github.run_number }}" \
-            app/build/outputs/apk/debug/app-debug.apk \
+            app/build/outputs/apk/release/app-release.apk \
             playstore_release/app-release.aab \
             --clobber
 
@@ -132,7 +129,7 @@ jobs:
           {
             "versionCode": ${{ github.run_number }},
             "versionName": "1.0.${{ github.run_number }}",
-            "downloadUrl": "https://github.com/${{ github.repository }}/releases/download/v${{ github.run_number }}/app-debug.apk",
+            "downloadUrl": "https://github.com/${{ github.repository }}/releases/download/v${{ github.run_number }}/app-release.apk",
             "playstoreBundleUrl": "https://github.com/${{ github.repository }}/releases/download/v${{ github.run_number }}/app-release.aab",
             "releaseNotes": "$COMMIT_MSG"
           }

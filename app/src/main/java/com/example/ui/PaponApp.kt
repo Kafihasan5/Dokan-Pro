@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Timer
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.ui.components.CloudSecurityDialog
 import com.example.ui.components.FloatingNavBar
 import com.example.ui.components.QuickActionBottomSheet
 import com.example.ui.components.UpdateDialog
@@ -39,6 +40,9 @@ fun DokanProApp(
     val isAppActivated by viewModel.isAppActivated.collectAsState()
     val isDemoMode by viewModel.isDemoMode.collectAsState()
     val remainingDemoMillis by viewModel.remainingDemoMillis.collectAsState()
+    val cloudPrompt by viewModel.cloudPrompt.collectAsState()
+    val cloudPromptMessage by viewModel.cloudPromptMessage.collectAsState()
+    val cloudBusy by viewModel.cloudBusy.collectAsState()
 
     // Handle toast messages
     LaunchedEffect(toastMessage) {
@@ -212,6 +216,23 @@ fun DokanProApp(
                 }
             }
         }
+
+    // Server-login prompts (weak PIN, changed PIN, staff re-login). Hidden during onboarding and behind the app lock.
+    val prompt = cloudPrompt
+    val promptVisible = prompt != null &&
+        (!isAppActivated || shopConfig.isOnboardingCompleted) &&
+        !(isAppActivated && shopConfig.pinEnabled && !isPinUnlocked)
+    if (promptVisible) {
+        CloudSecurityDialog(
+            prompt = prompt,
+            message = cloudPromptMessage,
+            isBusy = cloudBusy,
+            defaultIdentifier = shopConfig.ownerEmail.takeIf { it.contains("@") } ?: shopConfig.firebaseShopCode,
+            onSubmitLogin = { id, pin -> viewModel.submitCloudLogin(id, pin) },
+            onSubmitNewPin = { pin -> viewModel.submitNewMasterPin(pin) },
+            onDismiss = { viewModel.dismissCloudPrompt() }
+        )
+    }
 
     // In-App Auto Update Dialog
     if (showUpdateDialogEvent && appUpdateInfo.isUpdateAvailable) {

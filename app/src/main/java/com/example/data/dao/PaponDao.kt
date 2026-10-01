@@ -230,6 +230,10 @@ interface PaponDao {
     @Query("SELECT * FROM customer_ledger")
     suspend fun getAllCustomerLedgersSync(): List<CustomerLedger>
 
+    /** Whether a customer-ledger row already exists for a given source record (e.g. a synced sale). */
+    @Query("SELECT COUNT(*) FROM customer_ledger WHERE refType = :refType AND refId = :refId")
+    suspend fun countCustomerLedgerByRef(refType: String, refId: Long): Int
+
     @Query("SELECT * FROM suppliers")
     suspend fun getAllSuppliersSync(): List<Supplier>
 
