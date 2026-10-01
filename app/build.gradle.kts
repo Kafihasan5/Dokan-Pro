@@ -1,3 +1,5 @@
+import java.util.Properties
+
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
 
 plugins {
@@ -8,6 +10,16 @@ plugins {
   alias(libs.plugins.secrets)
   alias(libs.plugins.google.services)
 }
+
+// Release signing comes only from the environment (CI secrets) or an untracked keystore.properties.
+// Keystores and passwords must never be committed: the repository is public.
+val keystoreProps = Properties().apply {
+  val f = rootProject.file("keystore.properties")
+  if (f.exists()) f.inputStream().use { load(it) }
+}
+fun signingValue(env: String, prop: String): String? =
+  System.getenv(env)?.takeIf { it.isNotBlank() } ?: keystoreProps.getProperty(prop)?.takeIf { it.isNotBlank() }
+val releaseKeystorePath: String? = signingValue("KEYSTORE_PATH", "storeFile")
 
 android {
   namespace = "com.example"
@@ -27,40 +39,27 @@ android {
   }
 
   signingConfigs {
-    create("release") {
-      val uploadKey = file("${rootDir}/playstore-upload.jks")
-      val fallbackKey = file("${rootDir}/debug.keystore")
-      val customPath = System.getenv("KEYSTORE_PATH")
-      val keystoreFile = if (!customPath.isNullOrBlank()) file(customPath) else if (uploadKey.exists()) uploadKey else fallbackKey
-
-      storeFile = keystoreFile
-      if (keystoreFile == uploadKey || !customPath.isNullOrBlank()) {
-        storePassword = System.getenv("STORE_PASSWORD") ?: "dokanpro2026"
-        keyAlias = System.getenv("KEY_ALIAS") ?: "dokanpro"
-        keyPassword = System.getenv("KEY_PASSWORD") ?: "dokanpro2026"
-      } else {
-        storePassword = "android"
-        keyAlias = "androiddebugkey"
-        keyPassword = "android"
+    if (releaseKeystorePath != null) {
+      create("release") {
+        storeFile = file(releaseKeystorePath)
+        storePassword = signingValue("STORE_PASSWORD", "storePassword")
+        keyAlias = signingValue("KEY_ALIAS", "keyAlias")
+        keyPassword = signingValue("KEY_PASSWORD", "keyPassword")
       }
-    }
-    create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
     }
   }
 
   buildTypes {
     release {
       isCrunchPngs = false
-      isMinifyEnabled = false
+      // R8 shrinks and obfuscates the shipped app (rules in proguard-rules.pro).
+      isMinifyEnabled = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      // Without a configured keystore the release build is unsigned rather than signed with a public key.
+      signingConfig = signingConfigs.findByName("release")
     }
     debug {
-      signingConfig = signingConfigs.getByName("debugConfig")
+      // Uses the developer's own ~/.android/debug.keystore. Debug builds are for local testing only.
       isDebuggable = false
     }
   }
@@ -135,7 +134,8 @@ dependencies {
 
   // Uncomment ALL FOUR of the following dependencies together to use Firebase Auth and Google
   // Sign-In via Credential Manager:
-  // implementation(libs.firebase.auth)
+  implementation(libs.firebase.auth)
+  implementation(libs.firebase.functions)
   // implementation(libs.androidx.credentials)
   // implementation(libs.androidx.credentials.play.services)
   // implementation(libs.googleid)

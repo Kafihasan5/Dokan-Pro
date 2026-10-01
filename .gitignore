@@ -17,3 +17,8 @@ local.properties
 .env
 build-apk/
 .git_backup*
+
+# Signing material must never be committed (public repository)
+*.jks
+*.keystore
+keystore.properties

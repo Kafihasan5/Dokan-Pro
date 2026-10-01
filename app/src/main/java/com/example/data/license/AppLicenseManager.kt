@@ -29,6 +29,16 @@ sealed class ActivationResult {
     data class Error(val message: String) : ActivationResult()
 }
 
+sealed class LicenseCheckResult {
+    object Valid : LicenseCheckResult()
+    /** The server said the license is no longer usable; the app has been deactivated. */
+    data class Revoked(val message: String) : LicenseCheckResult()
+    /** Could not reach the server; still inside the offline grace period. */
+    object Offline : LicenseCheckResult()
+    /** Offline for longer than the grace period; the app must go online once. */
+    data class NeedsOnline(val message: String) : LicenseCheckResult()
+}
+
 sealed class DemoStartResult {
     data class Success(val remainingMillis: Long, val message: String) : DemoStartResult()
     data class Expired(val message: String) : DemoStartResult()
@@ -53,6 +63,108 @@ class AppLicenseManager(private val context: Context) {
         private const val KEY_DEMO_EXPIRES_AT = "demo_expires_at"
         private const val KEY_DEMO_ALREADY_USED = "demo_already_used"
         const val DEMO_DURATION_MILLIS = 24 * 60 * 60 * 1000L // 1 day (24 hours)
+
+        // License re-validation
+        private const val KEY_LAST_VERIFIED_AT = "license_last_verified_at"
+        private const val KEY_MAX_SEEN_CLOCK = "max_seen_clock"
+        private const val REVALIDATE_EVERY_MS = 24 * 60 * 60 * 1000L
+        /** How long a paid license keeps working without reaching the server. */
+        const val OFFLINE_GRACE_MS = 30L * 24 * 60 * 60 * 1000L
+        /** Clock moved back more than this = treated as tampering for time-limited licenses. */
+        private const val CLOCK_TOLERANCE_MS = 2 * 60 * 60 * 1000L
+    }
+
+    /** Remembers the latest wall-clock time seen, to detect the phone's clock being turned back. */
+    private fun trustedNow(): Long {
+        val now = System.currentTimeMillis()
+        val maxSeen = prefs.getLong(KEY_MAX_SEEN_CLOCK, 0L)
+        if (now > maxSeen) prefs.edit().putLong(KEY_MAX_SEEN_CLOCK, now).apply()
+        return maxOf(now, maxSeen)
+    }
+
+    private fun isClockRolledBack(): Boolean =
+        System.currentTimeMillis() + CLOCK_TOLERANCE_MS < prefs.getLong(KEY_MAX_SEEN_CLOCK, 0L)
+
+    /** Parses Supabase timestamps such as 2026-10-30T12:00:00+00:00 (UTC). */
+    private fun parseServerTime(value: String?): Long? {
+        if (value.isNullOrBlank() || value == "null") return null
+        return try {
+            val fmt = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+            fmt.timeZone = java.util.TimeZone.getTimeZone("UTC")
+            fmt.parse(value.take(19))?.time
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** Licenses bought with an e-mail can be re-checked; staff/restored-owner activations belong to a shop. */
+    private fun isEmailLicense(): Boolean {
+        val email = prefs.getString(KEY_EMAIL, "") ?: ""
+        return email.contains("@") && !email.startsWith("staff@") && !email.startsWith("owner@")
+    }
+
+    /** True if a subscription's expiry date has passed (using the tamper-resistant clock). */
+    fun isLicenseExpiredLocally(): Boolean {
+        val expiry = parseServerTime(prefs.getString(KEY_EXPIRES_AT, null)) ?: return false
+        return isClockRolledBack() || trustedNow() > expiry
+    }
+
+    /**
+     * Re-checks an e-mail license with the server at most once a day. Blocked, expired or
+     * removed licenses deactivate the app; offline phones keep working for [OFFLINE_GRACE_MS].
+     */
+    suspend fun revalidateLicense(force: Boolean = false): LicenseCheckResult = withContext(Dispatchers.IO) {
+        if (!prefs.getBoolean(KEY_IS_ACTIVATED, false) || !isEmailLicense()) return@withContext LicenseCheckResult.Valid
+        val lastVerified = prefs.getLong(KEY_LAST_VERIFIED_AT, 0L).takeIf { it > 0 }
+            ?: prefs.getLong(KEY_ACTIVATED_AT, System.currentTimeMillis())
+        val now = trustedNow()
+        if (!force && now - lastVerified < REVALIDATE_EVERY_MS && !isLicenseExpiredLocally()) {
+            return@withContext LicenseCheckResult.Valid
+        }
+        val offlineResult = {
+            if (now - lastVerified > OFFLINE_GRACE_MS || isLicenseExpiredLocally()) {
+                LicenseCheckResult.NeedsOnline("লাইসেন্স যাচাই করতে একবার ইন্টারনেট সংযোগ চালু করুন।")
+            } else {
+                LicenseCheckResult.Offline
+            }
+        }
+        if (!SupabaseConfig.isConnected) return@withContext offlineResult()
+
+        try {
+            val payload = JSONObject().apply {
+                put("p_email", prefs.getString(KEY_EMAIL, "") ?: "")
+                put("p_device_id", getDeviceId())
+            }
+            val request = Request.Builder()
+                .url("${SupabaseConfig.url.trimEnd('/')}/rest/v1/rpc/verify_app_license")
+                .addHeader("apikey", SupabaseConfig.anonKey)
+                .addHeader("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                .post(payload.toString().toRequestBody(jsonMediaType))
+                .build()
+            client.newCall(request).execute().use { response ->
+                val body = response.body?.string().orEmpty()
+                if (response.code == 404) {
+                    // verify_app_license not deployed yet (supabase_security_fix.sql): don't lock anyone out.
+                    Log.w(tag, "verify_app_license missing on server")
+                    return@withContext offlineResult()
+                }
+                if (!response.isSuccessful) return@withContext offlineResult()
+                val json = JSONObject(body)
+                if (json.optBoolean("valid", false)) {
+                    prefs.edit()
+                        .putLong(KEY_LAST_VERIFIED_AT, System.currentTimeMillis())
+                        .putString(KEY_EXPIRES_AT, json.optString("expires_at").takeIf { it.isNotBlank() && it != "null" })
+                        .apply()
+                    return@withContext LicenseCheckResult.Valid
+                }
+                val message = json.optString("message", "আপনার লাইসেন্সটি আর বৈধ নয়।")
+                deactivate()
+                LicenseCheckResult.Revoked(message)
+            }
+        } catch (e: Exception) {
+            Log.w(tag, "License re-validation failed: ${e.message}")
+            offlineResult()
+        }
     }
 
     private val client = OkHttpClient.Builder()
@@ -220,6 +332,12 @@ class AppLicenseManager(private val context: Context) {
      */
     fun isDemoMode(): Boolean {
         if (!prefs.getBoolean(KEY_IS_DEMO_MODE, false)) return false
+        if (isClockRolledBack()) {
+            // Turning the clock back must not extend the free demo.
+            prefs.edit().putBoolean(KEY_IS_DEMO_MODE, false).putLong(KEY_DEMO_EXPIRES_AT, 1L).apply()
+            return false
+        }
+        trustedNow()
         val expiresAt = prefs.getLong(KEY_DEMO_EXPIRES_AT, 0L)
         val isExpired = System.currentTimeMillis() >= expiresAt
         if (isExpired) {
@@ -320,9 +438,9 @@ class AppLicenseManager(private val context: Context) {
      * Offline-first: returns true instantly from local storage without network calls!
      */
     fun isActivated(): Boolean {
-        // Real purchased license
+        // Real purchased license (subscriptions stop at their expiry date)
         if (prefs.getBoolean(KEY_IS_ACTIVATED, false)) {
-            return true
+            return !(isEmailLicense() && isLicenseExpiredLocally())
         }
         // Active 1-hour demo mode
         if (isDemoMode()) {
@@ -410,6 +528,7 @@ class AppLicenseManager(private val context: Context) {
                     // Save verified activation to local persistent storage
                     prefs.edit()
                         .putBoolean(KEY_IS_ACTIVATED, true)
+                        .putLong(KEY_LAST_VERIFIED_AT, now)
                         .putString(KEY_EMAIL, cleanEmail)
                         .putString(KEY_CUSTOMER_NAME, custName)
                         .putLong(KEY_ACTIVATED_AT, now)

@@ -1,3 +1,6 @@
+-- DEPRECATED: live support now runs through Firebase Cloud Functions (firebase/functions/support.js).
+-- Do not re-run the anon policies below; supabase_security_fix.sql removes them.
+
 -- ==============================================================================
 -- Dokan-Pro Telegram Bot Live Support Schema for Supabase
 -- Integrates with Telegram Forum Topics (@dokanpro_bot) for 2-way customer chat

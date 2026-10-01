@@ -853,7 +853,7 @@ fun AppActivationScreen(
                                         DokanTextField(
                                             value = restoreMasterPin,
                                             onValueChange = {
-                                                if (it.length <= 8) restoreMasterPin = it
+                                                if (it.length <= 12) restoreMasterPin = it
                                                 restoreErrorMessage = null
                                             },
                                             label = "মাস্টার সিকিউরিটি পিন (৪-৬ ডিজিট)",
@@ -1105,7 +1105,7 @@ fun AppActivationScreen(
                                     DokanTextField(
                                         value = staffPinInput,
                                         onValueChange = {
-                                            if (it.length <= 6) staffPinInput = it
+                                            if (it.length <= 12) staffPinInput = it
                                             staffJoinError = null
                                         },
                                         label = "কর্মচারী পিন (৪ ডিজিট)",
