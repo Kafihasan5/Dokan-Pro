@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.*
+import com.example.data.firebase.CloudAuthManager
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -58,8 +59,27 @@ fun OnboardingScreen(
     var shopPhone by remember { mutableStateOf(config.shopPhone) }
     var ownerEmail by remember { mutableStateOf(config.ownerEmail) }
     var tagline by remember { mutableStateOf(config.tagline) }
-    var masterPin by remember { mutableStateOf(config.pinCode.ifBlank { "1234" }) }
-    var staffPin by remember { mutableStateOf(config.staffPin.ifBlank { "0000" }) }
+    // Default PINs like 1234/0000 are never pre-filled: the server rejects guessable PINs.
+    var masterPin by remember {
+        mutableStateOf(config.pinCode.takeUnless { CloudAuthManager.isWeakPin(CloudAuthManager.normalizePin(it)) } ?: "")
+    }
+    var staffPin by remember {
+        mutableStateOf(config.staffPin.takeUnless { CloudAuthManager.isWeakPin(CloudAuthManager.normalizePin(it)) } ?: "")
+    }
+    val pinError = remember(masterPin, staffPin) {
+        val m = CloudAuthManager.normalizePin(masterPin)
+        val s = CloudAuthManager.normalizePin(staffPin)
+        when {
+            m.isEmpty() -> null
+            !CloudAuthManager.isValidPin(m) -> "মাস্টার পিন ৪-১২টি সংখ্যা হতে হবে"
+            CloudAuthManager.isWeakPin(m) -> "১২৩৪, ০০০০ বা একই সংখ্যা বারবার — এমন সহজ পিন দেওয়া যাবে না"
+            s.isNotEmpty() && !CloudAuthManager.isValidPin(s) -> "কর্মচারী পিন ৪-১২টি সংখ্যা হতে হবে"
+            s.isNotEmpty() && CloudAuthManager.isWeakPin(s) -> "কর্মচারী পিনটি খুব সহজ"
+            s.isNotEmpty() && s == m -> "কর্মচারী পিন আর মাস্টার পিন আলাদা হতে হবে"
+            else -> null
+        }
+    }
+    val isPinReady = CloudAuthManager.normalizePin(masterPin).isNotEmpty() && pinError == null
 
     // Step 2 Preferences State
     var useBengaliNumerals by remember { mutableStateOf(config.useBengaliNumerals) }
@@ -321,7 +341,7 @@ fun OnboardingScreen(
                             DokanTextField(
                                 value = restoreMasterPin,
                                 onValueChange = {
-                                    if (it.length <= 8) restoreMasterPin = it
+                                    if (it.length <= 12) restoreMasterPin = it
                                     restoreErrorMessage = null
                                 },
                                 label = "মাস্টার সিকিউরিটি পিন (৪-৬ ডিজিট) *",
@@ -497,9 +517,9 @@ fun OnboardingScreen(
 
                             DokanTextField(
                                 value = masterPin,
-                                onValueChange = { if (it.length <= 6) masterPin = it },
-                                label = "মাস্টার সিকিউরিটি পিন (৪-৬ ডিজিট) *",
-                                placeholder = "যেমন: 1234",
+                                onValueChange = { if (it.length <= 12) masterPin = it },
+                                label = "মাস্টার সিকিউরিটি পিন (৬ ডিজিট সুপারিশকৃত) *",
+                                placeholder = "সহজে অনুমান করা যায় না এমন পিন",
                                 keyboardType = KeyboardType.NumberPassword,
                                 visualTransformation = PasswordVisualTransformation(),
                                 leadingIcon = Icons.Default.Key
@@ -507,9 +527,9 @@ fun OnboardingScreen(
 
                             DokanTextField(
                                 value = staffPin,
-                                onValueChange = { if (it.length <= 6) staffPin = it },
-                                label = "কর্মচারী এক্সেস পিন (৪ ডিজিট)",
-                                placeholder = "যেমন: 0000",
+                                onValueChange = { if (it.length <= 12) staffPin = it },
+                                label = "কর্মচারী এক্সেস পিন (ঐচ্ছিক)",
+                                placeholder = "খালি রাখলে কর্মচারী লগইন বন্ধ থাকবে",
                                 keyboardType = KeyboardType.NumberPassword,
                                 visualTransformation = PasswordVisualTransformation(),
                                 leadingIcon = Icons.Default.Lock
@@ -525,11 +545,19 @@ fun OnboardingScreen(
                         }
                     }
 
+                    if (pinError != null) {
+                        Text(
+                            text = pinError,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+
                     DokanPrimaryButton(
                         text = "পরবর্তী ধাপ",
-                        enabled = shopName.isNotBlank(),
+                        enabled = shopName.isNotBlank() && isPinReady,
                         onClick = {
-                            if (shopName.isNotBlank()) {
+                            if (shopName.isNotBlank() && isPinReady) {
                                 currentStep = 2
                             }
                         }
@@ -755,8 +783,8 @@ fun OnboardingScreen(
                                     shopPhone = shopPhone.trim(),
                                     ownerEmail = ownerEmail.trim(),
                                     tagline = tagline.trim(),
-                                    pinCode = masterPin.trim().ifBlank { "1234" },
-                                    staffPin = staffPin.trim().ifBlank { "0000" },
+                                    pinCode = CloudAuthManager.normalizePin(masterPin),
+                                    staffPin = CloudAuthManager.normalizePin(staffPin),
                                     pinEnabled = true,
                                     userRole = "owner",
                                     useBengaliNumerals = useBengaliNumerals,
@@ -850,8 +878,8 @@ fun OnboardingScreen(
                                     shopPhone = shopPhone.trim(),
                                     ownerEmail = ownerEmail.trim(),
                                     tagline = tagline.trim(),
-                                    pinCode = masterPin.trim().ifBlank { "1234" },
-                                    staffPin = staffPin.trim().ifBlank { "0000" },
+                                    pinCode = CloudAuthManager.normalizePin(masterPin),
+                                    staffPin = CloudAuthManager.normalizePin(staffPin),
                                     pinEnabled = true,
                                     userRole = "owner",
                                     useBengaliNumerals = useBengaliNumerals,

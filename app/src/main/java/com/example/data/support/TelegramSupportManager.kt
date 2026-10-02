@@ -1,34 +1,33 @@
 package com.example.data.support
 
 import android.content.Context
-import com.example.data.supabase.SupabaseConfig
+import android.util.Log
 import com.example.ui.ShopConfig
 import com.example.util.AppNotificationHelper
-import com.example.util.Formatters
+import com.example.util.SecureStore
 import com.example.util.SoundHelper
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.withContext
+import com.google.android.gms.tasks.Task
+import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.functions.FirebaseFunctionsException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 
 data class SupportChatMessage(
     val id: String = UUID.randomUUID().toString(),
@@ -48,34 +47,35 @@ data class SupportNotification(
     val isRead: Boolean = false
 )
 
+/**
+ * Live support chat. The phone never talks to Telegram directly: the Cloud Functions in
+ * firebase/functions/support.js hold the bot token and relay messages. Each phone gets its own
+ * support thread protected by a random key (stored encrypted), so shops can't read each other's chats.
+ */
 object TelegramSupportManager {
 
     @Volatile
     var isLiveSupportActive: Boolean = false
 
+    private const val TAG = "SupportChat"
     private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var backgroundJob: Job? = null
-
-    // Dedicated Telegram Bot for Dokan Pro Live Support
-    const val BOT_TOKEN = "8677361782:AAFsMQlvxzOljDyaRbNxbrbDv8jTWFkadvY"
-    private const val TELEGRAM_API_BASE = "https://api.telegram.org/bot$BOT_TOKEN"
+    private val threadMutex = Mutex()
+    private val functions: FirebaseFunctions by lazy { FirebaseFunctions.getInstance("asia-southeast1") }
 
     private const val PREFS_NAME = "dokan_telegram_support_prefs"
-    private const val KEY_SUPPORT_CHAT_ID = "support_group_chat_id"
-    private const val KEY_TOPIC_PREFIX = "topic_id_"
+    private const val KEY_THREAD_ID = "support_thread_id"
+    private const val KEY_THREAD_KEY = "support_thread_key"
+    private const val KEY_LAST_FETCH_AT = "support_last_fetch_server_ts"
     private const val KEY_DISMISSED_NOTIF_IDS = "dismissed_notification_ids"
     private const val KEY_NOTIFS_LAST_CLEARED_AT = "notifications_last_cleared_at"
     private const val KEY_INITIAL_BROADCAST_SYNC_DONE = "initial_broadcast_sync_done"
 
+    /** Poll fast only while the chat screen is open; otherwise every 60s keeps server cost low. */
+    private const val POLL_ACTIVE_MS = 5_000L
+    private const val POLL_IDLE_MS = 60_000L
+
     private val dismissedNotificationIds = mutableSetOf<String>()
-
-    // Default Support Supergroup Chat ID
-    const val DEFAULT_SUPPORT_CHAT_ID = "-1003954086612"
-
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .build()
 
     private val _messages = MutableStateFlow<List<SupportChatMessage>>(emptyList())
     val messages: StateFlow<List<SupportChatMessage>> = _messages.asStateFlow()
@@ -89,15 +89,15 @@ object TelegramSupportManager {
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
-    private val _configuredChatId = MutableStateFlow<String>(DEFAULT_SUPPORT_CHAT_ID)
+    /** Kept for the settings UI; the support group is now fixed on the server. */
+    private val _configuredChatId = MutableStateFlow("server")
     val configuredChatId: StateFlow<String> = _configuredChatId.asStateFlow()
 
     fun init(context: Context) {
         val appContext = context.applicationContext
         AppNotificationHelper.createNotificationChannel(appContext)
         val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val saved = prefs.getString(KEY_SUPPORT_CHAT_ID, "") ?: ""
-        _configuredChatId.value = if (saved.isNotBlank()) saved else DEFAULT_SUPPORT_CHAT_ID
+        SecureStore.migrate(prefs, KEY_THREAD_KEY)
 
         val firstInstallTime = try {
             appContext.packageManager.getPackageInfo(appContext.packageName, 0).firstInstallTime
@@ -105,8 +105,7 @@ object TelegramSupportManager {
             System.currentTimeMillis()
         }
 
-        // Fresh install protection: Set last cleared timestamp to now or install time,
-        // so old broadcast messages sent prior to installation date NEVER pop up on fresh install!
+        // Fresh install protection: broadcasts sent before installation never pop up.
         val lastCleared = prefs.getLong(KEY_NOTIFS_LAST_CLEARED_AT, 0L)
         if (!prefs.contains(KEY_NOTIFS_LAST_CLEARED_AT) || lastCleared < firstInstallTime) {
             prefs.edit().putLong(KEY_NOTIFS_LAST_CLEARED_AT, maxOf(firstInstallTime, System.currentTimeMillis())).apply()
@@ -129,95 +128,76 @@ object TelegramSupportManager {
         backgroundJob = backgroundScope.launch {
             while (isActive) {
                 try {
-                    val deviceId = com.example.data.license.AppLicenseManager(appContext).getDeviceId()
-                    syncAllMessages(appContext, deviceId)
+                    syncAllMessages(appContext, "")
                 } catch (_: Exception) {}
-                delay(5000)
+                // Wake up quickly if the chat screen gets opened during an idle wait.
+                var waited = 0L
+                while (waited < POLL_IDLE_MS && !isLiveSupportActive) {
+                    delay(1_000L)
+                    waited += 1_000L
+                }
+                if (isLiveSupportActive) delay(POLL_ACTIVE_MS)
             }
         }
     }
 
-    fun setSupportChatId(context: Context, chatId: String) {
-        val clean = chatId.trim()
+    /** No-op: the support group can no longer be redirected from the phone. */
+    @Suppress("UNUSED_PARAMETER")
+    fun setSupportChatId(context: Context, chatId: String) {}
+
+    @Suppress("UNUSED_PARAMETER")
+    fun getSupportChatId(context: Context): String = "server"
+
+    private data class Thread(val id: String, val key: String)
+
+    private fun storedThread(context: Context): Thread? {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putString(KEY_SUPPORT_CHAT_ID, clean).apply()
-        _configuredChatId.value = if (clean.isNotBlank()) clean else DEFAULT_SUPPORT_CHAT_ID
+        val id = prefs.getString(KEY_THREAD_ID, "") ?: ""
+        val key = SecureStore.getString(prefs, KEY_THREAD_KEY)
+        return if (id.isNotBlank() && key.isNotBlank()) Thread(id, key) else null
     }
 
-    fun getSupportChatId(context: Context): String {
+    private fun storeThread(context: Context, thread: Thread) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val saved = prefs.getString(KEY_SUPPORT_CHAT_ID, "") ?: ""
-        return if (saved.isNotBlank()) saved else DEFAULT_SUPPORT_CHAT_ID
+        val editor = prefs.edit().putString(KEY_THREAD_ID, thread.id)
+        SecureStore.putString(editor, KEY_THREAD_KEY, thread.key).apply()
     }
 
-    private fun getStoredTopicId(context: Context, deviceId: String): Long {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getLong("$KEY_TOPIC_PREFIX$deviceId", 0L)
+    private suspend fun call(name: String, data: Map<String, Any?>): Map<*, *> {
+        val result = withTimeout(30_000L) { functions.getHttpsCallable(name).call(data).awaitTask() }
+        return result.getData() as? Map<*, *> ?: emptyMap<String, Any>()
     }
 
-    private fun storeTopicId(context: Context, deviceId: String, topicId: Long) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putLong("$KEY_TOPIC_PREFIX$deviceId", topicId).apply()
+    private fun friendly(t: Throwable): String = when {
+        t is FirebaseFunctionsException && t.code != FirebaseFunctionsException.Code.INTERNAL && !t.message.isNullOrBlank() -> t.message!!
+        else -> "সাপোর্ট সার্ভিসে সংযোগ করা যাচ্ছে না। ইন্টারনেট চেক করুন।"
     }
 
-    suspend fun getOrCreateForumTopic(
+    /** Returns this phone's support thread, opening one on the server the first time. */
+    private suspend fun ensureThread(
         context: Context,
         deviceId: String,
         config: ShopConfig,
         appVersion: String,
-        licenseStatus: String
-    ): Result<Long> = withContext(Dispatchers.IO) {
-        val existing = getStoredTopicId(context, deviceId)
-        if (existing > 0) {
-            return@withContext Result.success(existing)
-        }
-
-        val chatId = getSupportChatId(context).ifBlank { DEFAULT_SUPPORT_CHAT_ID }
-        if (chatId.isBlank()) {
-            return@withContext Result.failure(Exception("সাপোর্ট সার্ভিস সাময়িকভাবে অনুপলব্ধ"))
-        }
-
-        try {
-            val shopLabel = config.shopName.ifBlank { "দোকান" }
-            val shortDev = if (deviceId.length >= 6) deviceId.takeLast(6) else deviceId
-            val topicName = "🏪 $shopLabel [$shortDev]"
-
-            val topicPayload = JSONObject().apply {
-                put("chat_id", chatId)
-                put("name", topicName)
-            }
-
-            val request = Request.Builder()
-                .url("$TELEGRAM_API_BASE/createForumTopic")
-                .post(topicPayload.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val response = client.newCall(request).execute()
-            val respBody = response.body?.string().orEmpty()
-
-            if (!response.isSuccessful) {
-                return@withContext Result.failure(Exception("টপিক তৈরি ব্যর্থ: $respBody"))
-            }
-
-            val json = JSONObject(respBody)
-            if (!json.optBoolean("ok", false)) {
-                return@withContext Result.failure(Exception(json.optString("description", "টপিক তৈরি করা যায়নি")))
-            }
-
-            val resultObj = json.getJSONObject("result")
-            val newTopicId = resultObj.getLong("message_thread_id")
-            storeTopicId(context, deviceId, newTopicId)
-
-            // Send introductory merchant profile card to the newly created topic
-            sendInitialProfileCard(chatId, newTopicId, deviceId, config, appVersion, licenseStatus)
-
-            // Register topic into Supabase support_threads table if connected
-            registerThreadToSupabase(deviceId, newTopicId, config, appVersion, licenseStatus)
-
-            Result.success(newTopicId)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        licenseStatus: String,
+        announce: Boolean = false
+    ): Thread = threadMutex.withLock {
+        storedThread(context)?.let { return@withLock it }
+        val res = call(
+            "supportOpen",
+            mapOf(
+                "deviceId" to deviceId,
+                "shopName" to config.shopName,
+                "shopPhone" to config.shopPhone,
+                "shopAddress" to config.shopAddress,
+                "appVersion" to appVersion,
+                "licenseStatus" to licenseStatus,
+                "announce" to announce
+            )
+        )
+        val thread = Thread(res["threadId"] as? String ?: error("no thread"), res["threadKey"] as? String ?: error("no key"))
+        storeThread(context, thread)
+        thread
     }
 
     suspend fun notifyNewUserSetup(
@@ -228,110 +208,13 @@ object TelegramSupportManager {
         licenseStatus: String
     ) = withContext(Dispatchers.IO) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val alreadyNotified = prefs.getBoolean("setup_notified_$deviceId", false) ||
-                              prefs.getBoolean("setup_notified_globally", false)
-        if (alreadyNotified) return@withContext
-
-        // Mark immediately to prevent race conditions or repeated calls
-        prefs.edit()
-            .putBoolean("setup_notified_$deviceId", true)
-            .putBoolean("setup_notified_globally", true)
-            .apply()
-
+        if (prefs.getBoolean("setup_notified_globally", false) || storedThread(context) != null) return@withContext
+        prefs.edit().putBoolean("setup_notified_globally", true).apply()
         try {
-            // Pre-create forum topic for this device so it has a valid topic ID ready
-            val topicResult = getOrCreateForumTopic(context, deviceId, config, appVersion, licenseStatus)
-            val topicId = topicResult.getOrNull() ?: 0L
-
-            val dateStr = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.ENGLISH).format(Date())
-            val shopName = config.shopName.ifBlank { "দোকান" }
-            val shopPhone = config.shopPhone.ifBlank { "ফোন দেওয়া হয়নি" }
-            val shopAddress = config.shopAddress.ifBlank { "ঠিকানা দেওয়া হয়নি" }
-
-            val generalMessage = """
-                🎉 <b>নতুন গ্রাহক অ্যাপ সেটআপ সম্পন্ন করেছেন!</b>
-                ━━━━━━━━━━━━━━━━━━━━
-                🏪 <b>দোকান:</b> $shopName
-                📞 <b>মোবাইল:</b> $shopPhone
-                📍 <b>ঠিকানা:</b> $shopAddress
-                🔑 <b>ডিভাইস আইডি:</b> <code>$deviceId</code>
-                📱 <b>অ্যাপ সংস্করণ:</b> v$appVersion
-                🛡️ <b>লাইসেন্স:</b> $licenseStatus
-                ⏰ <b>সময়:</b> $dateStr
-                ━━━━━━━━━━━━━━━━━━━━
-                <i>নিচের বাটনে ক্লিক করে সরাসরি এই গ্রাহকের চ্যাট টপিকে প্রবেশ করুন ও মেসেজ পাঠান।</i>
-            """.trimIndent()
-
-            val cleanChatId = DEFAULT_SUPPORT_CHAT_ID.removePrefix("-100")
-            val topicUrl = if (topicId > 0) "https://t.me/c/$cleanChatId/$topicId" else "https://t.me/c/$cleanChatId"
-
-            val payload = JSONObject().apply {
-                put("chat_id", DEFAULT_SUPPORT_CHAT_ID)
-                put("text", generalMessage)
-                put("parse_mode", "HTML")
-                put("reply_markup", JSONObject().apply {
-                    put("inline_keyboard", JSONArray().apply {
-                        put(JSONArray().apply {
-                            put(JSONObject().apply {
-                                put("text", "💬 চ্যাট টপিক ওপেন করুন")
-                                put("url", topicUrl)
-                            })
-                        })
-                    })
-                })
-            }
-
-            val req = Request.Builder()
-                .url("$TELEGRAM_API_BASE/sendMessage")
-                .post(payload.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val resp = client.newCall(req).execute()
-            if (resp.isSuccessful) {
-                prefs.edit().putBoolean("setup_notified_$deviceId", true).apply()
-            }
-            resp.close()
-        } catch (_: Exception) {}
-    }
-
-    private fun sendInitialProfileCard(
-        chatId: String,
-        topicId: Long,
-        deviceId: String,
-        config: ShopConfig,
-        appVersion: String,
-        licenseStatus: String
-    ) {
-        try {
-            val dateStr = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.ENGLISH).format(Date())
-            val cardText = """
-                🛍️ <b>নতুন গ্রাহক সাপোর্ট রিকোয়েস্ট</b>
-                ━━━━━━━━━━━━━━━━━━━━
-                🏪 <b>দোকান:</b> ${config.shopName.ifBlank { "নাম দেওয়া হয়নি" }}
-                📞 <b>মোবাইল:</b> ${config.shopPhone.ifBlank { "ফোন দেওয়া হয়নি" }}
-                📍 <b>ঠিকানা:</b> ${config.shopAddress.ifBlank { "ঠিকানা দেওয়া হয়নি" }}
-                🔑 <b>ডিভাইস আইডি:</b> <code>$deviceId</code>
-                📱 <b>অ্যাপ সংস্করণ:</b> v$appVersion
-                🛡️ <b>লাইসেন্স:</b> $licenseStatus
-                ⏰ <b>সময়:</b> $dateStr
-                ━━━━━━━━━━━━━━━━━━━━
-                <i>গ্রাহক অ্যাপ থেকে চ্যাট শুরু করেছেন। এই টপিকে রিপ্লাই দিলে তা সরাসরি গ্রাহকের অ্যাপে চলে যাবে।</i>
-            """.trimIndent()
-
-            val payload = JSONObject().apply {
-                put("chat_id", chatId)
-                put("message_thread_id", topicId)
-                put("text", cardText)
-                put("parse_mode", "HTML")
-            }
-
-            val req = Request.Builder()
-                .url("$TELEGRAM_API_BASE/sendMessage")
-                .post(payload.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            client.newCall(req).execute().close()
-        } catch (_: Exception) {}
+            ensureThread(context, deviceId, config, appVersion, licenseStatus, announce = true)
+        } catch (t: Throwable) {
+            Log.w(TAG, "setup notification failed: ${t.message}")
+        }
     }
 
     suspend fun sendMessage(
@@ -342,398 +225,102 @@ object TelegramSupportManager {
         appVersion: String,
         licenseStatus: String
     ): Result<SupportChatMessage> = withContext(Dispatchers.IO) {
-        val trimmed = text.trim()
+        val trimmed = text.trim().take(2000)
         if (trimmed.isEmpty()) return@withContext Result.failure(Exception("মেসেজ খালি হতে পারে না"))
 
-        val pendingMsg = SupportChatMessage(
-            sender = "user",
-            text = trimmed,
-            timestamp = System.currentTimeMillis(),
-            isSending = true
-        )
-
-        // Add to local UI flow immediately
+        val pendingMsg = SupportChatMessage(sender = "user", text = trimmed, isSending = true)
         appendLocalMessage(context, pendingMsg)
 
-        val chatId = getSupportChatId(context).ifBlank { DEFAULT_SUPPORT_CHAT_ID }
-        if (chatId.isBlank()) {
-            updateMessageStatus(context, pendingMsg.id, isSending = false, isFailed = true)
-            return@withContext Result.failure(Exception("সাপোর্ট সার্ভিস সাময়িকভাবে অনুপলব্ধ"))
-        }
-
-        val topicResult = getOrCreateForumTopic(context, deviceId, config, appVersion, licenseStatus)
-        if (topicResult.isFailure) {
-            updateMessageStatus(context, pendingMsg.id, isSending = false, isFailed = true)
-            return@withContext Result.failure(topicResult.exceptionOrNull() ?: Exception("টপিক তৈরিতে ত্রুটি"))
-        }
-
-        val topicId = topicResult.getOrThrow()
-
         try {
-            val payload = JSONObject().apply {
-                put("chat_id", chatId)
-                put("message_thread_id", topicId)
-                put("text", "👤 <b>গ্রাহক:</b>\n$trimmed")
-                put("parse_mode", "HTML")
+            val thread = ensureThread(context, deviceId, config, appVersion, licenseStatus)
+            val res = try {
+                call("supportSend", mapOf("threadId" to thread.id, "threadKey" to thread.key, "text" to trimmed))
+            } catch (e: FirebaseFunctionsException) {
+                if (e.code != FirebaseFunctionsException.Code.PERMISSION_DENIED) throw e
+                // Thread no longer valid on the server (e.g. reset): open a new one and retry once.
+                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+                    .remove(KEY_THREAD_ID).remove(KEY_THREAD_KEY).apply()
+                val fresh = ensureThread(context, deviceId, config, appVersion, licenseStatus)
+                call("supportSend", mapOf("threadId" to fresh.id, "threadKey" to fresh.key, "text" to trimmed))
             }
-
-            val req = Request.Builder()
-                .url("$TELEGRAM_API_BASE/sendMessage")
-                .post(payload.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val resp = client.newCall(req).execute()
-            val body = resp.body?.string().orEmpty()
-
-            if (!resp.isSuccessful) {
-                updateMessageStatus(context, pendingMsg.id, isSending = false, isFailed = true)
-                return@withContext Result.failure(Exception("মেসেজ পাঠাতে ব্যর্থ: $body"))
-            }
-
-            // Successfully sent to Telegram
-            val delivered = pendingMsg.copy(isSending = false, isFailed = false)
-            updateMessage(context, delivered)
-
-            // Also post to Supabase support_messages table if connected
-            postMessageToSupabase(deviceId, topicId, "user", trimmed)
-
+            // Use the server's id so the message isn't duplicated when it comes back in a fetch.
+            val serverId = (res["id"] as? String)?.let { "srv_$it" } ?: pendingMsg.id
+            val delivered = pendingMsg.copy(id = serverId, isSending = false, isFailed = false)
+            _messages.value = _messages.value.map { if (it.id == pendingMsg.id) delivered else it }
+            saveLocalMessages(context)
             Result.success(delivered)
-        } catch (e: Exception) {
+        } catch (t: Throwable) {
             updateMessageStatus(context, pendingMsg.id, isSending = false, isFailed = true)
-            Result.failure(e)
+            Result.failure(Exception(friendly(t)))
         }
     }
 
-    suspend fun syncMessagesFromTelegram(context: Context, deviceId: String) = withContext(Dispatchers.IO) {
-        val topicId = getStoredTopicId(context, deviceId)
-        _isSyncing.value = true
-
+    /** Pulls new support replies and platform broadcasts from the server. */
+    @Suppress("UNUSED_PARAMETER")
+    suspend fun syncAllMessages(context: Context, deviceId: String) = withContext(Dispatchers.IO) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val isFirstSync = !prefs.getBoolean(KEY_INITIAL_BROADCAST_SYNC_DONE, false)
-        val firstInstallTime = try {
-            context.packageManager.getPackageInfo(context.packageName, 0).firstInstallTime
-        } catch (_: Exception) {
-            System.currentTimeMillis()
-        }
         val lastClearedAt = prefs.getLong(KEY_NOTIFS_LAST_CLEARED_AT, 0L)
+        val since = prefs.getLong(KEY_LAST_FETCH_AT, 0L)
+        val thread = storedThread(context)
 
-        try {
-            val req = Request.Builder()
-                .url("$TELEGRAM_API_BASE/getUpdates?offset=-100&allowed_updates=[\"message\"]")
-                .get()
-                .build()
-
-            val resp = client.newCall(req).execute()
-            val body = resp.body?.string().orEmpty()
-
-            if (resp.isSuccessful && body.isNotBlank()) {
-                val json = JSONObject(body)
-                if (json.optBoolean("ok", false)) {
-                    val results = json.optJSONArray("result") ?: JSONArray()
-                    val incomingReplies = mutableListOf<SupportChatMessage>()
-                    var hasNewIncoming = false
-
-                    val existingMsgIds = _messages.value.map { it.id }.toSet()
-                    val existingNotifIds = _notifications.value.map { it.id }.toSet()
-
-                    for (i in 0 until results.length()) {
-                        val update = results.getJSONObject(i)
-                        val message = update.optJSONObject("message") ?: continue
-
-                        val fromObj = message.optJSONObject("from")
-                        val isBot = fromObj?.optBoolean("is_bot", false) ?: false
-                        if (isBot) continue
-
-                        val text = message.optString("text", "").trim()
-                        if (text.isEmpty()) continue
-
-                        val threadId = message.optLong("message_thread_id", -1L)
-                        val replyTo = message.optJSONObject("reply_to_message")
-                        val replyThreadId = replyTo?.optLong("message_thread_id", -1L) ?: -1L
-                        val dateSec = message.optLong("date", System.currentTimeMillis() / 1000)
-
-                        // 1. Check for Broadcast Messages from General Tab (#all, /all, @all, !all, all:, broadcast, notice, নোটিশ, ইত্যাদি)
-                        val trimmedLower = text.trim().lowercase(Locale.ROOT)
-                        val isBroadcastCmd = trimmedLower.startsWith("/all") ||
-                                trimmedLower.startsWith("#all") ||
-                                trimmedLower.startsWith("@all") ||
-                                trimmedLower.startsWith("!all") ||
-                                trimmedLower.startsWith("all:") ||
-                                trimmedLower.startsWith("all ") ||
-                                trimmedLower.startsWith("/broadcast") ||
-                                trimmedLower.startsWith("#broadcast") ||
-                                trimmedLower.startsWith("/notice") ||
-                                trimmedLower.startsWith("#notice") ||
-                                trimmedLower.startsWith("notice:") ||
-                                trimmedLower.startsWith("/সব") ||
-                                trimmedLower.startsWith("#সব") ||
-                                trimmedLower.startsWith("সব:") ||
-                                trimmedLower.startsWith("নোটিশ") ||
-                                trimmedLower.startsWith("ঘোষণা")
-
-                        val isGeneralTab = (threadId <= 1L)
-
-                        if (isBroadcastCmd || isGeneralTab) {
-                            val cleanNotice = when {
-                                trimmedLower.startsWith("/all") -> text.substringAfter("/all", "").trim().removePrefix(":").trim()
-                                trimmedLower.startsWith("#all") -> text.substringAfter("#all", "").trim().removePrefix(":").trim()
-                                trimmedLower.startsWith("@all") -> text.substringAfter("@all", "").trim().removePrefix(":").trim()
-                                trimmedLower.startsWith("!all") -> text.substringAfter("!all", "").trim().removePrefix(":").trim()
-                                trimmedLower.startsWith("all:") -> text.substringAfter("all:", "").trim()
-                                trimmedLower.startsWith("all ") -> text.substringAfter("all ", "").trim()
-                                trimmedLower.startsWith("/broadcast") -> text.substringAfter("/broadcast", "").trim().removePrefix(":").trim()
-                                trimmedLower.startsWith("#broadcast") -> text.substringAfter("#broadcast", "").trim().removePrefix(":").trim()
-                                trimmedLower.startsWith("/notice") -> text.substringAfter("/notice", "").trim().removePrefix(":").trim()
-                                trimmedLower.startsWith("#notice") -> text.substringAfter("#notice", "").trim().removePrefix(":").trim()
-                                trimmedLower.startsWith("notice:") -> text.substringAfter("notice:", "").trim()
-                                trimmedLower.startsWith("/সব") -> text.substringAfter("/সব", "").trim().removePrefix(":").trim()
-                                trimmedLower.startsWith("#সব") -> text.substringAfter("#সব", "").trim().removePrefix(":").trim()
-                                trimmedLower.startsWith("সব:") -> text.substringAfter("সব:", "").trim()
-                                trimmedLower.startsWith("নোটিশ") -> text.substringAfter("নোটিশ", "").trim().removePrefix(":").trim()
-                                trimmedLower.startsWith("ঘোষণা") -> text.substringAfter("ঘোষণা", "").trim().removePrefix(":").trim()
-                                else -> text
-                            }.ifBlank { text }
-
-                            val rawMsgId = message.optInt("message_id", 1)
-                            val bId = "broadcast_${message.optLong("message_id")}"
-                            val msgTimeMs = dateSec * 1000L
-
-                            // If this is the first sync after app install, or if message was sent before app install / clear time,
-                            // or already dismissed, strictly dismiss and do NOT show or notify!
-                            val isHistoric = isFirstSync ||
-                                    (msgTimeMs <= lastClearedAt) ||
-                                    (msgTimeMs <= firstInstallTime) ||
-                                    isNotificationDismissed(bId)
-
-                            if (isHistoric) {
-                                // Auto-dismiss any past broadcast messages so they NEVER alert or show up
-                                synchronized(dismissedNotificationIds) {
-                                    dismissedNotificationIds.add(bId)
-                                }
-                                continue
-                            }
-
-                            if (cleanNotice.isNotEmpty() && !existingNotifIds.contains(bId)) {
-                                val notif = SupportNotification(
-                                    id = bId,
-                                    title = "📢 সার্বজনীন নোটিশ",
-                                    message = cleanNotice,
-                                    timestamp = msgTimeMs,
-                                    isBroadcast = true,
-                                    isRead = false
-                                )
-                                addNotification(context, notif)
-                                incomingReplies.add(
-                                    SupportChatMessage(
-                                        id = bId,
-                                        sender = "support",
-                                        text = "📢 [সার্বজনীন নোটিশ]\n$cleanNotice",
-                                        timestamp = msgTimeMs,
-                                        isSending = false,
-                                        isFailed = false
-                                    )
-                                )
-                                hasNewIncoming = true
-
-                                // Post system notification in phone's notification bar
-                                AppNotificationHelper.showSupportNotification(
-                                    context = context,
-                                    notificationId = rawMsgId,
-                                    title = "📢 সার্বজনীন নোটিশ",
-                                    message = cleanNotice,
-                                    isBroadcast = true
-                                )
-                            }
-                            continue
-                        }
-
-                        // 2. Check for Direct Customer Topic Replies
-                        val isOurTopic = (topicId > 0L && (threadId == topicId || replyThreadId == topicId))
-                        if (!isOurTopic) continue
-
-                        val msgId = "tg_${message.optLong("message_id")}"
-                        val msgTimeMs = dateSec * 1000L
-                        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                        val lastClearedAt = prefs.getLong(KEY_NOTIFS_LAST_CLEARED_AT, 0L)
-                        val isTopicNotifDismissed = isNotificationDismissed(msgId) || (msgTimeMs <= lastClearedAt)
-
-                        val isNew = !existingMsgIds.contains(msgId)
-
-                        val chatMsg = SupportChatMessage(
-                            id = msgId,
-                            sender = "support",
-                            text = text,
-                            timestamp = msgTimeMs,
-                            isSending = false,
-                            isFailed = false
-                        )
-                        incomingReplies.add(chatMsg)
-
-                        if (isNew && !isTopicNotifDismissed && !existingNotifIds.contains(msgId)) {
-                            hasNewIncoming = true
-                            val notif = SupportNotification(
-                                id = msgId,
-                                title = "দোকান প্রো কাস্টমার সাপোর্ট",
-                                message = text,
-                                timestamp = msgTimeMs,
-                                isBroadcast = false,
-                                isRead = false
-                            )
-                            addNotification(context, notif)
-
-                            // Post system notification in phone's notification bar
-                            val rawMsgId = message.optInt("message_id", (System.currentTimeMillis() % 100000).toInt())
-                            AppNotificationHelper.showSupportNotification(
-                                context = context,
-                                notificationId = rawMsgId,
-                                title = "দোকান প্রো কাস্টমার সাপোর্ট",
-                                message = text,
-                                isBroadcast = false
-                            )
-                        }
-                    }
-
-                    if (incomingReplies.isNotEmpty()) {
-                        mergeMessages(context, incomingReplies)
-                    }
-
-                    // Play Messenger chime if new message received
-                    if (hasNewIncoming) {
-                        withContext(Dispatchers.Main) {
-                            SoundHelper.playMessengerSound(context)
-                        }
-                    }
-
-                    if (isFirstSync) {
-                        prefs.edit()
-                            .putBoolean(KEY_INITIAL_BROADCAST_SYNC_DONE, true)
-                            .putLong(KEY_NOTIFS_LAST_CLEARED_AT, maxOf(System.currentTimeMillis(), firstInstallTime))
-                            .putStringSet(KEY_DISMISSED_NOTIF_IDS, HashSet(dismissedNotificationIds))
-                            .apply()
-                    } else {
-                        prefs.edit()
-                            .putStringSet(KEY_DISMISSED_NOTIF_IDS, HashSet(dismissedNotificationIds))
-                            .apply()
-                    }
-                }
-            }
-        } catch (_: Exception) {
-        } finally {
-            _isSyncing.value = false
-        }
-    }
-
-    suspend fun syncAllMessages(context: Context, deviceId: String) = withContext(Dispatchers.IO) {
-        syncMessagesFromTelegram(context, deviceId)
-        if (SupabaseConfig.isConnected) {
-            syncMessagesFromSupabase(context, deviceId)
-        }
-    }
-
-    suspend fun syncMessagesFromSupabase(context: Context, deviceId: String) = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.isConnected) return@withContext
         _isSyncing.value = true
-
         try {
-            val url = "${SupabaseConfig.url}/rest/v1/support_messages?device_id=eq.$deviceId&order=created_at.asc"
-            val req = Request.Builder()
-                .url(url)
-                .addHeader("apikey", SupabaseConfig.anonKey)
-                .addHeader("Authorization", "Bearer ${SupabaseConfig.anonKey}")
-                .get()
-                .build()
+            val res = call(
+                "supportFetch",
+                mapOf("since" to since, "threadId" to thread?.id, "threadKey" to thread?.key)
+            )
+            val serverNow = (res["now"] as? Number)?.toLong() ?: return@withContext
+            val incoming = mutableListOf<SupportChatMessage>()
+            var hasNewIncoming = false
+            val existingMsgIds = _messages.value.map { it.id }.toSet()
+            val existingNotifIds = _notifications.value.map { it.id }.toSet()
 
-            val resp = client.newCall(req).execute()
-            val body = resp.body?.string().orEmpty()
-
-            if (resp.isSuccessful && body.isNotBlank() && body.startsWith("[")) {
-                val array = JSONArray(body)
-                val fetched = mutableListOf<SupportChatMessage>()
-                val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.ENGLISH)
-
-                for (i in 0 until array.length()) {
-                    val obj = array.getJSONObject(i)
-                    val id = obj.optString("id", UUID.randomUUID().toString())
-                    val sender = obj.optString("sender", "support")
-                    val msgText = obj.optString("message_text", "")
-                    val createdAtStr = obj.optString("created_at", "")
-                    val timeMillis = try {
-                        sdf.parse(createdAtStr.take(19))?.time ?: System.currentTimeMillis()
-                    } catch (_: Exception) {
-                        System.currentTimeMillis()
-                    }
-
-                    fetched.add(
-                        SupportChatMessage(
-                            id = id,
-                            sender = sender,
-                            text = msgText,
-                            timestamp = timeMillis,
-                            isSending = false,
-                            isFailed = false
-                        )
-                    )
+            for (b in (res["broadcasts"] as? List<*>).orEmpty()) {
+                val m = b as? Map<*, *> ?: continue
+                val id = m["id"] as? String ?: continue
+                val text = (m["text"] as? String)?.trim().orEmpty()
+                val ts = (m["ts"] as? Number)?.toLong() ?: continue
+                if (text.isEmpty()) continue
+                // Broadcasts from before install/clear, or already dismissed, never alert.
+                if (isFirstSync || ts <= lastClearedAt || isNotificationDismissed(id)) {
+                    synchronized(dismissedNotificationIds) { dismissedNotificationIds.add(id) }
+                    continue
                 }
+                if (existingNotifIds.contains(id)) continue
+                addNotification(context, SupportNotification(id = id, title = "📢 সার্বজনীন নোটিশ", message = text, timestamp = ts, isBroadcast = true))
+                incoming.add(SupportChatMessage(id = id, sender = "support", text = "📢 [সার্বজনীন নোটিশ]\n$text", timestamp = ts))
+                hasNewIncoming = true
+                AppNotificationHelper.showSupportNotification(context, id.hashCode(), "📢 সার্বজনীন নোটিশ", text, isBroadcast = true)
+            }
 
-                if (fetched.isNotEmpty()) {
-                    mergeMessages(context, fetched)
+            for (raw in (res["messages"] as? List<*>).orEmpty()) {
+                val m = raw as? Map<*, *> ?: continue
+                val id = m["id"] as? String ?: continue
+                val text = (m["text"] as? String).orEmpty()
+                val ts = (m["ts"] as? Number)?.toLong() ?: continue
+                val sender = if (m["sender"] == "support") "support" else "user"
+                incoming.add(SupportChatMessage(id = id, sender = sender, text = text, timestamp = ts))
+                if (sender == "support" && !existingMsgIds.contains(id) && !isNotificationDismissed(id) && ts > lastClearedAt) {
+                    hasNewIncoming = true
+                    addNotification(context, SupportNotification(id = id, title = "দোকান প্রো কাস্টমার সাপোর্ট", message = text, timestamp = ts))
+                    AppNotificationHelper.showSupportNotification(context, id.hashCode(), "দোকান প্রো কাস্টমার সাপোর্ট", text, isBroadcast = false)
                 }
             }
-        } catch (_: Exception) {
+
+            if (incoming.isNotEmpty()) mergeMessages(context, incoming)
+            if (hasNewIncoming) withContext(Dispatchers.Main) { SoundHelper.playMessengerSound(context) }
+
+            prefs.edit()
+                .putLong(KEY_LAST_FETCH_AT, serverNow)
+                .putBoolean(KEY_INITIAL_BROADCAST_SYNC_DONE, true)
+                .putStringSet(KEY_DISMISSED_NOTIF_IDS, HashSet(synchronized(dismissedNotificationIds) { dismissedNotificationIds.toSet() }))
+                .apply()
+        } catch (t: Throwable) {
+            Log.d(TAG, "support sync skipped: ${t.message}")
         } finally {
             _isSyncing.value = false
         }
-    }
-
-    private fun registerThreadToSupabase(
-        deviceId: String,
-        topicId: Long,
-        config: ShopConfig,
-        appVersion: String,
-        licenseStatus: String
-    ) {
-        if (!SupabaseConfig.isConnected) return
-        try {
-            val payload = JSONObject().apply {
-                put("device_id", deviceId)
-                put("topic_id", topicId)
-                put("shop_name", config.shopName)
-                put("shop_phone", config.shopPhone)
-                put("app_version", appVersion)
-                put("license_status", licenseStatus)
-            }
-
-            val req = Request.Builder()
-                .url("${SupabaseConfig.url}/rest/v1/support_threads")
-                .addHeader("apikey", SupabaseConfig.anonKey)
-                .addHeader("Authorization", "Bearer ${SupabaseConfig.anonKey}")
-                .addHeader("Prefer", "resolution=merge-duplicates")
-                .post(payload.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            client.newCall(req).execute().close()
-        } catch (_: Exception) {}
-    }
-
-    private fun postMessageToSupabase(deviceId: String, topicId: Long, sender: String, text: String) {
-        if (!SupabaseConfig.isConnected) return
-        try {
-            val payload = JSONObject().apply {
-                put("device_id", deviceId)
-                put("topic_id", topicId)
-                put("sender", sender)
-                put("message_text", text)
-            }
-
-            val req = Request.Builder()
-                .url("${SupabaseConfig.url}/rest/v1/support_messages")
-                .addHeader("apikey", SupabaseConfig.anonKey)
-                .addHeader("Authorization", "Bearer ${SupabaseConfig.anonKey}")
-                .post(payload.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            client.newCall(req).execute().close()
-        } catch (_: Exception) {}
     }
 
     private fun loadLocalMessages(context: Context) {
@@ -908,6 +495,19 @@ object TelegramSupportManager {
         if (hasNew) {
             _messages.value = existingMap.values.sortedBy { it.timestamp }
             saveLocalMessages(context)
+        }
+    }
+}
+
+/** Suspends until the Play Services task finishes. */
+private suspend fun <T> Task<T>.awaitTask(): T = suspendCancellableCoroutine { cont ->
+    addOnCompleteListener { task ->
+        if (!cont.isActive) return@addOnCompleteListener
+        val ex = task.exception
+        when {
+            ex != null -> cont.resumeWith(Result.failure(ex))
+            task.isCanceled -> cont.cancel()
+            else -> cont.resumeWith(Result.success(task.result))
         }
     }
 }

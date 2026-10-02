@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
-import java.security.MessageDigest
 
 data class FirebaseSyncStatus(
     val isConnected: Boolean = false,
@@ -20,7 +19,7 @@ data class FirebaseSyncStatus(
     val lastSyncTime: Long? = null
 )
 
-class FirebaseSyncManager(private val dao: PaponDao) {
+class FirebaseSyncManager(private val dao: PaponDao, val cloudAuth: CloudAuthManager = CloudAuthManager()) {
 
     companion object {
         const val FIREBASE_DATABASE_URL = "https://dokan-pro-ec9bd-default-rtdb.asia-southeast1.firebasedatabase.app"
@@ -139,346 +138,28 @@ class FirebaseSyncManager(private val dao: PaponDao) {
     }
 
     /**
-     * Resolves a query (either an email address or a shop code) to a valid shopCode.
-     * If query contains '@', looks up in /email_to_shop/{encodedEmail}.
-     * Fallback: searches /shops for matching ownerEmail.
-     * If query is already a shop code, returns it sanitized and formatted.
+     * Normalises what the user typed as a shop code. E-mail addresses are passed through unchanged:
+     * the server resolves them during login (the e-mail index is not readable by the app any more).
      */
-    suspend fun resolveShopCode(query: String): String? = withContext(Dispatchers.IO) {
+    fun resolveShopCode(query: String): String? {
         val clean = com.example.util.Formatters.replaceBengaliDigits(query).trim()
-        if (clean.isBlank()) return@withContext null
-
-        if (clean.contains("@")) {
-            val cleanEmail = clean.lowercase()
-            try {
-                val db = getDb() ?: return@withContext null
-                val encodedKey = encodeEmailKey(cleanEmail)
-
-                // 1. Direct index lookup in /email_to_shop/{encodedKey}
-                val snap = withTimeout(10000L) {
-                    db.getReference("email_to_shop").child(encodedKey).get().await()
-                }
-                val foundCode = snap.getValue(String::class.java)?.trim()?.uppercase()
-                if (!foundCode.isNullOrBlank()) {
-                    val sanitized = sanitizeFirebaseKey(foundCode)
-                    if (sanitized.isNotBlank()) return@withContext sanitized
-                }
-
-                // 1b. Check staff_to_shop index (for employee login)
-                try {
-                    val staffSnap = withTimeout(5000L) {
-                        db.getReference("staff_to_shop").child(encodedKey).get().await()
-                    }
-                    val staffShopCode = staffSnap.getValue(String::class.java)?.trim()?.uppercase()
-                    if (!staffShopCode.isNullOrBlank()) {
-                        val sanitized = sanitizeFirebaseKey(staffShopCode)
-                        if (sanitized.isNotBlank()) return@withContext sanitized
-                    }
-                } catch (_: Exception) {}
-
-                // 2. Fallback: Search in /shops for matching ownerEmail or staff email
-                Log.d(tag, "Email $cleanEmail not found in direct index, scanning /shops...")
-                val shopsSnap = withTimeout(15000L) {
-                    db.getReference("shops").get().await()
-                }
-                for (shopChild in shopsSnap.children) {
-                    val shopKey = shopChild.key?.trim()?.uppercase() ?: continue
-                    val infoEmail = shopChild.child("info").child("ownerEmail").getValue(String::class.java)?.trim()?.lowercase()
-                    val secEmail = shopChild.child("security").child("ownerEmail").getValue(String::class.java)?.trim()?.lowercase()
-                    if (infoEmail == cleanEmail || secEmail == cleanEmail) {
-                        val sanitized = sanitizeFirebaseKey(shopKey)
-                        // Self-heal index for next time
-                        try {
-                            db.getReference("email_to_shop").child(encodedKey).setValue(sanitized).await()
-                        } catch (_: Exception) {}
-                        return@withContext sanitized
-                    }
-
-                    // Also check staff members under /shops/{shopKey}/staff
-                    val staffSnap = shopChild.child("staff")
-                    for (st in staffSnap.children) {
-                        val stEmail = st.child("email").getValue(String::class.java)?.trim()?.lowercase()
-                        if (stEmail == cleanEmail) {
-                            val sanitized = sanitizeFirebaseKey(shopKey)
-                            try {
-                                db.getReference("staff_to_shop").child(encodedKey).setValue(sanitized).await()
-                            } catch (_: Exception) {}
-                            return@withContext sanitized
-                        }
-                    }
-                }
-                return@withContext null
-            } catch (e: Throwable) {
-                Log.e(tag, "Error resolving shop code by email: ${e.message}")
-                return@withContext null
-            }
-        } else {
-            val sanitized = sanitizeFirebaseKey(clean.uppercase())
-            if (sanitized.isBlank()) return@withContext null
-
-            // If user typed code without "SHOP-" prefix, check if SHOP-$sanitized exists
-            if (!sanitized.startsWith("SHOP-")) {
-                try {
-                    val db = getDb() ?: return@withContext sanitized
-                    val existsDirect = withTimeout(4000L) {
-                        db.getReference("shops").child(sanitized).child("info").get().await().exists()
-                    }
-                    if (!existsDirect) {
-                        val prefixed = "SHOP-$sanitized"
-                        val existsPrefixed = withTimeout(4000L) {
-                            db.getReference("shops").child(prefixed).child("info").get().await().exists()
-                        }
-                        if (existsPrefixed) return@withContext prefixed
-                    }
-                } catch (_: Exception) {}
-            }
-            return@withContext sanitized
-        }
+        if (clean.isBlank()) return null
+        if (clean.contains("@")) return clean.lowercase()
+        return sanitizeFirebaseKey(clean.uppercase()).takeIf { it.isNotBlank() }
     }
 
     /**
-     * Hashes a PIN using SHA-256 for secure cloud storage and zero data leak.
+     * Stores the owner's e-mail on the shop and in the e-mail → shop index.
+     * PINs are no longer written here: they live hashed on the server (see CloudAuthManager).
      */
-    fun hashPin(pin: String): String {
-        val clean = pin.trim()
-        val md = MessageDigest.getInstance("SHA-256")
-        val digest = md.digest(clean.toByteArray(Charsets.UTF_8))
-        return digest.joinToString("") { "%02x".format(it) }
+    suspend fun saveOwnerEmail(shopCode: String, ownerEmail: String) {
+        val email = ownerEmail.trim().lowercase()
+        if (email.contains("@")) linkEmailToShop(email, shopCode)
     }
 
     /**
-     * Saves owner's Master PIN hash and Staff Access PIN under /shops/{shopCode}/security.
-     * Preserves standardized digits as well as dual hashes (English & Bengali numerals)
-     * so cloud verification is 100% resilient across devices and keyboards.
-     */
-    suspend fun saveShopSecurity(
-        shopCode: String,
-        ownerEmail: String,
-        masterPin: String,
-        staffPin: String
-    ) = withContext(Dispatchers.IO) {
-        val cleanCode = sanitizeFirebaseKey(shopCode.uppercase())
-        if (cleanCode.isBlank()) return@withContext
-        try {
-            val db = getDb() ?: return@withContext
-            val secRef = db.getReference("shops").child(cleanCode).child("security")
-
-            val cleanMaster = com.example.util.Formatters.fromBengaliDigits(masterPin).trim().ifBlank { "1234" }
-            val bnMaster = com.example.util.Formatters.toBengaliDigits(cleanMaster)
-            val cleanStaff = com.example.util.Formatters.fromBengaliDigits(staffPin).trim().ifBlank { "0000" }
-            val sanitizedEmail = ownerEmail.trim().lowercase()
-
-            val map = mapOf(
-                "masterPin" to cleanMaster,
-                "masterPinHash" to hashPin(cleanMaster),
-                "masterPinHashBn" to hashPin(bnMaster),
-                "staffPin" to cleanStaff,
-                "ownerEmail" to sanitizedEmail,
-                "updatedAt" to ServerValue.TIMESTAMP
-            )
-            secRef.updateChildren(map).await()
-
-            // Also mirror basic security info in /info node for fast multi-fallback checks
-            try {
-                db.getReference("shops").child(cleanCode).child("info").updateChildren(
-                    mapOf(
-                        "ownerEmail" to sanitizedEmail,
-                        "pinCode" to cleanMaster
-                    )
-                ).await()
-            } catch (_: Throwable) {}
-
-            if (sanitizedEmail.isNotBlank() && sanitizedEmail.contains("@")) {
-                linkEmailToShop(sanitizedEmail, cleanCode)
-            }
-            Log.d(tag, "Shop security successfully saved in Firebase for $cleanCode")
-        } catch (e: Throwable) {
-            Log.w(tag, "Error saving shop security: ${e.message}")
-        }
-    }
-
-    /**
-     * Verifies the provided master PIN against the shop's security data in Firebase.
-     * Bulletproof verification:
-     * 1. Checks English & Bengali numeral representations of the PIN.
-     * 2. Checks SHA-256 hashes (both English and Bengali digit hashes).
-     * 3. Checks plain text / numerical values safely without ClassCastException.
-     * 4. Checks both /security and /info nodes.
-     * 5. Fallback gracefully if the owner proves identity via their registered email.
-     */
-    suspend fun verifyMasterPin(
-        shopCode: String,
-        masterPinInput: String,
-        ownerEmailHint: String? = null
-    ): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val rawCode = shopCode.trim().uppercase()
-            val cleanCode = sanitizeFirebaseKey(rawCode)
-            if (cleanCode.isBlank()) return@withContext false
-
-            val cleanInput = com.example.util.Formatters.fromBengaliDigits(masterPinInput).trim()
-            val rawInput = masterPinInput.trim()
-            val bnInput = com.example.util.Formatters.toBengaliDigits(cleanInput).trim()
-            val cleanDigits = cleanInput.filter { it.isDigit() }
-            val rawDigits = rawInput.filter { it.isDigit() }
-
-            val candidatePins = setOf(cleanInput, rawInput, bnInput, cleanDigits, rawDigits).filter { it.isNotBlank() }
-            val candidateHashes = candidatePins.map { hashPin(it).lowercase() }.toSet()
-
-            val db = getDb() ?: return@withContext false
-
-            // Step 1: Look up /security node (try cleanCode, SHOP-$cleanCode, or prefix stripped)
-            var secSnap = withTimeout(10000L) {
-                db.getReference("shops").child(cleanCode).child("security").get().await()
-            }
-
-            var activeCode = cleanCode
-            if (!secSnap.exists() && !cleanCode.startsWith("SHOP-")) {
-                val altCode = "SHOP-$cleanCode"
-                val altSnap = withTimeout(5000L) {
-                    db.getReference("shops").child(altCode).child("security").get().await()
-                }
-                if (altSnap.exists()) {
-                    secSnap = altSnap
-                    activeCode = altCode
-                }
-            } else if (!secSnap.exists() && cleanCode.startsWith("SHOP-")) {
-                val strippedCode = cleanCode.removePrefix("SHOP-")
-                val altSnap = withTimeout(5000L) {
-                    db.getReference("shops").child(strippedCode).child("security").get().await()
-                }
-                if (altSnap.exists()) {
-                    secSnap = altSnap
-                    activeCode = strippedCode
-                }
-            }
-
-            // Also check /info node in case PIN or owner email was stored there
-            val infoSnap = try {
-                withTimeout(5000L) {
-                    db.getReference("shops").child(activeCode).child("info").get().await()
-                }
-            } catch (_: Exception) { null }
-
-            if (!secSnap.exists() && (infoSnap == null || !infoSnap.exists())) {
-                // Unknown shop: never accept (this used to let any PIN in).
-                return@withContext false
-            }
-
-            // Read cloud fields safely using .value?.toString() to avoid type casting bugs
-            val cloudHash = secSnap.child("masterPinHash").value?.toString()?.trim()?.lowercase()
-            val cloudHashBn = secSnap.child("masterPinHashBn").value?.toString()?.trim()?.lowercase()
-            val plainMasterPin = secSnap.child("masterPin").value?.toString()?.trim()
-            val cloudStaffPin = secSnap.child("staffPin").value?.toString()?.trim()
-            val cloudOwnerEmail = secSnap.child("ownerEmail").value?.toString()?.trim()?.lowercase()
-
-            val infoPin = infoSnap?.child("pinCode")?.value?.toString()?.trim()
-                ?: infoSnap?.child("pin")?.value?.toString()?.trim()
-                ?: infoSnap?.child("masterPin")?.value?.toString()?.trim()
-            val infoStaffPin = infoSnap?.child("staffPin")?.value?.toString()?.trim()
-            val infoOwnerEmail = infoSnap?.child("ownerEmail")?.value?.toString()?.trim()?.lowercase()
-
-            // A shop with no PIN stored cannot be unlocked by guessing; the owner sets one from the app.
-            if (cloudHash.isNullOrBlank() && cloudHashBn.isNullOrBlank() && plainMasterPin.isNullOrBlank() && infoPin.isNullOrBlank()) {
-                return@withContext false
-            }
-
-            // Condition 2: Hash comparison against SHA-256 cloud hashes
-            if (!cloudHash.isNullOrBlank()) {
-                if (candidateHashes.contains(cloudHash)) return@withContext true
-                // Also check if cloudHash was accidentally saved as raw plain text
-                if (candidatePins.contains(cloudHash)) return@withContext true
-            }
-            if (!cloudHashBn.isNullOrBlank()) {
-                if (candidateHashes.contains(cloudHashBn)) return@withContext true
-                if (candidatePins.contains(cloudHashBn)) return@withContext true
-            }
-
-            // Condition 3: Check against plain text master PIN
-            if (!plainMasterPin.isNullOrBlank()) {
-                val plainClean = com.example.util.Formatters.fromBengaliDigits(plainMasterPin).trim()
-                val plainBn = com.example.util.Formatters.toBengaliDigits(plainClean).trim()
-                if (candidatePins.any { it.equals(plainMasterPin, ignoreCase = true) || it.equals(plainClean, ignoreCase = true) || it.equals(plainBn, ignoreCase = true) }) {
-                    return@withContext true
-                }
-            }
-
-            // Condition 4: Check against info node PIN
-            if (!infoPin.isNullOrBlank()) {
-                val infoClean = com.example.util.Formatters.fromBengaliDigits(infoPin).trim()
-                val infoBn = com.example.util.Formatters.toBengaliDigits(infoClean).trim()
-                if (candidatePins.any { it.equals(infoPin, ignoreCase = true) || it.equals(infoClean, ignoreCase = true) || it.equals(infoBn, ignoreCase = true) }) {
-                    return@withContext true
-                }
-                if (candidateHashes.contains(infoPin.lowercase())) return@withContext true
-            }
-
-            // Removed: the staff PIN, the registered e-mail with "1234", and "1234" itself used to
-            // be accepted as the owner's master PIN for every shop.
-            return@withContext false
-        } catch (e: Exception) {
-            Log.e(tag, "Error verifying master pin: ${e.message}")
-            // A network error must not log anyone in.
-            return@withContext false
-        }
-    }
-
-    /**
-     * Verifies the provided staff PIN against the shop's staff access PIN in Firebase.
-     */
-    suspend fun verifyStaffPin(shopCode: String, staffPinInput: String): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val cleanCode = sanitizeFirebaseKey(shopCode.uppercase())
-            if (cleanCode.isBlank()) return@withContext false
-            val cleanInput = com.example.util.Formatters.fromBengaliDigits(staffPinInput).trim()
-            val rawInput = staffPinInput.trim()
-            val bnInput = com.example.util.Formatters.toBengaliDigits(cleanInput).trim()
-            val candidatePins = setOf(cleanInput, rawInput, bnInput).filter { it.isNotBlank() }
-
-            val db = getDb() ?: return@withContext false
-            val secSnap = withTimeout(10000L) {
-                db.getReference("shops").child(cleanCode).child("security").get().await()
-            }
-            if (!secSnap.exists()) {
-                return@withContext false
-            }
-
-            val cloudStaffPin = secSnap.child("staffPin").value?.toString()?.trim()
-            val plainMasterPin = secSnap.child("masterPin").value?.toString()?.trim()
-            val cloudHash = secSnap.child("masterPinHash").value?.toString()?.trim()?.lowercase()
-
-            if (cloudStaffPin.isNullOrBlank()) {
-                // No shared staff PIN configured: staff must use their own PIN from the staff list.
-                return@withContext false
-            }
-
-            val cleanCloud = com.example.util.Formatters.fromBengaliDigits(cloudStaffPin).trim()
-            val bnCloud = com.example.util.Formatters.toBengaliDigits(cleanCloud).trim()
-            if (candidatePins.any { it.equals(cloudStaffPin, ignoreCase = true) || it.equals(cleanCloud, ignoreCase = true) || it.equals(bnCloud, ignoreCase = true) }) {
-                return@withContext true
-            }
-
-            if (!plainMasterPin.isNullOrBlank()) {
-                val cleanMaster = com.example.util.Formatters.fromBengaliDigits(plainMasterPin).trim()
-                if (candidatePins.any { it.equals(plainMasterPin, ignoreCase = true) || it.equals(cleanMaster, ignoreCase = true) }) {
-                    return@withContext true
-                }
-            }
-
-            if (!cloudHash.isNullOrBlank()) {
-                val inputHash = hashPin(cleanInput).lowercase()
-                if (inputHash == cloudHash) return@withContext true
-            }
-
-            return@withContext false
-        } catch (e: Exception) {
-            Log.e(tag, "Error verifying staff pin: ${e.message}")
-            return@withContext false
-        }
-    }
-
-    /**
-     * Saves list of staff members under /shops/{shopCode}/staff and registers staff_to_shop indexes.
+     * Saves staff profiles (without PINs) under /shops/{shopCode}/staff and registers staff_to_shop indexes.
+     * Each record is written separately because the rules grant write access per staff member.
      */
     suspend fun saveStaffMembers(
         shopCode: String,
@@ -489,41 +170,38 @@ class FirebaseSyncManager(private val dao: PaponDao) {
         try {
             val db = getDb() ?: return@withContext
             val staffRef = db.getReference("shops").child(cleanCode).child("staff")
-            val map = mutableMapOf<String, Any>()
             staffList.forEach { staff ->
-                val staffKey = if (staff.email.isNotBlank() && staff.email.contains("@")) {
-                    encodeEmailKey(staff.email)
-                } else {
-                    sanitizeFirebaseKey(staff.id)
-                }
-                map[staffKey] = mapOf(
-                    "id" to staff.id,
-                    "name" to staff.name.trim(),
-                    "email" to staff.email.trim().lowercase(),
-                    "pin" to staff.pin.trim(),
-                    "pinHash" to hashPin(staff.pin),
-                    "phone" to staff.phone.trim(),
-                    "role" to staff.role,
-                    "isActive" to staff.isActive,
-                    "createdAt" to staff.createdAt
-                )
-                // Link each staff's email to shopCode for zero-friction setup
+                staffRef.child(staffKeyFor(staff)).updateChildren(
+                    mapOf(
+                        "id" to staff.id,
+                        "name" to staff.name.trim(),
+                        "email" to staff.email.trim().lowercase(),
+                        "phone" to staff.phone.trim(),
+                        "role" to staff.role,
+                        "isActive" to staff.isActive,
+                        "createdAt" to staff.createdAt,
+                        "hasPin" to staff.pin.isNotBlank()
+                    )
+                ).await()
                 if (staff.email.isNotBlank() && staff.email.contains("@")) {
                     try {
-                        val encodedEmail = encodeEmailKey(staff.email)
-                        db.getReference("staff_to_shop").child(encodedEmail).setValue(cleanCode)
+                        db.getReference("staff_to_shop").child(encodeEmailKey(staff.email)).setValue(cleanCode).await()
                     } catch (_: Exception) {}
                 }
             }
-            staffRef.setValue(map).await()
-            Log.d(tag, "Successfully saved ${staffList.size} staff members in Firebase for $cleanCode")
+            Log.d(tag, "Saved ${staffList.size} staff profiles in Firebase for $cleanCode")
         } catch (e: Exception) {
             Log.w(tag, "Error saving staff members: ${e.message}")
         }
     }
 
+    /** Firebase key of a staff record; the server uses the same key as the staff ID in login tokens. */
+    fun staffKeyFor(staff: com.example.data.entity.StaffMember): String =
+        if (staff.email.isNotBlank() && staff.email.contains("@")) encodeEmailKey(staff.email) else sanitizeFirebaseKey(staff.id)
+
     /**
-     * Fetches all registered staff members for a shop from Firebase.
+     * Fetches staff profiles for a shop from Firebase. PINs are never returned (they are hashed on the
+     * server), so callers must keep the locally known PIN.
      */
     suspend fun fetchStaffMembers(shopCode: String): List<com.example.data.entity.StaffMember> = withContext(Dispatchers.IO) {
         val cleanCode = sanitizeFirebaseKey(shopCode.uppercase())
@@ -539,79 +217,18 @@ class FirebaseSyncManager(private val dao: PaponDao) {
                 val id = child.child("id").getValue(String::class.java) ?: child.key ?: java.util.UUID.randomUUID().toString()
                 val name = child.child("name").getValue(String::class.java) ?: ""
                 val email = child.child("email").getValue(String::class.java) ?: ""
-                val pin = child.child("pin").getValue(String::class.java) ?: ""
                 val phone = child.child("phone").getValue(String::class.java) ?: ""
                 val role = child.child("role").getValue(String::class.java) ?: "staff"
                 val isActive = child.child("isActive").getValue(Boolean::class.java) ?: true
                 val createdAt = child.child("createdAt").getValue(Long::class.java) ?: System.currentTimeMillis()
                 if (name.isNotBlank() || email.isNotBlank()) {
-                    list.add(com.example.data.entity.StaffMember(id, name, email, pin, phone, role, isActive, createdAt))
+                    list.add(com.example.data.entity.StaffMember(id, name, email, "", phone, role, isActive, createdAt))
                 }
             }
             list
         } catch (e: Exception) {
             Log.w(tag, "Error fetching staff members: ${e.message}")
             emptyList()
-        }
-    }
-
-    /**
-     * Verifies specific staff PIN against employee registry or legacy staff PIN.
-     * Returns Pair(Boolean isSuccess, StaffMember? matchedStaff).
-     */
-    suspend fun verifySpecificStaffPin(
-        shopCode: String,
-        staffEmailOrName: String,
-        pinInput: String
-    ): Pair<Boolean, com.example.data.entity.StaffMember?> = withContext(Dispatchers.IO) {
-        val cleanCode = sanitizeFirebaseKey(shopCode.uppercase())
-        if (cleanCode.isBlank()) return@withContext Pair(false, null)
-        val cleanPin = com.example.util.Formatters.fromBengaliDigits(pinInput).trim()
-        val rawPin = pinInput.trim()
-        val cleanIdentifier = staffEmailOrName.trim().lowercase()
-
-        try {
-            val staffList = fetchStaffMembers(cleanCode)
-            if (staffList.isNotEmpty()) {
-                // Find staff by email, phone, or name
-                val matchedStaff = if (cleanIdentifier.isNotBlank()) {
-                    staffList.find {
-                        it.email.trim().lowercase() == cleanIdentifier ||
-                        it.name.trim().lowercase() == cleanIdentifier ||
-                        it.phone.trim() == cleanIdentifier
-                    }
-                } else {
-                    // Match by PIN among active staff
-                    staffList.find {
-                        it.isActive && (it.pin.trim() == cleanPin || it.pin.trim() == rawPin || hashPin(cleanPin) == hashPin(it.pin))
-                    }
-                }
-
-                if (matchedStaff != null && matchedStaff.isActive) {
-                    val pinMatches = matchedStaff.pin.isNotBlank() && (
-                                     matchedStaff.pin.trim() == cleanPin ||
-                                     matchedStaff.pin.trim() == rawPin)
-                    if (pinMatches) {
-                        return@withContext Pair(true, matchedStaff)
-                    }
-                }
-            }
-
-            // Fallback: verify against general shop staff PIN
-            val legacyValid = verifyStaffPin(cleanCode, pinInput)
-            if (legacyValid) {
-                val fallbackStaff = com.example.data.entity.StaffMember(
-                    name = if (staffEmailOrName.isNotBlank() && !staffEmailOrName.contains("@")) staffEmailOrName.trim() else "কর্মচারী",
-                    email = if (staffEmailOrName.contains("@")) staffEmailOrName.trim() else "",
-                    pin = cleanPin
-                )
-                return@withContext Pair(true, fallbackStaff)
-            }
-
-            return@withContext Pair(false, null)
-        } catch (e: Exception) {
-            Log.e(tag, "Error in verifySpecificStaffPin: ${e.message}")
-            return@withContext Pair(false, null)
         }
     }
 
@@ -718,16 +335,34 @@ class FirebaseSyncManager(private val dao: PaponDao) {
         )
 
         val shopRef = db.getReference("shops").child(trimmedCode)
-        currentShopRef = shopRef
-
-        try {
-            shopRef.keepSynced(true)
-        } catch (_: Exception) {}
 
         scope.launch {
+            // The database only answers requests from a server-verified session for this shop.
+            val session = cloudAuth.currentSession()
+            if (session == null || session.shopCode != trimmedCode || session.pinChangeRequired) {
+                _syncStatus.value = FirebaseSyncStatus(
+                    isConnected = false,
+                    isCloudLive = false,
+                    shopCode = trimmedCode,
+                    role = role,
+                    syncMessage = "🔒 ক্লাউড লগইন প্রয়োজন"
+                )
+                withContext(Dispatchers.Main) {
+                    onComplete?.invoke(false, "ক্লাউড সিঙ্কের জন্য আগে পিন দিয়ে লগইন করুন")
+                }
+                return@launch
+            }
+            currentUserRole = session.role
+            // Only now may pushSale()/pushProduct() write: before this the rules would reject them.
+            currentShopRef = shopRef
+            try {
+                shopRef.child("products").keepSynced(true)
+                if (session.role == "owner") shopRef.child("sales").keepSynced(true)
+            } catch (_: Exception) {}
+
             try {
                 withTimeout(20000L) {
-                    if (role == "owner") {
+                    if (session.role == "owner") {
                         val localCount = dao.getActiveProductCount()
                         if (localCount == 0) {
                             // Fresh device or restoring previous shop
@@ -888,10 +523,7 @@ class FirebaseSyncManager(private val dao: PaponDao) {
      * Pull data from cloud on employee first connection.
      */
     private suspend fun pullInitialDataFromCloud(shopRef: DatabaseReference) = withContext(Dispatchers.IO) {
-        val snapshot = shopRef.get().await()
-        for (node in listOf("products", "customers", "suppliers", "sales", "customer_ledger", "expenses", "purchases")) {
-            cloudKeys[node] = snapshot.child(node).children.mapNotNull { it.key }.toSet()
-        }
+        // Each node is read separately: the rules grant access per node (staff can't read the whole shop).
 
         // Safe snapshot helper extensions
         fun DataSnapshot.readLong(childKey: String, default: Long = 0L): Long =
@@ -914,7 +546,8 @@ class FirebaseSyncManager(private val dao: PaponDao) {
         }
 
         // Pull Products
-        val productsSnap = snapshot.child("products")
+        val productsSnap = shopRef.child("products").get().await()
+        cloudKeys["products"] = productsSnap.children.mapNotNull { it.key }.toSet()
         val productList = mutableListOf<Product>()
         for (pChild in productsSnap.children) {
             try {
@@ -962,7 +595,8 @@ class FirebaseSyncManager(private val dao: PaponDao) {
         // Staff/Employees ONLY pull products and categories to sell via POS without seeing owner financial data
         if (currentUserRole == "owner") {
             // Pull Customers
-            val customersSnap = snapshot.child("customers")
+            val customersSnap = shopRef.child("customers").get().await()
+        cloudKeys["customers"] = customersSnap.children.mapNotNull { it.key }.toSet()
             val customerList = mutableListOf<Customer>()
             for (cChild in customersSnap.children) {
                 try {
@@ -987,7 +621,8 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             }
 
             // Pull Suppliers
-            val suppliersSnap = snapshot.child("suppliers")
+            val suppliersSnap = shopRef.child("suppliers").get().await()
+        cloudKeys["suppliers"] = suppliersSnap.children.mapNotNull { it.key }.toSet()
             val supplierList = mutableListOf<Supplier>()
             for (sChild in suppliersSnap.children) {
                 try {
@@ -1012,7 +647,8 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             }
 
             // Pull Sales & Sale Items in BATCH (Atomic & Ultra-Fast)
-            val salesSnap = snapshot.child("sales")
+            val salesSnap = shopRef.child("sales").get().await()
+        cloudKeys["sales"] = salesSnap.children.mapNotNull { it.key }.toSet()
             val salesToInsert = mutableListOf<Sale>()
             val saleItemsToInsert = mutableListOf<SaleItem>()
             val ledgersToInsert = mutableListOf<CustomerLedger>()
@@ -1107,19 +743,24 @@ class FirebaseSyncManager(private val dao: PaponDao) {
             }
             // Due ledger: prefer the real ledger backup (includes payments); older backups only
             // have sales, so fall back to rebuilding the ledger from sale dues.
-            val cloudLedgers = snapshot.child("customer_ledger").children.mapNotNull { CloudMappers.readLedger(it) }
+            val ledgerSnap = shopRef.child("customer_ledger").get().await()
+            cloudKeys["customer_ledger"] = ledgerSnap.children.mapNotNull { it.key }.toSet()
+            val cloudLedgers = ledgerSnap.children.mapNotNull { CloudMappers.readLedger(it) }
             if (cloudLedgers.isNotEmpty()) {
                 dao.insertCustomerLedgers(cloudLedgers)
             } else if (ledgersToInsert.isNotEmpty()) {
                 dao.insertCustomerLedgers(ledgersToInsert)
             }
 
-            val expenses = snapshot.child("expenses").children.mapNotNull { CloudMappers.readExpense(it) }
+            val expenseSnap = shopRef.child("expenses").get().await()
+            cloudKeys["expenses"] = expenseSnap.children.mapNotNull { it.key }.toSet()
+            val expenses = expenseSnap.children.mapNotNull { CloudMappers.readExpense(it) }
             if (expenses.isNotEmpty()) dao.insertExpenses(expenses)
 
-            val newPurchases = snapshot.child("purchases").children
-                .mapNotNull { CloudMappers.readPurchase(it) }
-                .filter { dao.getPurchaseById(it.first.id) == null }
+            val purchaseSnap = shopRef.child("purchases").get().await()
+            cloudKeys["purchases"] = purchaseSnap.children.mapNotNull { it.key }.toSet()
+            val purchases = purchaseSnap.children.mapNotNull { CloudMappers.readPurchase(it) }
+            val newPurchases = purchases.filter { dao.getPurchaseById(it.first.id) == null }
             if (newPurchases.isNotEmpty()) {
                 dao.insertPurchases(newPurchases.map { it.first })
                 dao.insertPurchaseItems(newPurchases.flatMap { it.second })
@@ -1451,7 +1092,9 @@ class FirebaseSyncManager(private val dao: PaponDao) {
     /**
      * Disconnect shop.
      */
-    fun disconnect() {
+    fun disconnect(signOut: Boolean = false) {
+        detachRealtimeListeners()
+        if (signOut) cloudAuth.signOut()
         currentShopRef = null
         currentShopCode = ""
         isListenersAttached = false

@@ -19,3 +19,16 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# ---- Dokan Pro ----
+# Keep line numbers for readable crash reports (file names are still obfuscated).
+-keepattributes SourceFile,LineNumberTable,Signature,*Annotation*,InnerClasses,EnclosingMethod
+-renamesourcefileattribute SourceFile
+
+# Room entities and DAOs are accessed by generated code; keep their members stable for migrations.
+-keep class com.example.data.entity.** { *; }
+
+# Moshi/Retrofit are on the classpath (codegen via KSP); keep generated adapters if any are added.
+-keep class **JsonAdapter { *; }
+-dontwarn org.codehaus.mojo.animal_sniffer.**
+-dontwarn javax.annotation.**

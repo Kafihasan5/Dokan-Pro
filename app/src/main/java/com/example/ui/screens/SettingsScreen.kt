@@ -568,8 +568,10 @@ fun SettingsScreen(
                         DokanSecondaryButton(
                             text = "🔐 সিকিউরিটি ও জেনারেল স্টাফ পিন পরিবর্তন করুন",
                             onClick = {
-                                masterPinEditInput = pinCode
-                                staffPinEditInput = staffPinInput
+                                masterPinEditInput = ""
+                                staffPinEditInput = staffPinInput.takeUnless {
+                                    com.example.data.firebase.CloudAuthManager.isWeakPin(com.example.data.firebase.CloudAuthManager.normalizePin(it))
+                                } ?: ""
                                 showChangeSecurityPinsDialog = true
                             }
                         )
@@ -1030,8 +1032,9 @@ fun SettingsScreen(
                             vatEnabled = vatEnabled,
                             vatPercentage = vatPercentageText.toDoubleOrNull() ?: 0.0,
                             pinEnabled = pinEnabled,
-                            pinCode = pinCode.trim(),
-                            staffPin = staffPinInput.trim().ifBlank { "0000" },
+                            // PINs change only through the security dialog (verified by the server).
+                            pinCode = config.pinCode,
+                            staffPin = config.staffPin,
                             userRole = userRole,
                             allowNegativeStock = allowNegativeStock
                         )
@@ -1228,11 +1231,11 @@ fun SettingsScreen(
                     DokanTextField(
                         value = masterPinEditInput,
                         onValueChange = {
-                            masterPinEditInput = it.filter { c -> c.isDigit() }.take(6)
+                            masterPinEditInput = it.filter { c -> c.isDigit() }.take(12)
                             masterError = null
                         },
-                        label = "মাস্টার সিকিউরিটি পিন (৪-৬ ডিজিট)",
-                        placeholder = "যেমন: 1234",
+                        label = "নতুন মাস্টার পিন (৬ সংখ্যা সুপারিশকৃত)",
+                        placeholder = "সহজে অনুমান করা যায় না এমন পিন",
                         keyboardType = KeyboardType.NumberPassword,
                         isError = masterError != null,
                         errorText = masterError
@@ -1241,11 +1244,11 @@ fun SettingsScreen(
                     DokanTextField(
                         value = staffPinEditInput,
                         onValueChange = {
-                            staffPinEditInput = it.filter { c -> c.isDigit() }.take(4)
+                            staffPinEditInput = it.filter { c -> c.isDigit() }.take(12)
                             staffError = null
                         },
-                        label = "কর্মচারী অ্যাক্সেস পিন (৪ ডিজিট)",
-                        placeholder = "যেমন: 0000",
+                        label = "সাধারণ কর্মচারী পিন (ঐচ্ছিক)",
+                        placeholder = "খালি রাখলে বন্ধ থাকবে",
                         keyboardType = KeyboardType.NumberPassword,
                         isError = staffError != null,
                         errorText = staffError
@@ -1268,8 +1271,8 @@ fun SettingsScreen(
                             masterError = "মাস্টার পিন কমপক্ষে ৪ ডিজিট হতে হবে"
                             return@Button
                         }
-                        if (cleanStaff.length < 4) {
-                            staffError = "স্টাফ পিন ৪ ডিজিট হতে হবে"
+                        if (cleanStaff.isNotEmpty() && cleanStaff.length < 4) {
+                            staffError = "স্টাফ পিন কমপক্ষে ৪ সংখ্যা হতে হবে"
                             return@Button
                         }
                         isSavingSecurityPins = true
@@ -1284,7 +1287,7 @@ fun SettingsScreen(
                             }
                         }
                     },
-                    enabled = !isSavingSecurityPins && masterPinEditInput.isNotBlank() && staffPinEditInput.isNotBlank()
+                    enabled = !isSavingSecurityPins && masterPinEditInput.isNotBlank()
                 ) {
                     Text("সংরক্ষণ করুন")
                 }

@@ -396,7 +396,7 @@ fun BackupScreen(
 
                                 DokanTextField(
                                     value = staffPinInput,
-                                    onValueChange = { staffPinInput = it.filter { c -> c.isDigit() }.take(4) },
+                                    onValueChange = { staffPinInput = it.filter { c -> c.isDigit() }.take(12) },
                                     label = "স্টাফ অ্যাক্সেস পিন (৪ সংখ্যা)",
                                     placeholder = "যেমন: 0000",
                                     keyboardType = KeyboardType.NumberPassword,
@@ -864,7 +864,7 @@ fun BackupScreen(
                     DokanTextField(
                         value = ownerMasterPinInput,
                         onValueChange = {
-                            ownerMasterPinInput = it.filter { c -> c.isDigit() }.take(6)
+                            ownerMasterPinInput = it.filter { c -> c.isDigit() }.take(12)
                             restoreErrorMessage = null
                         },
                         label = "মাস্টার সিকিউরিটি পিন (৪-৬ ডিজিট)",

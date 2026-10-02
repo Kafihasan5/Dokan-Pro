@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.BuildConfig
 import com.example.data.db.PaponDatabase
 import com.example.data.entity.*
+import com.example.data.firebase.CloudAuthManager
 import com.example.data.repository.PaponRepository
 import com.example.util.AppUpdater
 import com.example.util.Formatters
@@ -85,6 +86,18 @@ enum class AppScreen {
     LIVE_SUPPORT
 }
 
+/** What the phone needs from the user before cloud sync can continue. */
+enum class CloudPrompt {
+    /** New shop (or never registered) with no strong PIN yet. */
+    SET_STRONG_PIN,
+    /** Logged in with a guessable PIN; must change it before any data syncs. */
+    CHANGE_WEAK_PIN,
+    /** The PIN saved on this phone was rejected (changed elsewhere or wrong). */
+    ENTER_PIN,
+    /** Staff device lost its session (PIN changed, deactivated...). */
+    STAFF_REJOIN
+}
+
 class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: PaponRepository
@@ -100,6 +113,13 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     val lastSyncTime: StateFlow<Long?> = _lastSyncTime.asStateFlow()
 
     private val _shopConfig = MutableStateFlow(ShopConfig())
+
+    private val _cloudPrompt = MutableStateFlow<CloudPrompt?>(null)
+    val cloudPrompt: StateFlow<CloudPrompt?> = _cloudPrompt.asStateFlow()
+    private val _cloudPromptMessage = MutableStateFlow("")
+    val cloudPromptMessage: StateFlow<String> = _cloudPromptMessage.asStateFlow()
+    private val _cloudBusy = MutableStateFlow(false)
+    val cloudBusy: StateFlow<Boolean> = _cloudBusy.asStateFlow()
     val shopConfig: StateFlow<ShopConfig> = _shopConfig.asStateFlow()
 
     lateinit var firebaseSyncManager: com.example.data.firebase.FirebaseSyncManager
@@ -372,6 +392,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logoutAndDeactivate() {
         disconnectFirebaseShop()
+        firebaseSyncManager.disconnect(signOut = true)
         val resetConfig = _shopConfig.value.copy(
             userRole = "owner",
             staffName = "",
@@ -389,12 +410,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         TelegramSupportManager.init(application)
         loadShopConfig()
         loadUnits()
-        viewModelScope.launch {
-            while (true) {
-                delay(6000)
-                TelegramSupportManager.syncAllMessages(application, getDeviceId())
-            }
-        }
+        // Support chat polling runs inside TelegramSupportManager (fast only while the chat is open).
         val db = PaponDatabase.getInstance(application)
         repository = PaponRepository(db.paponDao())
         firebaseSyncManager = com.example.data.firebase.FirebaseSyncManager(db.paponDao())
@@ -415,14 +431,9 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                     firebaseSyncEnabled = true
                 )
             }
-            // Auto-connect and auto-push everything to cloud on startup with zero user interaction!
-            firebaseSyncManager.connectShop(currentShopCode, "owner")
-        } else {
-            val isFirebaseSyncOn = prefs.getBoolean("firebase_sync_enabled", false)
-            if (isFirebaseSyncOn && currentShopCode.isNotBlank()) {
-                firebaseSyncManager.connectShop(currentShopCode, savedRole)
-            }
         }
+        // Sign in to the server (or register a new shop) and then start live sync.
+        ensureCloudSession()
 
 
 
@@ -1072,7 +1083,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Runs [block] only when live cloud sync is on. */
+    /** Runs [block] only when live cloud sync is on (the sync manager drops writes until a session exists). */
     private fun cloud(block: (com.example.data.firebase.FirebaseSyncManager) -> Unit) {
         if (::firebaseSyncManager.isInitialized && _shopConfig.value.firebaseSyncEnabled) block(firebaseSyncManager)
     }
@@ -1462,23 +1473,212 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateSecurityPins(newMasterPin: String, newStaffPin: String, onComplete: ((Boolean, String) -> Unit)? = null) {
-        val cleanMaster = newMasterPin.trim()
-        val cleanStaff = newStaffPin.trim()
-        if (cleanMaster.length < 4) {
-            onComplete?.invoke(false, "মাস্টার পিন কমপক্ষে ৪ ডিজিট হতে হবে")
+        val master = CloudAuthManager.normalizePin(newMasterPin)
+        val staff = CloudAuthManager.normalizePin(newStaffPin)
+        val problem = when {
+            !CloudAuthManager.isValidPin(master) -> "মাস্টার পিন ৪-১২টি সংখ্যা হতে হবে"
+            CloudAuthManager.isWeakPin(master) -> "মাস্টার পিনটি খুব সহজ। ১২৩৪, ০০০০ বা একই সংখ্যা বারবার ব্যবহার করবেন না"
+            staff.isNotEmpty() && !CloudAuthManager.isValidPin(staff) -> "কর্মচারী পিন ৪-১২টি সংখ্যা হতে হবে"
+            staff.isNotEmpty() && CloudAuthManager.isWeakPin(staff) -> "কর্মচারী পিনটি খুব সহজ"
+            staff.isNotEmpty() && staff == master -> "কর্মচারী পিন আর মাস্টার পিন আলাদা হতে হবে"
+            else -> null
+        }
+        if (problem != null) {
+            showToast(problem)
+            onComplete?.invoke(false, problem)
             return
         }
-        val updated = _shopConfig.value.copy(
-            pinCode = cleanMaster,
-            staffPin = cleanStaff.ifBlank { "0000" },
-            pinEnabled = true
-        )
-        updateShopConfig(updated)
-        val code = updated.firebaseShopCode.ifBlank { getDefaultShopCode() }
+
+        val before = _shopConfig.value
+        val oldMaster = CloudAuthManager.normalizePin(before.pinCode)
+        val oldStaff = CloudAuthManager.normalizePin(before.staffPin)
+        val code = before.firebaseShopCode.ifBlank { getDefaultShopCode() }
+
         viewModelScope.launch {
-            firebaseSyncManager.saveShopSecurity(code, updated.ownerEmail, cleanMaster, cleanStaff)
-            showToast("সিকিউরিটি পিন সফলভাবে আপডেট করা হয়েছে")
-            onComplete?.invoke(true, "সিকিউরিটি পিন সফলভাবে সংরক্ষিত হয়েছে!")
+            val cloud = firebaseSyncManager.cloudAuth
+            val session = cloud.currentSession()
+            if (session != null && session.shopCode == code && session.role == "owner") {
+                // Change on the server first; only a confirmed change is saved on the phone.
+                if (master != oldMaster || session.pinChangeRequired) {
+                    when (val r = cloud.changeOwnerPin(oldMaster, master)) {
+                        is CloudAuthManager.AuthResult.Success -> Unit
+                        is CloudAuthManager.AuthResult.Rejected -> { fail(r.message, onComplete); return@launch }
+                        is CloudAuthManager.AuthResult.NetworkError -> { fail(r.message, onComplete); return@launch }
+                    }
+                }
+                if (staff != oldStaff) {
+                    cloud.setSharedStaffPin(staff.ifEmpty { null })?.let { fail(it, onComplete); return@launch }
+                }
+            }
+            val updated = _shopConfig.value.copy(pinCode = master, staffPin = staff, pinEnabled = true)
+            _shopConfig.value = updated
+            saveShopConfig(updated)
+            if (session == null || session.shopCode != code) {
+                // Not registered yet (e.g. onboarding): registers the shop with the new PIN.
+                ensureCloudSession()
+            } else if (_cloudPrompt.value == CloudPrompt.CHANGE_WEAK_PIN) {
+                _cloudPrompt.value = null
+                firebaseSyncManager.connectShop(code, "owner")
+            }
+            showToast("সিকিউরিটি পিন সফলভাবে আপডেট করা হয়েছে")
+            withContext(Dispatchers.Main) { onComplete?.invoke(true, "সিকিউরিটি পিন সফলভাবে সংরক্ষিত হয়েছে!") }
+        }
+    }
+
+    private suspend fun fail(message: String, onComplete: ((Boolean, String) -> Unit)?) {
+        showToast(message)
+        withContext(Dispatchers.Main) { onComplete?.invoke(false, message) }
+    }
+
+    // --- CLOUD SESSION (server-verified login) ---
+
+    private fun promptCloud(prompt: CloudPrompt, message: String) {
+        _cloudPromptMessage.value = message
+        _cloudPrompt.value = prompt
+    }
+
+    fun dismissCloudPrompt() {
+        _cloudPrompt.value = null
+        showToast("ক্লাউড সিঙ্ক বন্ধ আছে। অ্যাপ অফলাইনে চলবে।")
+    }
+
+    /**
+     * Makes sure this phone has a server session for its shop, then starts live sync.
+     * Owners are signed in silently with the PIN saved on the phone; a brand-new shop is registered.
+     * Anything that needs the user (weak PIN, changed PIN) becomes a [CloudPrompt].
+     */
+    fun ensureCloudSession() {
+        viewModelScope.launch {
+            try {
+                val cfg = _shopConfig.value
+                val role = cfg.userRole
+                val code = cfg.firebaseShopCode.ifBlank { if (role == "owner") getDefaultShopCode() else "" }
+                if (code.isBlank() || (role != "owner" && !cfg.firebaseSyncEnabled)) return@launch
+                val cloud = firebaseSyncManager.cloudAuth
+
+                val existing = cloud.currentSession()
+                if (existing != null && existing.shopCode == code && existing.role == role) {
+                    if (existing.pinChangeRequired) {
+                        promptCloud(CloudPrompt.CHANGE_WEAK_PIN, "আপনার মাস্টার পিনটি সহজে অনুমানযোগ্য। দোকানের তথ্য সুরক্ষিত রাখতে নতুন পিন দিন।")
+                    } else {
+                        firebaseSyncManager.connectShop(code, role)
+                    }
+                    return@launch
+                }
+                if (existing != null) cloud.signOut()
+                if (!cfg.isOnboardingCompleted && role == "owner") return@launch
+
+                if (role != "owner") {
+                    when (val r = cloud.login(code, cfg.staffPin, "staff")) {
+                        is CloudAuthManager.AuthResult.Success -> firebaseSyncManager.connectShop(code, "staff")
+                        is CloudAuthManager.AuthResult.Rejected ->
+                            promptCloud(CloudPrompt.STAFF_REJOIN, "${r.message}\nমালিকের কাছ থেকে নতুন পিন নিয়ে আবার যুক্ত হোন।")
+                        is CloudAuthManager.AuthResult.NetworkError -> Log.w("PaponViewModel", "Cloud login deferred: ${r.message}")
+                    }
+                    return@launch
+                }
+
+                val pin = CloudAuthManager.normalizePin(cfg.pinCode)
+                val weak = !CloudAuthManager.isValidPin(pin) || CloudAuthManager.isWeakPin(pin)
+                val identifier = if (weak && cfg.ownerEmail.contains("@")) cfg.ownerEmail.trim() else code
+                when (val r = cloud.login(identifier, pin, "owner")) {
+                    is CloudAuthManager.AuthResult.Success -> onOwnerSignedIn(r.session, code)
+                    is CloudAuthManager.AuthResult.NetworkError -> Log.w("PaponViewModel", "Cloud login deferred: ${r.message}")
+                    is CloudAuthManager.AuthResult.Rejected -> {
+                        if (r.code == "RESOURCE_EXHAUSTED" || r.code == "FAILED_PRECONDITION") {
+                            promptCloud(CloudPrompt.ENTER_PIN, r.message)
+                            return@launch
+                        }
+                        // Wrong PIN, or this shop was never registered on the server.
+                        if (weak) {
+                            promptCloud(CloudPrompt.SET_STRONG_PIN, "ক্লাউড ব্যাকআপ ও লাইভ সিঙ্ক চালু করতে একটি নিরাপদ মাস্টার পিন সেট করুন।")
+                            return@launch
+                        }
+                        when (val reg = cloud.registerShop(code, pin, cfg.ownerEmail, cfg.shopName)) {
+                            is CloudAuthManager.AuthResult.Success -> {
+                                val staffPin = CloudAuthManager.normalizePin(cfg.staffPin)
+                                if (CloudAuthManager.isValidPin(staffPin) && !CloudAuthManager.isWeakPin(staffPin)) {
+                                    cloud.setSharedStaffPin(staffPin)
+                                }
+                                onOwnerSignedIn(reg.session, code)
+                            }
+                            is CloudAuthManager.AuthResult.Rejected -> promptCloud(
+                                CloudPrompt.ENTER_PIN,
+                                if (reg.code == "ALREADY_EXISTS") "এই ফোনে সংরক্ষিত পিনটি ক্লাউডের সাথে মিলছে না (হয়তো অন্য ডিভাইস থেকে পরিবর্তন করা হয়েছে)। বর্তমান মাস্টার পিন দিন।" else reg.message
+                            )
+                            is CloudAuthManager.AuthResult.NetworkError -> Log.w("PaponViewModel", "Registration deferred: ${reg.message}")
+                        }
+                    }
+                }
+            } catch (t: Throwable) {
+                Log.e("PaponViewModel", "ensureCloudSession failed", t)
+            }
+        }
+    }
+
+    private suspend fun onOwnerSignedIn(session: CloudAuthManager.Session, code: String) {
+        if (session.pinChangeRequired) {
+            promptCloud(CloudPrompt.CHANGE_WEAK_PIN, "আপনার মাস্টার পিনটি সহজে অনুমানযোগ্য। দোকানের তথ্য সুরক্ষিত রাখতে নতুন পিন দিন।")
+            return
+        }
+        _cloudPrompt.value = null
+        val cfg = _shopConfig.value
+        if (cfg.firebaseShopCode != code || !cfg.firebaseSyncEnabled) {
+            val updated = cfg.copy(firebaseShopCode = code, firebaseSyncEnabled = true)
+            _shopConfig.value = updated
+            saveShopConfig(updated)
+        }
+        firebaseSyncManager.connectShop(code, "owner")
+    }
+
+    /** From the [CloudPrompt.ENTER_PIN] / [CloudPrompt.STAFF_REJOIN] dialog. */
+    fun submitCloudLogin(identifierInput: String, pinInput: String) {
+        val cfg = _shopConfig.value
+        val role = if (cfg.userRole == "owner") "owner" else "staff"
+        val identifier = identifierInput.trim().ifBlank { cfg.firebaseShopCode.ifBlank { getDefaultShopCode() } }
+        val pin = CloudAuthManager.normalizePin(pinInput)
+        viewModelScope.launch {
+            _cloudBusy.value = true
+            try {
+                when (val r = firebaseSyncManager.cloudAuth.login(identifier, pin, role)) {
+                    is CloudAuthManager.AuthResult.Success -> {
+                        val updated = if (role == "owner") {
+                            cfg.copy(
+                                pinCode = pin,
+                                pinEnabled = true,
+                                ownerEmail = if (identifier.contains("@")) identifier.lowercase() else cfg.ownerEmail,
+                                firebaseShopCode = r.session.shopCode,
+                                firebaseSyncEnabled = true
+                            )
+                        } else {
+                            cfg.copy(staffPin = pin, staffName = r.session.name, firebaseShopCode = r.session.shopCode, firebaseSyncEnabled = true)
+                        }
+                        _shopConfig.value = updated
+                        saveShopConfig(updated)
+                        if (role == "owner") onOwnerSignedIn(r.session, r.session.shopCode)
+                        else {
+                            _cloudPrompt.value = null
+                            firebaseSyncManager.connectShop(r.session.shopCode, "staff")
+                        }
+                        showToast("ক্লাউডে লগইন সফল হয়েছে")
+                    }
+                    is CloudAuthManager.AuthResult.Rejected -> _cloudPromptMessage.value = r.message
+                    is CloudAuthManager.AuthResult.NetworkError -> _cloudPromptMessage.value = r.message
+                }
+            } finally {
+                _cloudBusy.value = false
+            }
+        }
+    }
+
+    /** From the [CloudPrompt.SET_STRONG_PIN] / [CloudPrompt.CHANGE_WEAK_PIN] dialog. */
+    fun submitNewMasterPin(newPin: String) {
+        _cloudBusy.value = true
+        updateSecurityPins(newPin, _shopConfig.value.staffPin.takeUnless {
+            CloudAuthManager.isWeakPin(CloudAuthManager.normalizePin(it))
+        } ?: "") { ok, msg ->
+            _cloudBusy.value = false
+            if (!ok) _cloudPromptMessage.value = msg
         }
     }
 
@@ -1531,8 +1731,8 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
             val pinEnabled = prefs.getBoolean("pin_enabled", false)
             // PINs and the staff list (which holds staff PINs) are stored encrypted with the Android Keystore.
             com.example.util.SecureStore.migrate(prefs, "pin_code", "staff_pin", "staff_members_json")
-            val pinCode = com.example.util.SecureStore.getString(prefs, "pin_code", "1234")
-            val staffPin = com.example.util.SecureStore.getString(prefs, "staff_pin", "0000")
+            val pinCode = com.example.util.SecureStore.getString(prefs, "pin_code", "")
+            val staffPin = com.example.util.SecureStore.getString(prefs, "staff_pin", "")
             val userRole = prefs.getString("user_role", "owner") ?: "owner"
             val staffName = prefs.getString("staff_name", "") ?: ""
             val staffEmail = prefs.getString("staff_email", "") ?: ""
@@ -1601,13 +1801,14 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 val code = config.firebaseShopCode.ifBlank { getDefaultShopCode() }
                 viewModelScope.launch {
                     try {
-                        firebaseSyncManager.saveShopSecurity(code, config.ownerEmail, config.pinCode, config.staffPin)
+                        if (firebaseSyncManager.cloudAuth.currentSession()?.shopCode != code) return@launch
+                        firebaseSyncManager.saveOwnerEmail(code, config.ownerEmail)
                         val staffList = getStaffMembers()
                         if (staffList.isNotEmpty()) {
                             firebaseSyncManager.saveStaffMembers(code, staffList)
                         }
                     } catch (t: Throwable) {
-                        Log.e("PaponViewModel", "saveShopSecurity error in saveShopConfig: ${t.message}")
+                        Log.e("PaponViewModel", "cloud profile sync error in saveShopConfig: ${t.message}")
                     }
                 }
             }
@@ -1632,38 +1833,20 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        viewModelScope.launch {
-            val resolvedCode = if (cleanInput.contains("@")) {
-                val code = firebaseSyncManager.resolveShopCode(cleanInput)
-                if (code.isNullOrBlank()) {
-                    val msg = "এই ইমেইল দিয়ে কোনো দোকান পাওয়া যায়নি। সঠিক ইমেইল অথবা দোকান কোড লিখুন।"
-                    showToast(msg)
-                    onComplete?.invoke(false, msg)
-                    return@launch
-                }
-                code
-            } else {
-                firebaseSyncManager.resolveShopCode(cleanInput) ?: firebaseSyncManager.sanitizeFirebaseKey(cleanInput.uppercase())
-            }
-
-            val currentEmail = if (cleanInput.contains("@")) cleanInput else _shopConfig.value.ownerEmail
-            val updated = _shopConfig.value.copy(
-                firebaseShopCode = resolvedCode,
-                firebaseSyncEnabled = true,
-                userRole = role,
-                ownerEmail = if (role == "owner" && currentEmail.isNotBlank()) currentEmail else _shopConfig.value.ownerEmail
-            )
-            updateShopConfig(updated)
-
-            if (role == "owner" && currentEmail.isNotBlank() && currentEmail.contains("@")) {
-                firebaseSyncManager.linkEmailToShop(currentEmail, resolvedCode)
-            }
-
-            firebaseSyncManager.connectShop(resolvedCode, role) { success, msg ->
-                showToast(msg)
-                onComplete?.invoke(success, msg)
-            }
+        val resolved = firebaseSyncManager.resolveShopCode(cleanInput) ?: run {
+            onComplete?.invoke(false, "দোকান কোড সঠিক নয়")
+            return
         }
+        val updated = _shopConfig.value.copy(
+            firebaseShopCode = if (resolved.contains("@")) _shopConfig.value.firebaseShopCode else resolved,
+            ownerEmail = if (role == "owner" && resolved.contains("@")) resolved else _shopConfig.value.ownerEmail,
+            firebaseSyncEnabled = true,
+            userRole = role
+        )
+        updateShopConfig(updated)
+        // Signs in with the PIN saved on this phone; asks for the PIN if the server rejects it.
+        ensureCloudSession()
+        onComplete?.invoke(true, "ক্লাউডে সংযোগ করা হচ্ছে...")
     }
 
     /**
@@ -1678,7 +1861,6 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         try {
             val cleanInput = com.example.util.Formatters.replaceBengaliDigits(shopCodeOrEmail).trim()
             val cleanPin = com.example.util.Formatters.fromBengaliDigits(masterPin).trim()
-            val rawPin = masterPin.trim()
             if (cleanInput.isBlank()) {
                 onComplete(false, "দোকান কোড অথবা নিবন্ধিত ইমেইল লিখুন")
                 return
@@ -1690,35 +1872,25 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
             viewModelScope.launch {
                 try {
-                    val resolvedCode = if (cleanInput.contains("@")) {
-                        firebaseSyncManager.resolveShopCode(cleanInput)
-                    } else {
-                        firebaseSyncManager.resolveShopCode(cleanInput) ?: firebaseSyncManager.sanitizeFirebaseKey(cleanInput.uppercase())
+                    // The server verifies the PIN; no cloud data is readable before this succeeds.
+                    val identifier = firebaseSyncManager.resolveShopCode(cleanInput) ?: cleanInput
+                    val session = when (val r = firebaseSyncManager.cloudAuth.login(identifier, cleanPin, "owner")) {
+                        is CloudAuthManager.AuthResult.Success -> r.session
+                        is CloudAuthManager.AuthResult.Rejected -> { fail(r.message) { ok, m -> onComplete(ok, m) }; return@launch }
+                        is CloudAuthManager.AuthResult.NetworkError -> { fail(r.message) { ok, m -> onComplete(ok, m) }; return@launch }
                     }
-
-                    if (resolvedCode.isNullOrBlank()) {
-                        val msg = if (cleanInput.contains("@")) {
-                            "এই ইমেইল দিয়ে পূর্বে কোনো দোকান পাওয়া যায়নি। অনুগ্রহ করে সঠিক ইমেইল অথবা দোকান কোড (যেমন: SHOP-XXXXXX) লিখুন।"
-                        } else {
-                            "এই কোড দিয়ে কোনো দোকান পাওয়া যায়নি। সঠিক দোকান কোড লিখুন।"
-                        }
-                        showToast(msg)
-                        withContext(Dispatchers.Main) {
-                            onComplete(false, msg)
-                        }
-                        return@launch
-                    }
-
-                    // Zero Data Leak: STRICTLY VERIFY MASTER PIN BEFORE DOWNLOADING ANY DATA!
-                    val emailHint = if (cleanInput.contains("@")) cleanInput else _shopConfig.value.ownerEmail.takeIf { it.isNotBlank() }
-                    val isPinValid = firebaseSyncManager.verifyMasterPin(resolvedCode, cleanPin, emailHint) ||
-                                     firebaseSyncManager.verifyMasterPin(resolvedCode, rawPin, emailHint)
-                    if (!isPinValid) {
-                        val msg = "প্রদত্ত মাস্টার সিকিউরিটি পিনটি সঠিক নয়। অনুগ্রহ করে আপনার ৪-৬ ডিজিটের সঠিক পিন লিখুন (যেমন: 1234 বা আপনার সেট করা পিন)।"
-                        showToast(msg)
-                        withContext(Dispatchers.Main) {
-                            onComplete(false, msg)
-                        }
+                    val resolvedCode = session.shopCode
+                    if (session.pinChangeRequired) {
+                        val cfg = _shopConfig.value.copy(
+                            firebaseShopCode = resolvedCode,
+                            userRole = "owner",
+                            pinCode = cleanPin,
+                            ownerEmail = if (cleanInput.contains("@")) cleanInput.lowercase() else _shopConfig.value.ownerEmail
+                        )
+                        _shopConfig.value = cfg
+                        saveShopConfig(cfg)
+                        promptCloud(CloudPrompt.CHANGE_WEAK_PIN, "আপনার মাস্টার পিনটি সহজে অনুমানযোগ্য। নতুন পিন সেট করার পর আবার রিস্টোর চাপুন।")
+                        fail("আগে নতুন মাস্টার পিন সেট করুন, তারপর আবার রিস্টোর চাপুন।") { ok, m -> onComplete(ok, m) }
                         return@launch
                     }
 
@@ -1815,7 +1987,6 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         try {
             val cleanInput = com.example.util.Formatters.replaceBengaliDigits(shopCodeOrEmail).trim()
             val cleanPin = com.example.util.Formatters.fromBengaliDigits(staffPin).trim()
-            val rawPin = staffPin.trim()
             val assignedName = staffName.trim().ifBlank { "কর্মচারী" }
             if (cleanInput.isBlank()) {
                 onComplete(false, "মালিকের দোকান কোড অথবা ইমেইল লিখুন")
@@ -1828,42 +1999,13 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
             viewModelScope.launch {
                 try {
-                    val resolvedCode = if (cleanInput.contains("@")) {
-                        firebaseSyncManager.resolveShopCode(cleanInput)
-                    } else {
-                        firebaseSyncManager.resolveShopCode(cleanInput) ?: firebaseSyncManager.sanitizeFirebaseKey(cleanInput.uppercase())
+                    val identifier = firebaseSyncManager.resolveShopCode(cleanInput) ?: cleanInput
+                    val session = when (val r = firebaseSyncManager.cloudAuth.login(identifier, cleanPin, "staff")) {
+                        is CloudAuthManager.AuthResult.Success -> r.session
+                        is CloudAuthManager.AuthResult.Rejected -> { fail(r.message) { ok, m -> onComplete(ok, m) }; return@launch }
+                        is CloudAuthManager.AuthResult.NetworkError -> { fail(r.message) { ok, m -> onComplete(ok, m) }; return@launch }
                     }
-
-                    if (resolvedCode.isNullOrBlank()) {
-                        val msg = "দোকানটি খুঁজে পাওয়া যায়নি। সঠিক কোড বা মালিকের ইমেইল লিখুন।"
-                        showToast(msg)
-                        withContext(Dispatchers.Main) {
-                            onComplete(false, msg)
-                        }
-                        return@launch
-                    }
-
-                    // Verify specific staff pin using employee name or fallback identifier
-                    val staffIdentifier = if (staffName.trim().isNotBlank()) staffName.trim() else if (cleanInput.contains("@")) cleanInput else ""
-                    val (isPinValid, matchedStaff) = try {
-                        firebaseSyncManager.verifySpecificStaffPin(
-                            resolvedCode,
-                            staffEmailOrName = staffIdentifier,
-                            pinInput = cleanPin
-                        )
-                    } catch (t: Throwable) {
-                        Log.w("PaponViewModel", "Error checking staff PIN: ${t.message}")
-                        Pair(false, null)
-                    }
-
-                    if (!isPinValid) {
-                        val msg = "ভুল কর্মচারী পিন! মালিকের দেওয়া সঠিক পিন লিখুন।"
-                        showToast(msg)
-                        withContext(Dispatchers.Main) {
-                            onComplete(false, msg)
-                        }
-                        return@launch
-                    }
+                    val resolvedCode = session.shopCode
 
                     // Download staff catalog (products and categories ONLY) BEFORE transitioning!
                     val restoreResult = firebaseSyncManager.restoreShopData(resolvedCode, "staff")
@@ -1878,8 +2020,8 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
 
                     val cloudInfo = firebaseSyncManager.fetchShopInfo(resolvedCode)
                     val shopName = cloudInfo?.get("shopName")?.takeIf { it.isNotBlank() } ?: _shopConfig.value.shopName
-                    val finalStaffName = matchedStaff?.name?.takeIf { it.isNotBlank() } ?: assignedName
-                    val finalStaffEmail = matchedStaff?.email?.takeIf { it.isNotBlank() } ?: (if (cleanInput.contains("@")) cleanInput else "")
+                    val finalStaffName = session.name.takeIf { it.isNotBlank() } ?: assignedName
+                    val finalStaffEmail = if (cleanInput.contains("@")) cleanInput.lowercase() else ""
 
                     val updated = _shopConfig.value.copy(
                         shopName = shopName,
@@ -2064,6 +2206,22 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     fun saveStaffMember(staff: com.example.data.entity.StaffMember, onComplete: ((Boolean, String) -> Unit)? = null) {
         val current = getStaffMembers().toMutableList()
         val idx = current.indexOfFirst { it.id == staff.id || (it.email.isNotBlank() && it.email.equals(staff.email, ignoreCase = true)) }
+        val previousPin = if (idx != -1) CloudAuthManager.normalizePin(current[idx].pin) else ""
+        val newPin = CloudAuthManager.normalizePin(staff.pin)
+        val pinChanged = newPin.isNotEmpty() && newPin != previousPin
+        if (pinChanged) {
+            val problem = when {
+                !CloudAuthManager.isValidPin(newPin) -> "কর্মচারীর পিন ৪-১২টি সংখ্যা হতে হবে"
+                CloudAuthManager.isWeakPin(newPin) -> "পিনটি খুব সহজ (যেমন ০০০০ বা ১২৩৪)। অন্য একটি পিন দিন"
+                newPin == CloudAuthManager.normalizePin(_shopConfig.value.pinCode) -> "কর্মচারীর পিন মালিকের মাস্টার পিনের মতো হতে পারবে না"
+                else -> null
+            }
+            if (problem != null) {
+                showToast(problem)
+                onComplete?.invoke(false, problem)
+                return
+            }
+        }
         if (idx != -1) {
             current[idx] = staff
         } else {
@@ -2087,6 +2245,14 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         val shopCode = updated.firebaseShopCode.ifBlank { getDefaultShopCode() }
         viewModelScope.launch {
             firebaseSyncManager.saveStaffMembers(shopCode, current)
+            if (pinChanged) {
+                // The PIN itself is stored only on the server, hashed.
+                firebaseSyncManager.cloudAuth.setStaffPin(firebaseSyncManager.staffKeyFor(staff), newPin)?.let { err ->
+                    showToast("কর্মচারীর তথ্য সংরক্ষিত, কিন্তু ক্লাউডে পিন সেট হয়নি: $err")
+                    withContext(Dispatchers.Main) { onComplete?.invoke(false, err) }
+                    return@launch
+                }
+            }
             showToast("কর্মচারী (${staff.name}) সফলভাবে সংরক্ষিত হয়েছে!")
             withContext(Dispatchers.Main) {
                 onComplete?.invoke(true, "কর্মচারী সংরক্ষিত হয়েছে")
@@ -2095,6 +2261,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun deleteStaffMember(staffId: String, onComplete: ((Boolean) -> Unit)? = null) {
+        val removed = getStaffMembers().firstOrNull { it.id == staffId }
         val current = getStaffMembers().filter { it.id != staffId }
         val arr = org.json.JSONArray()
         current.forEach { s ->
@@ -2113,6 +2280,8 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         updateShopConfig(updated)
         val shopCode = updated.firebaseShopCode.ifBlank { getDefaultShopCode() }
         viewModelScope.launch {
+            // Removes the profile and its PIN on the server and signs that employee's phone out.
+            removed?.let { firebaseSyncManager.cloudAuth.removeStaff(firebaseSyncManager.staffKeyFor(it)) }
             firebaseSyncManager.saveStaffMembers(shopCode, current)
             showToast("কর্মচারী মুছে ফেলা হয়েছে")
             withContext(Dispatchers.Main) {
@@ -2125,7 +2294,12 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         val shopCode = _shopConfig.value.firebaseShopCode.ifBlank { getDefaultShopCode() }
         viewModelScope.launch {
             try {
-                val cloudStaff = firebaseSyncManager.fetchStaffMembers(shopCode)
+                // The cloud never returns PINs; keep the ones this phone already knows.
+                val local = getStaffMembers()
+                val cloudStaff = firebaseSyncManager.fetchStaffMembers(shopCode).map { c ->
+                    val known = local.firstOrNull { it.id == c.id || (c.email.isNotBlank() && it.email.equals(c.email, ignoreCase = true)) }
+                    if (known != null) c.copy(pin = known.pin) else c
+                }
                 if (cloudStaff.isNotEmpty()) {
                     val arr = org.json.JSONArray()
                     cloudStaff.forEach { s ->
@@ -2311,9 +2485,10 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         val rawStaff = _shopConfig.value.staffPin.trim()
 
         // The owner's phone unlocks only with the master PIN; a staff phone only with its staff PIN.
-        // (Previously "1234"/"0000" unlocked every phone, and the staff PIN unlocked the owner's.)
+        // (Previously the staff PIN also unlocked the owner's phone with full owner access.)
         val isOwner = _shopConfig.value.userRole == "owner"
         val matches = !_shopConfig.value.pinEnabled ||
+                // A lock with no PIN set would trap the user, so it only applies once a PIN exists.
                 (isOwner && (cleanMaster.isEmpty() || clean == cleanMaster || pin.trim() == rawMaster)) ||
                 (!isOwner && (cleanStaff.isEmpty() || clean == cleanStaff || pin.trim() == rawStaff))
 
