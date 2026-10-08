@@ -109,14 +109,10 @@ fun LiveSupportScreen(
         }
     }
 
-    // Periodic sync every 3s while active on this screen for instant incoming replies
+    // Sync once on open; while this screen is open the background poller checks every 5s.
     LaunchedEffect(Unit) {
         viewModel.markAllNotificationsRead()
         viewModel.syncSupportMessages()
-        while (true) {
-            delay(3000)
-            viewModel.syncSupportMessages()
-        }
     }
 
     fun handleSend(text: String) {

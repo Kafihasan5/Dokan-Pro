@@ -41,8 +41,8 @@ class CloudAuthManager {
 
     companion object {
         const val REGION = "asia-southeast1"
-        /** Server endpoints (Netlify; see firebase/functions/netlify). Same callable protocol as Cloud Functions. */
-        const val API_BASE = "https://dokan-pro-api.netlify.app/api"
+        /** Server endpoints (Cloudflare Worker; see firebase/functions/cloudflare). Same callable protocol as Cloud Functions. */
+        const val API_BASE = "https://dokan-pro-api.dokanpro.workers.dev/api"
         fun endpoint(name: String) = java.net.URL("$API_BASE/$name")
         private val BN_DIGITS = "০১২৩৪৫৬৭৮৯"
         private val WEAK_PINS = setOf("0000", "1111", "1234", "4321", "1122", "2222", "9999", "000000", "123456", "111111", "654321")

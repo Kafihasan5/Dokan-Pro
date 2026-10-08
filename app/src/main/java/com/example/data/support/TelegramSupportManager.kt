@@ -92,8 +92,8 @@ object TelegramSupportManager {
 
     private val dismissedNotificationIds = mutableSetOf<String>()
 
-    /** Server limit for one photo/video (Netlify caps request bodies at 6 MB). */
-    const val MAX_MEDIA_BYTES = 5L * 1024 * 1024
+    /** Server limit for one photo/video. */
+    const val MAX_MEDIA_BYTES = 10L * 1024 * 1024
     private const val MAX_PHOTO_SIDE = 1600
     private val downloadsInFlight = mutableSetOf<String>()
     private val http: OkHttpClient by lazy {
@@ -382,11 +382,11 @@ object TelegramSupportManager {
                     if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else -1L
                 } ?: -1L
                 if (size > MAX_MEDIA_BYTES) {
-                    return@withContext Result.failure(Exception("ভিডিও ৫ MB এর বেশি। ছোট ভিডিও (১০-২০ সেকেন্ড) পাঠান।"))
+                    return@withContext Result.failure(Exception("ভিডিও ১০ MB এর বেশি। ছোট ভিডিও (৩০ সেকেন্ডের মতো) পাঠান।"))
                 }
                 val data = resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("read")
                 if (data.size > MAX_MEDIA_BYTES) {
-                    return@withContext Result.failure(Exception("ভিডিও ৫ MB এর বেশি। ছোট ভিডিও (১০-২০ সেকেন্ড) পাঠান।"))
+                    return@withContext Result.failure(Exception("ভিডিও ১০ MB এর বেশি। ছোট ভিডিও (৩০ সেকেন্ডের মতো) পাঠান।"))
                 }
                 data
             } else {
