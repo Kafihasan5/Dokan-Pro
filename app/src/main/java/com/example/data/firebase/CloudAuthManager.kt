@@ -41,6 +41,9 @@ class CloudAuthManager {
 
     companion object {
         const val REGION = "asia-southeast1"
+        /** Server endpoints (Netlify; see firebase/functions/netlify). Same callable protocol as Cloud Functions. */
+        const val API_BASE = "https://dokan-pro-api.netlify.app/api"
+        fun endpoint(name: String) = java.net.URL("$API_BASE/$name")
         private val BN_DIGITS = "০১২৩৪৫৬৭৮৯"
         private val WEAK_PINS = setOf("0000", "1111", "1234", "4321", "1122", "2222", "9999", "000000", "123456", "111111", "654321")
 
@@ -103,7 +106,7 @@ class CloudAuthManager {
 
     private suspend fun callForToken(name: String, data: Map<String, Any>): AuthResult = withContext(Dispatchers.IO) {
         try {
-            val result = withTimeout(30000L) { functions.getHttpsCallable(name).call(data).awaitTask() }
+            val result = withTimeout(30000L) { functions.getHttpsCallableFromUrl(endpoint(name)).call(data).awaitTask() }
             val token = (result.getData() as? Map<*, *>)?.get("token") as? String
                 ?: return@withContext AuthResult.NetworkError("সার্ভার থেকে সঠিক উত্তর পাওয়া যায়নি।")
             withTimeout(20000L) { auth.signInWithCustomToken(token).awaitTask() }
@@ -120,7 +123,7 @@ class CloudAuthManager {
 
     private suspend fun callSimple(name: String, data: Map<String, Any>): String? = withContext(Dispatchers.IO) {
         try {
-            withTimeout(30000L) { functions.getHttpsCallable(name).call(data).awaitTask() }
+            withTimeout(30000L) { functions.getHttpsCallableFromUrl(endpoint(name)).call(data).awaitTask() }
             null
         } catch (e: FirebaseFunctionsException) {
             when (val r = mapFunctionsError(e)) {

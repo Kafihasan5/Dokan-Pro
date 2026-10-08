@@ -164,7 +164,7 @@ object TelegramSupportManager {
     }
 
     private suspend fun call(name: String, data: Map<String, Any?>): Map<*, *> {
-        val result = withTimeout(30_000L) { functions.getHttpsCallable(name).call(data).awaitTask() }
+        val result = withTimeout(30_000L) { functions.getHttpsCallableFromUrl(com.example.data.firebase.CloudAuthManager.endpoint(name)).call(data).awaitTask() }
         return result.getData() as? Map<*, *> ?: emptyMap<String, Any>()
     }
 
