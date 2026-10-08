@@ -22,7 +22,7 @@ data class FirebaseSyncStatus(
 class FirebaseSyncManager(private val dao: PaponDao, val cloudAuth: CloudAuthManager = CloudAuthManager()) {
 
     companion object {
-        const val FIREBASE_DATABASE_URL = "https://dokan-pro-ec9bd-default-rtdb.asia-southeast1.firebasedatabase.app"
+        const val FIREBASE_DATABASE_URL = "https://dokan-pro-837f3-default-rtdb.asia-southeast1.firebasedatabase.app"
     }
 
     private val tag = "FirebaseSync"
