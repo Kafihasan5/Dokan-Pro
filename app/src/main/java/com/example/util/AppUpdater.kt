@@ -34,6 +34,12 @@ sealed class UpdateState {
 }
 
 object AppUpdater {
+    /**
+     * What customers see for every update. Release notes on GitHub are written for developers
+     * (commit messages), so they are never shown in the app.
+     */
+    const val CUSTOMER_RELEASE_NOTES = "• নতুন উন্নতি ও ফিচার আপডেট\n• বাগ ফিক্স ও নিরাপত্তা উন্নয়ন\n• অ্যাপ আরও দ্রুত ও স্থিতিশীল"
+
     // Connected to GitHub repository for in-app updates
     private const val GITHUB_REPO = "Kafihasan5/Dokan-Pro"
     private val RAW_VERSION_URL: String
@@ -120,7 +126,7 @@ object AppUpdater {
                                 versionCode = remoteVersionCode,
                                 versionName = remoteVersionName.ifBlank { "v$remoteVersionCode" },
                                 downloadUrl = downloadUrl,
-                                releaseNotes = releaseNotes
+                                releaseNotes = CUSTOMER_RELEASE_NOTES
                             )
                         }
                     }
@@ -167,7 +173,7 @@ object AppUpdater {
                                 versionCode = remoteVersionCode,
                                 versionName = versionName,
                                 downloadUrl = downloadUrl,
-                                releaseNotes = notes
+                                releaseNotes = CUSTOMER_RELEASE_NOTES
                             )
                         }
                     }

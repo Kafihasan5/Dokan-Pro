@@ -26,8 +26,19 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
 import org.json.JSONObject
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.provider.OpenableColumns
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.net.URLEncoder
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 data class SupportChatMessage(
     val id: String = UUID.randomUUID().toString(),
@@ -35,7 +46,11 @@ data class SupportChatMessage(
     val text: String,
     val timestamp: Long = System.currentTimeMillis(),
     val isSending: Boolean = false,
-    val isFailed: Boolean = false
+    val isFailed: Boolean = false,
+    /** "photo" or "video" when the message carries media. */
+    val mediaType: String? = null,
+    /** Local copy of the media once uploaded or downloaded. */
+    val localPath: String? = null
 )
 
 data class SupportNotification(
@@ -76,6 +91,23 @@ object TelegramSupportManager {
     private const val POLL_IDLE_MS = 60_000L
 
     private val dismissedNotificationIds = mutableSetOf<String>()
+
+    /** Server limit for one photo/video (Netlify caps request bodies at 6 MB). */
+    const val MAX_MEDIA_BYTES = 5L * 1024 * 1024
+    private const val MAX_PHOTO_SIDE = 1600
+    private val downloadsInFlight = mutableSetOf<String>()
+    private val http: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(120, TimeUnit.SECONDS)
+            .writeTimeout(120, TimeUnit.SECONDS)
+            .build()
+    }
+
+    private fun mediaDir(context: Context): File =
+        File(context.filesDir, "support_media").apply { mkdirs() }
+
+    private fun mediaLabel(type: String?) = if (type == "video") "🎬 ভিডিও" else "📷 ছবি"
 
     private val _messages = MutableStateFlow<List<SupportChatMessage>>(emptyList())
     val messages: StateFlow<List<SupportChatMessage>> = _messages.asStateFlow()
@@ -268,7 +300,7 @@ object TelegramSupportManager {
         try {
             val res = call(
                 "supportFetch",
-                mapOf("since" to since, "threadId" to thread?.id, "threadKey" to thread?.key)
+                mapOf("since" to since, "threadId" to thread?.id, "threadKey" to thread?.key, "media" to true)
             )
             val serverNow = (res["now"] as? Number)?.toLong() ?: return@withContext
             val incoming = mutableListOf<SupportChatMessage>()
@@ -281,17 +313,19 @@ object TelegramSupportManager {
                 val id = m["id"] as? String ?: continue
                 val text = (m["text"] as? String)?.trim().orEmpty()
                 val ts = (m["ts"] as? Number)?.toLong() ?: continue
-                if (text.isEmpty()) continue
+                val media = m["media"] as? String
+                if (text.isEmpty() && media == null) continue
+                val notifText = text.ifEmpty { mediaLabel(media) }
                 // Broadcasts from before install/clear, or already dismissed, never alert.
                 if (isFirstSync || ts <= lastClearedAt || isNotificationDismissed(id)) {
                     synchronized(dismissedNotificationIds) { dismissedNotificationIds.add(id) }
                     continue
                 }
                 if (existingNotifIds.contains(id)) continue
-                addNotification(context, SupportNotification(id = id, title = "📢 সার্বজনীন নোটিশ", message = text, timestamp = ts, isBroadcast = true))
-                incoming.add(SupportChatMessage(id = id, sender = "support", text = "📢 [সার্বজনীন নোটিশ]\n$text", timestamp = ts))
+                addNotification(context, SupportNotification(id = id, title = "📢 সার্বজনীন নোটিশ", message = notifText, timestamp = ts, isBroadcast = true))
+                incoming.add(SupportChatMessage(id = id, sender = "support", text = "📢 [সার্বজনীন নোটিশ]\n$text".trimEnd(), timestamp = ts, mediaType = media))
                 hasNewIncoming = true
-                AppNotificationHelper.showSupportNotification(context, id.hashCode(), "📢 সার্বজনীন নোটিশ", text, isBroadcast = true)
+                AppNotificationHelper.showSupportNotification(context, id.hashCode(), "📢 সার্বজনীন নোটিশ", notifText, isBroadcast = true)
             }
 
             for (raw in (res["messages"] as? List<*>).orEmpty()) {
@@ -300,15 +334,18 @@ object TelegramSupportManager {
                 val text = (m["text"] as? String).orEmpty()
                 val ts = (m["ts"] as? Number)?.toLong() ?: continue
                 val sender = if (m["sender"] == "support") "support" else "user"
-                incoming.add(SupportChatMessage(id = id, sender = sender, text = text, timestamp = ts))
+                val media = m["media"] as? String
+                incoming.add(SupportChatMessage(id = id, sender = sender, text = text, timestamp = ts, mediaType = media))
                 if (sender == "support" && !existingMsgIds.contains(id) && !isNotificationDismissed(id) && ts > lastClearedAt) {
                     hasNewIncoming = true
-                    addNotification(context, SupportNotification(id = id, title = "দোকান প্রো কাস্টমার সাপোর্ট", message = text, timestamp = ts))
-                    AppNotificationHelper.showSupportNotification(context, id.hashCode(), "দোকান প্রো কাস্টমার সাপোর্ট", text, isBroadcast = false)
+                    val notifText = text.ifBlank { "${mediaLabel(media)} পাঠানো হয়েছে" }
+                    addNotification(context, SupportNotification(id = id, title = "দোকান প্রো কাস্টমার সাপোর্ট", message = notifText, timestamp = ts))
+                    AppNotificationHelper.showSupportNotification(context, id.hashCode(), "দোকান প্রো কাস্টমার সাপোর্ট", notifText, isBroadcast = false)
                 }
             }
 
             if (incoming.isNotEmpty()) mergeMessages(context, incoming)
+            downloadMissingMedia(context)
             if (hasNewIncoming) withContext(Dispatchers.Main) { SoundHelper.playMessengerSound(context) }
 
             prefs.edit()
@@ -320,6 +357,153 @@ object TelegramSupportManager {
             Log.d(TAG, "support sync skipped: ${t.message}")
         } finally {
             _isSyncing.value = false
+        }
+    }
+
+    /**
+     * Sends a photo or video from the gallery. Photos are shrunk to at most 1600px (JPEG);
+     * videos must already be under [MAX_MEDIA_BYTES].
+     */
+    suspend fun sendMedia(
+        context: Context,
+        deviceId: String,
+        uri: Uri,
+        caption: String,
+        config: ShopConfig,
+        appVersion: String,
+        licenseStatus: String
+    ): Result<SupportChatMessage> = withContext(Dispatchers.IO) {
+        val resolver = context.contentResolver
+        val mime = resolver.getType(uri).orEmpty()
+        val isVideo = mime.startsWith("video/")
+        val bytes = try {
+            if (isVideo) {
+                val size = resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { c ->
+                    if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else -1L
+                } ?: -1L
+                if (size > MAX_MEDIA_BYTES) {
+                    return@withContext Result.failure(Exception("ভিডিও ৫ MB এর বেশি। ছোট ভিডিও (১০-২০ সেকেন্ড) পাঠান।"))
+                }
+                val data = resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("read")
+                if (data.size > MAX_MEDIA_BYTES) {
+                    return@withContext Result.failure(Exception("ভিডিও ৫ MB এর বেশি। ছোট ভিডিও (১০-২০ সেকেন্ড) পাঠান।"))
+                }
+                data
+            } else {
+                compressPhoto(context, uri) ?: error("decode")
+            }
+        } catch (t: Throwable) {
+            return@withContext Result.failure(Exception("ফাইলটি খোলা যায়নি।"))
+        }
+
+        val ext = if (isVideo) (if (mime.contains("webm")) "webm" else "mp4") else "jpg"
+        val local = File(mediaDir(context), "out_${UUID.randomUUID()}.$ext").apply { writeBytes(bytes) }
+        val pending = SupportChatMessage(
+            sender = "user",
+            text = caption.trim().take(1000),
+            isSending = true,
+            mediaType = if (isVideo) "video" else "photo",
+            localPath = local.absolutePath
+        )
+        appendLocalMessage(context, pending)
+
+        try {
+            val thread = ensureThread(context, deviceId, config, appVersion, licenseStatus)
+            val serverId = try {
+                upload(thread, bytes, pending.text)
+            } catch (e: UploadException) {
+                if (e.status != 403) throw e
+                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+                    .remove(KEY_THREAD_ID).remove(KEY_THREAD_KEY).apply()
+                upload(ensureThread(context, deviceId, config, appVersion, licenseStatus), bytes, pending.text)
+            }
+            val delivered = pending.copy(id = "srv_$serverId", isSending = false, isFailed = false)
+            _messages.value = _messages.value.map { if (it.id == pending.id) delivered else it }
+            saveLocalMessages(context)
+            Result.success(delivered)
+        } catch (t: Throwable) {
+            updateMessageStatus(context, pending.id, isSending = false, isFailed = true)
+            Result.failure(Exception((t as? UploadException)?.message ?: friendly(t)))
+        }
+    }
+
+    private class UploadException(val status: Int, message: String) : Exception(message)
+
+    private fun upload(thread: Thread, bytes: ByteArray, caption: String): String {
+        val request = Request.Builder()
+            .url(com.example.data.firebase.CloudAuthManager.endpoint("supportUpload"))
+            .header("X-Thread-Id", thread.id)
+            .header("X-Thread-Key", thread.key)
+            .header("X-Caption", URLEncoder.encode(caption, "UTF-8"))
+            .post(bytes.toRequestBody("application/octet-stream".toMediaType()))
+            .build()
+        http.newCall(request).execute().use { res ->
+            val body = JSONObject(res.body?.string().orEmpty().ifBlank { "{}" })
+            if (!res.isSuccessful) {
+                val msg = body.optJSONObject("error")?.optString("message").orEmpty()
+                throw UploadException(res.code, msg.takeIf { it.isNotBlank() && it != "INTERNAL" } ?: "ফাইল পাঠানো যায়নি। আবার চেষ্টা করুন।")
+            }
+            return body.optJSONObject("result")?.optString("id").orEmpty().ifBlank { throw UploadException(500, "ফাইল পাঠানো যায়নি।") }
+        }
+    }
+
+    private fun compressPhoto(context: Context, uri: Uri): ByteArray? {
+        val resolver = context.contentResolver
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= MAX_PHOTO_SIDE) sample *= 2
+        val decoded = resolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
+        } ?: return null
+        val scale = MAX_PHOTO_SIDE.toFloat() / maxOf(decoded.width, decoded.height)
+        val bitmap = if (scale < 1f) {
+            Bitmap.createScaledBitmap(decoded, (decoded.width * scale).toInt(), (decoded.height * scale).toInt(), true)
+        } else decoded
+        var quality = 85
+        var out: ByteArray
+        do {
+            out = ByteArrayOutputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, quality, it); it.toByteArray() }
+            quality -= 15
+        } while (out.size > MAX_MEDIA_BYTES && quality > 20)
+        return out
+    }
+
+    /** Downloads photos/videos that arrived from support and aren't on the phone yet. */
+    private suspend fun downloadMissingMedia(context: Context) {
+        val thread = storedThread(context)
+        val missing = _messages.value.filter { it.mediaType != null && it.localPath == null && !it.isSending }
+        for (msg in missing) {
+            val claimed = synchronized(downloadsInFlight) { downloadsInFlight.add(msg.id) }
+            if (!claimed) continue
+            try {
+                val builder = Request.Builder()
+                    .url(com.example.data.firebase.CloudAuthManager.endpoint("supportMedia"))
+                    .header("X-Message-Id", msg.id)
+                if (thread != null) builder.header("X-Thread-Id", thread.id).header("X-Thread-Key", thread.key)
+                http.newCall(builder.get().build()).execute().use { res ->
+                    if (!res.isSuccessful) return@use
+                    val type = res.header("Content-Type").orEmpty()
+                    val ext = when {
+                        type.contains("png") -> "png"
+                        type.contains("webp") -> "webp"
+                        type.startsWith("image/") -> "jpg"
+                        type.contains("webm") -> "webm"
+                        else -> "mp4"
+                    }
+                    val file = File(mediaDir(context), "in_${msg.id.replace(Regex("[^A-Za-z0-9_-]"), "_")}.$ext")
+                    val tmp = File(file.path + ".part")
+                    res.body?.byteStream()?.use { input -> tmp.outputStream().use { input.copyTo(it) } } ?: return@use
+                    tmp.renameTo(file)
+                    _messages.value = _messages.value.map { if (it.id == msg.id) it.copy(localPath = file.absolutePath) else it }
+                    saveLocalMessages(context)
+                }
+            } catch (t: Throwable) {
+                Log.d(TAG, "media download failed: ${t.message}")
+            } finally {
+                synchronized(downloadsInFlight) { downloadsInFlight.remove(msg.id) }
+            }
         }
     }
 
@@ -339,7 +523,9 @@ object TelegramSupportManager {
                         text = obj.getString("text"),
                         timestamp = obj.getLong("timestamp"),
                         isSending = false,
-                        isFailed = obj.optBoolean("isFailed", false)
+                        isFailed = obj.optBoolean("isFailed", false),
+                        mediaType = obj.optString("mediaType", "").ifBlank { null },
+                        localPath = obj.optString("localPath", "").ifBlank { null }?.takeIf { File(it).exists() }
                     )
                 )
             }
@@ -358,6 +544,8 @@ object TelegramSupportManager {
                     put("text", msg.text)
                     put("timestamp", msg.timestamp)
                     put("isFailed", msg.isFailed)
+                    msg.mediaType?.let { put("mediaType", it) }
+                    msg.localPath?.let { put("localPath", it) }
                 }
                 array.put(obj)
             }

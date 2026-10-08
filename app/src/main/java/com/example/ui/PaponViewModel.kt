@@ -301,6 +301,27 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun sendSupportMedia(uri: android.net.Uri, caption: String, onComplete: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            val licInfo = licenseInfo.value
+            val statusStr = when {
+                isDemoMode.value -> "ট্রায়াল / ডেমো"
+                licInfo != null -> "অ্যাক্টিভেটেড (প্রো)"
+                else -> "অনিবন্ধিত"
+            }
+            val result = TelegramSupportManager.sendMedia(
+                context = getApplication(),
+                deviceId = getDeviceId(),
+                uri = uri,
+                caption = caption,
+                config = shopConfig.value,
+                appVersion = BuildConfig.VERSION_NAME,
+                licenseStatus = statusStr
+            )
+            onComplete(result.isSuccess, result.exceptionOrNull()?.message)
+        }
+    }
+
     val supportNotifications: StateFlow<List<com.example.data.support.SupportNotification>> = TelegramSupportManager.notifications
     val unreadSupportCount: StateFlow<Int> = TelegramSupportManager.unreadNotificationCount
 
@@ -543,7 +564,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
         // Check for app version updates
         val remoteVersionCode = updates["latest_version_code"]?.toIntOrNull() ?: 1
         val remoteVersionName = updates["latest_version_name"] ?: "1.0.0"
-        val updateNotes = updates["update_notes"] ?: ""
+        val updateNotes = com.example.util.AppUpdater.CUSTOMER_RELEASE_NOTES
         val apkUrl = updates["apk_download_url"] ?: ""
         val isForce = updates["is_force_update"]?.toBoolean() ?: false
 
@@ -1427,7 +1448,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                         currentVersionCode = BuildConfig.VERSION_CODE,
                         latestVersionName = gitUpdate.versionName,
                         latestVersionCode = gitUpdate.versionCode,
-                        updateNotes = gitUpdate.releaseNotes,
+                        updateNotes = com.example.util.AppUpdater.CUSTOMER_RELEASE_NOTES,
                         apkDownloadUrl = gitUpdate.downloadUrl,
                         isForceUpdate = false
                     )

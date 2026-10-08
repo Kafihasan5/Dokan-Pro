@@ -955,7 +955,7 @@ fun SettingsScreen(
                                 if (appUpdateInfo.updateNotes.isNotBlank()) {
                                     Spacer(modifier = Modifier.height(Spacing.xs))
                                     Text(
-                                        text = "পরিবর্তনসমূহ: ${appUpdateInfo.updateNotes}",
+                                        text = "এই আপডেটে যা আছে:\n${appUpdateInfo.updateNotes}",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )

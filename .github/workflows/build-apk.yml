@@ -81,7 +81,6 @@ jobs:
           mkdir -p playstore_release
           cp app/build/outputs/bundle/release/*.aab playstore_release/app-release.aab
           BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          COMMIT_MSG=$(git log -1 --pretty=%s)
           cat <<EOF > playstore_release/release_info.json
           {
             "versionCode": ${{ github.run_number }},
@@ -92,7 +91,7 @@ jobs:
             "targetSdk": 36,
             "minSdk": 24,
             "buildTime": "$BUILD_TIME",
-            "releaseNotes": "$COMMIT_MSG",
+            "releaseNotes": "• নতুন উন্নতি ও ফিচার আপডেট\n• বাগ ফিক্স ও নিরাপত্তা উন্নয়ন\n• অ্যাপ আরও দ্রুত ও স্থিতিশীল",
             "note": "Ready for Google Play Console upload"
           }
           EOF
@@ -115,12 +114,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          COMMIT_MSG=$(git log -1 --pretty=%s)
           gh release create "v${{ github.run_number }}" \
             app/build/outputs/apk/debug/app-debug.apk \
             playstore_release/app-release.aab \
             --title "Release v1.0.${{ github.run_number }}" \
-            --notes "Automated release: $COMMIT_MSG (Includes GitHub APK and Play Store AAB Bundle)" \
+            --notes "$(printf '• নতুন উন্নতি ও ফিচার আপডেট\n• বাগ ফিক্স ও নিরাপত্তা উন্নয়ন\n• অ্যাপ আরও দ্রুত ও স্থিতিশীল')" \
             --latest || \
           gh release upload "v${{ github.run_number }}" \
             app/build/outputs/apk/debug/app-debug.apk \
@@ -129,14 +127,13 @@ jobs:
 
       - name: Update version.json & Commit PlayStore Release
         run: |
-          COMMIT_MSG=$(git log -1 --pretty=%s)
           cat <<EOF > version.json
           {
             "versionCode": ${{ github.run_number }},
             "versionName": "1.0.${{ github.run_number }}",
             "downloadUrl": "https://github.com/${{ github.repository }}/releases/download/v${{ github.run_number }}/app-debug.apk",
             "playstoreBundleUrl": "https://github.com/${{ github.repository }}/releases/download/v${{ github.run_number }}/app-release.aab",
-            "releaseNotes": "$COMMIT_MSG"
+            "releaseNotes": "• নতুন উন্নতি ও ফিচার আপডেট\n• বাগ ফিক্স ও নিরাপত্তা উন্নয়ন\n• অ্যাপ আরও দ্রুত ও স্থিতিশীল"
           }
           EOF
           git config user.name "github-actions[bot]"
