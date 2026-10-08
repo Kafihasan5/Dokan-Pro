@@ -1,12 +1,12 @@
 {
-  "versionCode": 93,
-  "versionName": "1.0.93",
+  "versionCode": 94,
+  "versionName": "1.0.94",
   "applicationId": "com.webix.dokanpro",
   "bundleFile": "app-release.aab",
   "format": "Android App Bundle (AAB)",
   "targetSdk": 36,
   "minSdk": 24,
-  "buildTime": "2026-10-01T09:52:22Z",
-  "releaseNotes": "Merge security update into main",
+  "buildTime": "2026-10-08T10:27:00Z",
+  "releaseNotes": "Release step 2: new secure Firebase project, server-verified login",
   "note": "Ready for Google Play Console upload"
 }

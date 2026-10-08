@@ -1,7 +1,7 @@
 {
-  "versionCode": 93,
-  "versionName": "1.0.93",
-  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v93/app-debug.apk",
-  "playstoreBundleUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v93/app-release.aab",
-  "releaseNotes": "Merge security update into main"
+  "versionCode": 94,
+  "versionName": "1.0.94",
+  "downloadUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v94/app-debug.apk",
+  "playstoreBundleUrl": "https://github.com/Kafihasan5/Dokan-Pro/releases/download/v94/app-release.aab",
+  "releaseNotes": "Release step 2: new secure Firebase project, server-verified login"
 }
