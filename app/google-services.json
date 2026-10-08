@@ -1,14 +1,14 @@
 {
   "project_info": {
-    "project_number": "112590158030",
-    "project_id": "dokan-pro-ec9bd",
-    "firebase_url": "https://dokan-pro-ec9bd-default-rtdb.asia-southeast1.firebasedatabase.app",
-    "storage_bucket": "dokan-pro-ec9bd.firebasestorage.app"
+    "project_number": "1076298030517",
+    "firebase_url": "https://dokan-pro-837f3-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "dokan-pro-837f3",
+    "storage_bucket": "dokan-pro-837f3.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:112590158030:android:38c1cdfe9d6163ca2d789f",
+        "mobilesdk_app_id": "1:1076298030517:android:2aacffc086e14166550dfc",
         "android_client_info": {
           "package_name": "com.webix.dokanpro"
         }
@@ -16,7 +16,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyC6N73wYZeiT8bvW_V-nICMqLNepHF4AO4"
+          "current_key": "AIzaSyCPwlwiB8r1Li1miX94JWGGieVvdfu7acg"
         }
       ],
       "services": {
