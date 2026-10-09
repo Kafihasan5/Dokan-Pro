@@ -51,6 +51,8 @@
     "build:desktop:win": "npm run build && electron-builder --win nsis --x64"
   },
   "dependencies": {
+    "@zxing/browser": "^0.1.5",
+    "@zxing/library": "^0.21.3",
     "firebase": "^12.19.0",
     "lucide-react": "^1.47.0",
     "react": "^19.2.8",

@@ -2471,3 +2471,52 @@ input:focus-visible + .slider {
 .install-later { display: block; width: 100%; margin-top: 10px; padding: 10px; border: 0; background: none; color: var(--text-muted); font: 600 .92rem/1 var(--font-bn); cursor: pointer; }
 .install-done { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 20px 0 6px; padding: 14px; border-radius: 14px; background: var(--primary-light); color: var(--primary); font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .install-arrow, .install-sheet { animation: none; } }
+
+/* POS camera scan button + scanner sheet */
+.pos-camera-btn {
+  display: inline-flex; align-items: center; gap: 6px; flex: none; min-height: 44px; padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent); border-radius: var(--radius-md);
+  background: var(--primary-light); color: var(--primary); font: 700 .88rem/1 var(--font-bn); cursor: pointer;
+}
+.pos-camera-btn:hover { background: color-mix(in srgb, var(--primary) 16%, transparent); }
+.scanner-overlay { position: fixed; inset: 0; z-index: 130; display: flex; align-items: flex-end; justify-content: center; background: rgba(2, 6, 23, .7); animation: fadeIn 150ms ease-out; }
+.scanner-sheet {
+  width: min(100%, 480px); max-height: 100dvh; overflow-y: auto; display: grid; gap: 12px;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); border-radius: 22px 22px 0 0;
+  background: var(--bg-surface); color: var(--text-primary); font-family: var(--font-bn);
+}
+@media (min-width: 700px) { .scanner-overlay { align-items: center; } .scanner-sheet { border-radius: 22px; } }
+.scanner-head { display: flex; align-items: center; justify-content: space-between; font-weight: 700; }
+.scanner-head span { display: inline-flex; align-items: center; gap: 8px; }
+.scanner-close { display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 50%; background: var(--bg-card); color: var(--text-secondary); cursor: pointer; }
+.scanner-view { position: relative; aspect-ratio: 4 / 3; border-radius: 16px; overflow: hidden; background: #000; }
+.scanner-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.scanner-frame { position: absolute; inset: 18% 12%; border: 2px solid rgba(255, 255, 255, .85); border-radius: 14px; box-shadow: 0 0 0 999px rgba(0, 0, 0, .28); }
+.scanner-frame i { position: absolute; left: 6%; right: 6%; top: 50%; height: 2px; background: #34d399; box-shadow: 0 0 12px #34d399; animation: scanLine 1.8s ease-in-out infinite; }
+@keyframes scanLine { 0%, 100% { transform: translateY(-38px); } 50% { transform: translateY(38px); } }
+.scanner-error { display: grid; place-items: center; height: 100%; padding: 20px; text-align: center; color: #fecaca; font-size: .92rem; line-height: 1.6; }
+.scanner-status-line { padding: 10px 12px; border-radius: 12px; background: var(--bg-card); color: var(--text-secondary); font-size: .9rem; text-align: center; }
+.scanner-status-line.ok { background: var(--primary-light); color: var(--primary); font-weight: 700; }
+.scanner-status-line.err { background: var(--danger-light); color: var(--danger); font-weight: 700; }
+.scanner-toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: 12px; font-size: .9rem; }
+.scanner-toggle span { display: inline-flex; align-items: center; gap: 7px; }
+.scanner-toggle small { color: var(--text-muted); }
+.scanner-toggle input { width: 20px; height: 20px; accent-color: var(--primary); }
+.scanner-manual { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 12px; border: 1px solid var(--border-default); border-radius: 12px; color: var(--text-muted); }
+.scanner-manual input { flex: 1; min-width: 0; border: 0; outline: none; background: none; color: var(--text-primary); font: 500 16px/1.2 var(--font-bn); padding: 8px 0; }
+.scanner-manual button { border: 0; border-radius: 9px; padding: 9px 14px; background: var(--primary); color: #fff; font-weight: 700; cursor: pointer; }
+.scanner-done { min-height: 48px; border: 0; border-radius: 999px; background: linear-gradient(135deg, #047857, #0f766e); color: #fff; font: 700 1rem/1 var(--font-bn); cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .scanner-frame i { animation: none; } }
+
+/* Dashboard quick actions: one row of four, no title, on phones (like the mobile app) */
+.qa-short { display: none; }
+@media (max-width: 600px) {
+  .desk-quick-actions { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; padding: 0 !important; background: none !important; border: 0 !important; box-shadow: none !important; }
+  .desk-quick-actions h2 { display: none !important; }
+  .desk-quick-actions .quick-action { min-width: 0; min-height: 46px; padding: 6px 4px; gap: 5px; font-size: .74rem; border-radius: 12px; }
+  .desk-quick-actions .quick-action svg { flex: none; width: 16px; height: 16px; }
+  .qa-long { display: none; }
+  .qa-short { display: inline; overflow: hidden; text-overflow: ellipsis; }
+  .pos-camera-btn span { display: none; }
+  .pos-camera-btn { padding: 0 12px; }
+}

@@ -84,10 +84,10 @@ export default function Dashboard({ onNavigate, onSelectSale }) {
 
       <section className="desk-quick-actions card">
         <h2>দ্রুত অর্ডার</h2>
-        <button className="quick-action blue" onClick={() => onNavigate('products')}><Plus size={17} />নতুন পণ্য</button>
-        <button className="quick-action green" onClick={() => onNavigate('pos')}><ShoppingCart size={17} />নতুন বিক্রয়</button>
-        {isOwner ? <button className="quick-action purple" onClick={() => onNavigate('expenses')}><Banknote size={17} />খরচ যোগ</button> : <button className="quick-action purple" onClick={() => onNavigate('reports')}><ChartNoAxesCombined size={17} />রিপোর্ট</button>}
-        <button className="quick-action amber" onClick={() => onNavigate('due')}><ClipboardList size={17} />বাকি খাতা</button>
+        <button className="quick-action blue" onClick={() => onNavigate('products')}><Plus size={17} /><span className="qa-long">নতুন পণ্য</span><span className="qa-short">পণ্য</span></button>
+        <button className="quick-action green" onClick={() => onNavigate('pos')}><ShoppingCart size={17} /><span className="qa-long">নতুন বিক্রয়</span><span className="qa-short">বিক্রয়</span></button>
+        <button className="quick-action amber" onClick={() => onNavigate('due')}><ClipboardList size={17} /><span className="qa-long">বাকি খাতা</span><span className="qa-short">বাকি</span></button>
+        {isOwner ? <button className="quick-action purple" onClick={() => onNavigate('expenses')}><Banknote size={17} /><span className="qa-long">খরচ যোগ</span><span className="qa-short">খরচ</span></button> : <button className="quick-action purple" onClick={() => onNavigate('reports')}><ChartNoAxesCombined size={17} /><span className="qa-long">রিপোর্ট</span><span className="qa-short">রিপোর্ট</span></button>}
       </section>
 
       <section className="desk-stats-grid" aria-label="আজকের হিসাব ও স্টক সারাংশ">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useRef } from 'react';
 import { useShop } from '../context/ShopContext';
 import {
   Search,
@@ -22,9 +22,13 @@ import {
   Play,
   RotateCcw,
   Check,
+  ScanLine,
 } from 'lucide-react';
 import { formatCurrency, playSuccessBeep, playErrorBeep } from '../utils/formatters';
 import { notify } from '../components/Feedback';
+
+// Loaded only when the camera opens (the barcode library is large).
+const CameraScanner = lazy(() => import('../components/CameraScanner'));
 
 export default function PosPage({ onCompleteSale }) {
   const {
@@ -48,6 +52,7 @@ export default function PosPage({ onCompleteSale }) {
 
   // Modals for Held Carts & Return
   const [showHeldCartsModal, setShowHeldCartsModal] = useState(false);
+  const [showCameraScanner, setShowCameraScanner] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnProductId, setReturnProductId] = useState('');
   const [returnQty, setReturnQty] = useState('1');
@@ -193,6 +198,18 @@ export default function PosPage({ onCompleteSale }) {
       }
     });
     playSuccessBeep();
+  };
+
+  // Camera scan (barcode or QR): exact barcode match goes straight into the cart.
+  const handleCameraCode = (code) => {
+    const c = String(code).trim().toLowerCase();
+    const matched = products.find((p) => p.barcode && String(p.barcode).trim().toLowerCase() === c);
+    if (!matched) {
+      playErrorBeep();
+      return false;
+    }
+    addToCart(matched);
+    return true;
   };
 
   // Select Product: Auto-clear search query and open quantity modal
@@ -401,6 +418,11 @@ export default function PosPage({ onCompleteSale }) {
 
   return (
     <div className="pos-layout">
+      {showCameraScanner && (
+        <Suspense fallback={null}>
+          <CameraScanner onDetected={handleCameraCode} onClose={() => setShowCameraScanner(false)} />
+        </Suspense>
+      )}
       {/* LEFT: Product Catalog & Search */}
       <div className="pos-catalog-panel">
         {/* Top Search & Filter Bar */}
@@ -427,8 +449,19 @@ export default function PosPage({ onCompleteSale }) {
             />
           </div>
 
+          <button
+            type="button"
+            className="pos-camera-btn"
+            onClick={() => setShowCameraScanner(true)}
+            title="ক্যামেরা দিয়ে বারকোড / QR স্ক্যান"
+            aria-label="ক্যামেরা দিয়ে বারকোড / QR স্ক্যান"
+          >
+            <ScanLine size={20} />
+            <span>স্ক্যান</span>
+          </button>
+
           <div
-            className={`scanner-status ${scannerStatus}`}
+            className={`scanner-status hide-mobile ${scannerStatus}`}
             title="কিবোর্ড-HID বারকোড স্ক্যানারের ইনপুটের জন্য প্রস্তুত"
             style={{
               display: 'flex',
