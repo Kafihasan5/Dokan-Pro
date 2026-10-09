@@ -15,8 +15,7 @@ import {
   Truck,
   BarChart3,
   Database,
-  Lock,
-} from 'lucide-react';
+  Lock, Headset } from 'lucide-react';
 
 export default function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollapsed, isMobileOpen, onCloseMobile }) {
   const { auth, shopFeatures } = useShop();
@@ -28,6 +27,7 @@ export default function Sidebar({ currentPage, setCurrentPage, isCollapsed, setI
       items: [
         { id: 'dashboard', label: 'ড্যাশবোর্ড', icon: LayoutDashboard },
         { id: 'pos', label: 'পিওএস কাউন্টার', icon: ShoppingCart, isLocked: shopFeatures?.pos === false },
+        { id: 'support', label: 'লাইভ সাপোর্ট', icon: Headset },
       ],
     },
     {

@@ -3,6 +3,7 @@ import { useShop } from '../context/ShopContext';
 import { WifiOff, RefreshCw, LogOut, Menu, Moon, Sun, Lock, ShieldCheck, Search, Package, Receipt, Users } from 'lucide-react';
 import { formatDateTime } from '../utils/formatters';
 import { confirmDialog } from './Feedback';
+import NotificationBell from './NotificationBell';
 
 export default function Navbar({ onNavigate, onOpenMobileMenu, theme, onToggleTheme, onLockNow }) {
   const { auth, logout, shopInfo, products, sales, customers, isFirebaseConnected, isSyncing, lastSyncTime, secureMode } = useShop();
@@ -87,6 +88,8 @@ export default function Navbar({ onNavigate, onOpenMobileMenu, theme, onToggleTh
             <ShieldCheck size={12} /> সুরক্ষিত
           </span>
         )}
+
+        <NotificationBell onNavigate={onNavigate} />
 
         <button className="icon-btn" onClick={onToggleTheme} title={theme === 'dark' ? 'লাইট মোড' : 'ডার্ক মোড'} aria-label="থিম পরিবর্তন">
           {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}

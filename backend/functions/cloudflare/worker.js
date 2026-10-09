@@ -37,9 +37,9 @@ function corsHeaders(req) {
   const allow = !allowed.length || allowed.includes(origin) || /^http:\/\/localhost:\d+$/.test(origin);
   return {
     'Access-Control-Allow-Origin': allow ? origin || '*' : 'null',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers':
-      'Content-Type, Authorization, X-Firebase-AppCheck, X-Firebase-Instance-ID-Token, Firebase-Instance-ID-Token, X-Firebase-GMPID, X-Client-Version',
+      'Content-Type, Authorization, X-Firebase-AppCheck, X-Firebase-Instance-ID-Token, Firebase-Instance-ID-Token, X-Firebase-GMPID, X-Client-Version, X-Thread-Id, X-Thread-Key, X-Caption, X-Message-Id',
     'Access-Control-Max-Age': '3600',
     Vary: 'Origin',
   };
@@ -73,6 +73,9 @@ function errorResponse(err, headers) {
 }
 
 async function handleMedia(name, req) {
+  // The web version calls these cross-origin, so they need CORS like the callables.
+  const cors = corsHeaders(req);
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
   const thread = { threadId: req.headers.get('x-thread-id') || '', threadKey: req.headers.get('x-thread-key') || '' };
   try {
     if (name === 'supportUpload') {
@@ -87,18 +90,19 @@ async function handleMedia(name, req) {
       } catch {
         /* ignore bad caption */
       }
-      return json(200, { result: await support.supportUpload({ ...thread, caption, bytes }) });
+      return json(200, { result: await support.supportUpload({ ...thread, caption, bytes }) }, cors);
     }
     const file = await support.supportMedia({ ...thread, messageId: req.headers.get('x-message-id') || '' });
     return new Response(file.stream, {
       headers: {
         'Content-Type': file.mime,
         'Cache-Control': 'private, no-store',
+        ...cors,
         ...(file.size ? { 'Content-Length': String(file.size) } : {}),
       },
     });
   } catch (err) {
-    return errorResponse(err);
+    return errorResponse(err, cors);
   }
 }
 

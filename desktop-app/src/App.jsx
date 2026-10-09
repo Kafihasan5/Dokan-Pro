@@ -16,6 +16,7 @@ import {
 import ActivationFlow from './pages/ActivationFlow';
 import MobileTabBar from './components/MobileTabBar';
 import InstallPrompt from './components/InstallPrompt';
+import { setSupportProfile, startSupportPolling, stopSupportPolling } from './utils/supportStore';
 
 // The landing page is only for the website (and the iPhone Home Screen app), not the desktop app.
 const LandingPage = lazy(() => import('./pages/LandingPage'));
@@ -30,6 +31,7 @@ function wantsLanding() {
 // Pages load on demand so the login screen stays fast.
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const PosPage = lazy(() => import('./pages/PosPage'));
+const SupportPage = lazy(() => import('./pages/SupportPage'));
 const ProductsPage = lazy(() => import('./pages/ProductsPage'));
 const SalesPage = lazy(() => import('./pages/SalesPage'));
 const DueKhataPage = lazy(() => import('./pages/DueKhataPage'));
@@ -64,6 +66,7 @@ function AppContent() {
     activeShopNotice,
     isLocked,
     lockScreen,
+    shopInfo,
   } = useShop();
   const { theme, toggle: toggleTheme } = useTheme();
 
@@ -98,6 +101,17 @@ function AppContent() {
   });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [scanRequest, setScanRequest] = useState(0);
+
+  // Support replies and announcements arrive in the background once a shop is signed in.
+  const signedInShop = auth?.shopCode;
+  useEffect(() => {
+    if (!signedInShop) return undefined;
+    startSupportPolling();
+    return () => stopSupportPolling();
+  }, [signedInShop]);
+  useEffect(() => {
+    setSupportProfile({ shopName: shopInfo?.shopName, shopPhone: shopInfo?.shopPhone, shopAddress: shopInfo?.shopAddress, licenseStatus: `ওয়েব • ${signedInShop || ''}` });
+  }, [shopInfo, signedInShop]);
   const [dismissed, setDismissed] = useState(readDismissed);
 
   const setCollapsed = (v) => {
@@ -193,6 +207,7 @@ function AppContent() {
         <main style={{ flex: 1 }}>
           <Suspense fallback={<div className="empty-state"><span className="spin" style={{ display: 'inline-block' }}>◌</span></div>}>
           {page === 'dashboard' && <Dashboard onNavigate={setCurrentPage} onSelectSale={setActiveReceiptSale} />}
+          {page === 'support' && <SupportPage />}
           {page === 'pos' && gated('pos', 'ক্যাশ কাউন্টার (POS)', <PosPage onCompleteSale={setActiveReceiptSale} scanRequest={scanRequest} onScanHandled={() => setScanRequest(0)} />)}
           {page === 'products' && gated('inventoryEdit', 'পণ্য ও ইনভেন্টরি', <ProductsPage />)}
           {page === 'sales' && gated('reports', 'বিক্রয় খাতা', <SalesPage onSelectSale={setActiveReceiptSale} />)}

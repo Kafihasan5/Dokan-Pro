@@ -131,6 +131,7 @@ export function ShopProvider({ children }) {
   const [currentShopStatus, setCurrentShopStatus] = useState(normalizeShopStatus(null));
   const [shopFeatures, setShopFeatures] = useState({});
   const [activeShopNotice, setActiveShopNotice] = useState(null);
+  const [shopNotices, setShopNotices] = useState([]);
 
   const [isFirebaseConnected, setIsFirebaseConnected] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -229,6 +230,7 @@ export function ShopProvider({ children }) {
       setSecuritySettings(DEFAULT_SECURITY);
       setShopFeatures({});
       setActiveShopNotice(null);
+      setShopNotices([]);
       setCurrentShopStatus(normalizeShopStatus(null));
       setHeldCarts([]);
       return undefined;
@@ -292,6 +294,7 @@ export function ShopProvider({ children }) {
         const list = Object.keys(val || {}).map((k) => ({ id: k, ...val[k] }));
         list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         setActiveShopNotice(list.find((n) => n.isActive !== false) || null);
+        setShopNotices(list.filter((n) => n.isActive !== false));
       }),
     ];
 
@@ -1218,6 +1221,7 @@ export function ShopProvider({ children }) {
         currentShopStatus,
         shopFeatures,
         activeShopNotice,
+        shopNotices,
         shopInfo,
         products,
         categories,
