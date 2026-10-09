@@ -1082,7 +1082,7 @@ fun AppActivationScreen(
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                             Text(
-                                                text = "মালিকের দেওয়া কোড ও কর্মচারী পিন দিয়ে প্রবেশ করুন",
+                                                text = "মালিকের দেওয়া কর্মচারী ইমেইল বা দোকান কোড এবং আপনার পিন দিয়ে নিরাপদে প্রবেশ করুন",
                                                 fontSize = 11.sp,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -1097,8 +1097,8 @@ fun AppActivationScreen(
                                             staffShopCodeInput = it
                                             staffJoinError = null
                                         },
-                                        label = "দোকান কোড অথবা মালিকের ইমেইল",
-                                        placeholder = "যেমন: SHOP-XXXXXX বা owner@gmail.com",
+                                        label = "কর্মচারী ইমেইল অথবা দোকান কোড",
+                                        placeholder = "যেমন: karim@gmail.com বা SHOP-XXXXXX",
                                         leadingIcon = Icons.Default.Storefront
                                     )
 

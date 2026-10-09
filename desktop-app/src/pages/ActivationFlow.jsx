@@ -172,7 +172,7 @@ export default function ActivationFlow() {
             <div className="activation-heading"><span className="activation-kicker">শুরু করুন</span><h2>আপনার ভূমিকা বেছে নিন</h2><p>মোবাইল অ্যাপের মতো ধাপে ধাপে অ্যাক্টিভেশন সম্পন্ন করুন।</p></div>
             <div className="activation-action-list">
               <ActionCard icon={Crown} title="আমি দোকান মালিক" description="নতুন লাইসেন্স চালু বা আগের দোকান ফিরিয়ে আনুন" onClick={() => { setOwnerMode('license'); openFlow('owner'); }} />
-              <ActionCard icon={UserRound} title="আমি কর্মচারী" description="মালিকের দেওয়া দোকান কোড ও PIN দিয়ে প্রবেশ করুন" tone="blue" onClick={() => { setIdentifier(''); setPin(''); openFlow('staff'); }} />
+              <ActionCard icon={UserRound} title="আমি কর্মচারী" description="মালিকের দেওয়া কর্মচারী ইমেইল বা দোকান কোড দিয়ে লগইন করুন" tone="blue" onClick={() => { setIdentifier(''); setPin(''); openFlow('staff'); }} />
             </div>
             <div className="activation-trial-banner">
               <span className="activation-trial-icon"><Gift size={20} /></span>
@@ -211,10 +211,10 @@ export default function ActivationFlow() {
           </>}
 
           {flow === 'staff' && <>
-            <div className="activation-heading"><span className="activation-kicker">কর্মচারী • নিরাপদ প্রবেশ</span><h2>কর্মচারী হিসেবে লগইন করুন</h2><p>মালিকের দেওয়া দোকান কোড ও আপনার PIN ব্যবহার করুন।</p></div>
+            <div className="activation-heading"><span className="activation-kicker">কর্মচারী • নিরাপদ প্রবেশ</span><h2>কর্মচারী হিসেবে লগইন করুন</h2><p>দোকানের মালিকের দেওয়া কর্মচারী ইমেইল অথবা দোকান কোড এবং আপনার PIN দিয়ে নিরাপদে প্রবেশ করুন।</p></div>
             <form className="activation-panel-card" onSubmit={(e) => { e.preventDefault(); handleLogin('staff'); }}>
-              <div className="activation-panel-title"><span className="activation-mini-icon blue"><UserRound size={19} /></span><span><strong>দোকানে যুক্ত হন</strong><small>আপনার তথ্য যাচাই করে সংযোগ করা হবে</small></span></div>
-              <Field id="staff-identifier" label="দোকান কোড অথবা মালিকের ইমেইল" icon={Store} placeholder="SHOP-XXXXXX বা owner@email.com" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username" required />
+              <div className="activation-panel-title"><span className="activation-mini-icon blue"><UserRound size={19} /></span><span><strong>আপনার কর্মচারী অ্যাকাউন্টে প্রবেশ করুন</strong><small>মালিকের দেওয়া কর্মচারী ইমেইল বা দোকান কোড লিখুন</small></span></div>
+              <Field id="staff-identifier" label="কর্মচারী ইমেইল অথবা দোকান কোড" icon={Store} placeholder="যেমন: karim@gmail.com বা SHOP-XXXXXX" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username" required />
               <div className="input-group"><label className="input-label" htmlFor="staff-pin">কর্মচারী PIN</label><PinInput id="staff-pin" value={pin} onChange={setPin} placeholder="আপনার PIN" /></div>
               <Field id="staff-name" label="আপনার নাম (ঐচ্ছিক)" icon={UserRound} placeholder="যেমন: মোঃ করিম" value={staffName} onChange={(e) => setStaffName(e.target.value)} />
               {error && <div className="alert alert-error"><CircleHelp size={16} /><span>{error}</span></div>}
