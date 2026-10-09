@@ -94,9 +94,12 @@ export default function PosPage({ onCompleteSale, scanRequest = 0, onScanHandled
   // Search input ref for quick keyboard focus
   const searchInputRef = useRef(null);
 
+  // Phones and tablets: never focus fields on our own, or the on-screen keyboard keeps popping up.
+  const isTouchDevice = window.matchMedia('(hover: none), (pointer: coarse)').matches;
+
   // Keep the POS barcode field armed on desktop so a keyboard-wedge scanner can scan immediately.
   useEffect(() => {
-    if (window.matchMedia('(min-width: 1025px)').matches) {
+    if (!isTouchDevice && window.matchMedia('(min-width: 1025px)').matches) {
       searchInputRef.current?.focus({ preventScroll: true });
     }
   }, []);
@@ -1177,7 +1180,8 @@ export default function PosPage({ onCompleteSale, scanRequest = 0, onScanHandled
                     style={{ textAlign: 'center', fontSize: '1.2rem', fontWeight: 700 }}
                     value={modalQtyInput}
                     onChange={(e) => setModalQtyInput(e.target.value)}
-                    autoFocus
+                    autoFocus={!isTouchDevice}
+                    inputMode="numeric"
                   />
                   <button
                     type="button"
