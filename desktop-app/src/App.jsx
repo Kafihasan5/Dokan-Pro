@@ -20,8 +20,11 @@ import InstallPrompt from './components/InstallPrompt';
 // The landing page is only for the website (and the iPhone Home Screen app), not the desktop app.
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 // "/" shows the landing page and "/#app" the app, so the browser back button moves between them.
+// iPhone/iPad (Safari or Home Screen app) goes straight to the login screen.
+const isIos = () =>
+  /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 function wantsLanding() {
-  return !/Electron/i.test(navigator.userAgent) && window.location.hash !== '#app';
+  return !/Electron/i.test(navigator.userAgent) && !isIos() && window.location.hash !== '#app';
 }
 
 // Pages load on demand so the login screen stays fast.
@@ -118,7 +121,7 @@ function AppContent() {
         <LandingPage onOpenApp={openApp} />
       </Suspense>
     ) : (
-      <ActivationFlow onHome={/Electron/i.test(navigator.userAgent) ? undefined : goHome} />
+      <ActivationFlow onHome={/Electron/i.test(navigator.userAgent) || isIos() ? undefined : goHome} />
     );
   }
 

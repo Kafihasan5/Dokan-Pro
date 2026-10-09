@@ -23,7 +23,6 @@ const PERIODS = [
   { id: 'yesterday', label: 'গতকাল', prefix: 'গতকালের' },
   { id: '7d', label: '৭ দিন', prefix: 'গত ৭ দিনের' },
   { id: 'month', label: 'এই মাস', prefix: 'এই মাসের' },
-  { id: 'lastMonth', label: 'গত মাস', prefix: 'গত মাসের' },
   { id: 'custom', label: 'কাস্টম', prefix: 'নির্বাচিত সময়ের' },
 ];
 
@@ -34,7 +33,6 @@ function periodRange(id, today, custom) {
     case 'yesterday': return [today - DAY, today];
     case '7d': return [today - 6 * DAY, today + DAY];
     case 'month': return [new Date(t.getFullYear(), t.getMonth(), 1).getTime(), today + DAY];
-    case 'lastMonth': return [new Date(t.getFullYear(), t.getMonth() - 1, 1).getTime(), new Date(t.getFullYear(), t.getMonth(), 1).getTime()];
     case 'custom': {
       const a = fromInput(custom.from);
       const b = fromInput(custom.to);
