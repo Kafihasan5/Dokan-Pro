@@ -157,7 +157,7 @@ class AppLicenseManager(private val context: Context) {
                         .apply()
                     return@withContext LicenseCheckResult.Valid
                 }
-                val message = json.optString("message", "আপনার লাইসেন্সটি আর বৈধ নয়।")
+                val message = withoutPrice(json.optString("message", "আপনার লাইসেন্সটি আর বৈধ নয়।"))
                 deactivate()
                 LicenseCheckResult.Revoked(message)
             }
@@ -255,7 +255,7 @@ class AppLicenseManager(private val context: Context) {
                 val json = JSONObject(body)
                 val success = json.optBoolean("success", false)
                 val remainingSecs = json.optInt("remaining_seconds", 0)
-                val message = json.optString("message", "")
+                val message = withoutPrice(json.optString("message", ""))
 
                 if (success && remainingSecs > 0) {
                     val remainingMillis = remainingSecs * 1000L
@@ -509,7 +509,7 @@ class AppLicenseManager(private val context: Context) {
                     Log.w(tag, "Activation RPC failed HTTP $code: $body")
                     val msg = try {
                         val errObj = JSONObject(body)
-                        errObj.optString("message", "অ্যাক্টিভেশন ব্যর্থ হয়েছে (সার্ভার কোড: $code)")
+                        withoutPrice(errObj.optString("message", "অ্যাক্টিভেশন ব্যর্থ হয়েছে (সার্ভার কোড: $code)"))
                     } catch (_: Exception) {
                         "অ্যাক্টিভেশন ব্যর্থ হয়েছে (সার্ভার কোড: $code)"
                     }
@@ -518,7 +518,7 @@ class AppLicenseManager(private val context: Context) {
 
                 val json = JSONObject(body)
                 val success = json.optBoolean("success", false)
-                val message = json.optString("message", "")
+                val message = withoutPrice(json.optString("message", ""))
 
                 if (success) {
                     val custName = json.optString("customer_name", "")
@@ -574,3 +574,15 @@ class AppLicenseManager(private val context: Context) {
             .apply()
     }
 }
+
+private val PRICE_PATTERNS = listOf(
+    Regex("""\s*[(（]?\s*(৳|টাকা|tk\.?|bdt)\s*[০-৯0-9][০-৯0-9,.]*\s*[)）]?""", RegexOption.IGNORE_CASE),
+    Regex("""\s*[(（]?\s*[০-৯0-9][০-৯0-9,.]*\s*(৳|টাকা|tk\.?|bdt)\s*[)）]?""", RegexOption.IGNORE_CASE)
+)
+
+/** License prices are never shown in the app, even if a server message mentions one. */
+internal fun withoutPrice(message: String): String =
+    PRICE_PATTERNS.fold(message) { acc, re -> re.replace(acc, " ") }
+        .replace(Regex("""\s{2,}"""), " ")
+        .replace(Regex("""\s+([।.,])"""), "$1")
+        .trim()

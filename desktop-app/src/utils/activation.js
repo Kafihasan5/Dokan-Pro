@@ -13,6 +13,18 @@ export function getDesktopDeviceId() {
   return id;
 }
 
+const DEMO_USED_MESSAGE = 'এই ডিভাইসে ফ্রি ডেমো আগেই ব্যবহার করা হয়েছে। Dokan-Pro নিয়মিত ব্যবহার করতে লাইসেন্স সক্রিয় করুন।';
+
+/** Prices are never shown in the desktop app, even if a server message mentions one. */
+function withoutPrice(message) {
+  return String(message || '')
+    .replace(/\s*[(（]?\s*(৳|টাকা|tk\.?|bdt)\s*[০-৯0-9][০-৯0-9,.]*\s*[)）]?/gi, ' ')
+    .replace(/\s*[(（]?\s*[০-৯0-9][০-৯0-9,.]*\s*(৳|টাকা|tk\.?|bdt)\s*[)）]?/gi, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([।.,])/g, '$1')
+    .trim();
+}
+
 async function callLicenseRpc(name, payload) {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
     method: 'POST',
@@ -24,8 +36,8 @@ async function callLicenseRpc(name, payload) {
     body: JSON.stringify(payload),
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.message || body.error || `সার্ভার সংযোগ ব্যর্থ হয়েছে (${response.status})`);
-  return body;
+  if (!response.ok) throw new Error(withoutPrice(body.message || body.error) || `সার্ভার সংযোগ ব্যর্থ হয়েছে (${response.status})`);
+  return body && typeof body === 'object' && 'message' in body ? { ...body, message: withoutPrice(body.message) } : body;
 }
 
 export async function activateDesktopLicense(email) {
@@ -59,7 +71,7 @@ export async function startDesktopTrial() {
     p_device_model: 'Dokan Pro Desktop',
   });
   const seconds = Number(result?.remaining_seconds || 0);
-  if (!result?.success || seconds <= 0) throw new Error(result?.message || 'এই ডিভাইসে ফ্রি ট্রায়াল আগে ব্যবহার করা হয়েছে।');
+  if (!result?.success || seconds <= 0) throw new Error(DEMO_USED_MESSAGE);
   const expiresAt = Date.now() + seconds * 1000;
   localStorage.setItem('dokan_desktop_trial_expires_at', String(expiresAt));
   return { expiresAt, remainingSeconds: seconds };

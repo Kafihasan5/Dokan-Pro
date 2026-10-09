@@ -295,7 +295,7 @@ BEGIN
                 'success', false,
                 'is_new', false,
                 'remaining_seconds', 0,
-                'message', 'আপনার এই ডিভাইসে ১ ঘণ্টার ফ্রি ডেমো সেশন ইতিমধ্যে শেষ হয়েছে। Dokan-Pro নিয়মিত ব্যবহার করতে আজীবন লাইসেন্স সংগ্রহ করুন (৳৪৯০)।'
+                'message', 'আপনার এই ডিভাইসে ১ ঘণ্টার ফ্রি ডেমো সেশন ইতিমধ্যে শেষ হয়েছে। Dokan-Pro নিয়মিত ব্যবহার করতে লাইসেন্স সক্রিয় করুন।'
             );
         ELSE
             v_remaining_secs := EXTRACT(EPOCH FROM (v_record.expires_at - v_now))::INT;

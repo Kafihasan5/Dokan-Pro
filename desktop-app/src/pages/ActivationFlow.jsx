@@ -173,7 +173,7 @@ export default function ActivationFlow() {
             </button>
           )}
           {flow === 'roles' && <section className="activation-role-screen">
-            <div className="activation-heading"><span className="activation-kicker">শুরু করুন</span><h2>আপনার ভূমিকা বেছে নিন</h2><p>মোবাইল অ্যাপের মতো ধাপে ধাপে অ্যাক্টিভেশন সম্পন্ন করুন।</p></div>
+            <div className="activation-heading"><span className="activation-kicker">শুরু করুন</span><h2>আপনার ভূমিকা বেছে নিন</h2><p>আপনার দোকান চালু করতে নিচের ধাপগুলো অনুসরণ করুন।</p></div>
             <div className="activation-action-list">
               <ActionCard icon={Crown} title="আমি দোকান মালিক" description="নতুন লাইসেন্স চালু বা সংরক্ষিত হিসাব পুনরুদ্ধার করুন" onClick={() => { setOwnerMode('license'); openFlow('owner'); }} />
               <ActionCard icon={UserRound} title="আমি কর্মচারী" description="মালিকের দেওয়া কর্মচারী ইমেইল বা দোকান কোড দিয়ে লগইন করুন" tone="blue" onClick={() => { setIdentifier(''); setPin(''); openFlow('staff'); }} />
