@@ -443,6 +443,15 @@ fun DashboardScreen(
             ) {
                 Spacer(modifier = Modifier.height(Spacing.xs))
 
+                DashboardWelcomeHeader(config = config)
+
+                // Keep the desktop dashboard's high-priority actions directly under its welcome.
+                DashboardQuickActions(
+                    config = config,
+                    onNavigate = onNavigate,
+                    onAddExpense = { showExpenseDialog = true }
+                )
+
                 // Optional Free Demo Session card (scrolls with dashboard, dismissable)
                 if (isDemoMode && !isDemoBannerDismissed) {
                     val totalSeconds = (remainingDemoMillis / 1000).coerceAtLeast(0)
@@ -635,13 +644,6 @@ fun DashboardScreen(
                         onNavigateToProducts = { onNavigate(AppScreen.PRODUCTS) }
                     )
                 }
-
-                // Sales and the most-used store actions follow the account overview.
-                DashboardQuickActions(
-                    config = config,
-                    onNavigate = onNavigate,
-                    onAddExpense = { showExpenseDialog = true }
-                )
 
                 // 4) WEEKLY CHART & EMPLOYEE SALES (Owner only)
                 if (!isStaff) {
@@ -1019,8 +1021,46 @@ private fun DashboardSecondaryStats(
 }
 
 // ==============================================================================
-// 3. QUICK ACTIONS ROW (4 SQUARE TILES: 96x96dp)
+// 3. QUICK ACTIONS (MOBILE-FRIENDLY 2-COLUMN GRID)
 // ==============================================================================
+@Composable
+private fun DashboardWelcomeHeader(config: ShopConfig) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.lg))
+            .background(
+                Brush.horizontalGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.surface,
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.055f)
+                    )
+                )
+            )
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.32f),
+                RoundedCornerShape(Radius.lg)
+            )
+            .padding(horizontal = Spacing.lg, vertical = Spacing.md)
+    ) {
+        Text(
+            text = "স্বাগতম, ${if (config.userRole == "staff") config.staffName.ifBlank { "কর্মচারী" } else config.shopName}",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = "আজ আপনার দোকানের সারাংশ দেখে নিন",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
 @Composable
 private fun DashboardQuickActions(
     config: ShopConfig,
@@ -1029,7 +1069,7 @@ private fun DashboardQuickActions(
 ) {
     val isStaff = config.userRole == "staff"
     Column {
-        SectionHeader(title = "দ্রুত শুরু করুন")
+        SectionHeader(title = "দ্রুত অ্যাকশন")
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1037,14 +1077,26 @@ private fun DashboardQuickActions(
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
             Box(Modifier.weight(1f)) {
-                QuickActionTile("পণ্য", Icons.Default.AddBox, MaterialTheme.dokanColors.info) { onNavigate(AppScreen.PRODUCTS) }
+                QuickActionTile("নতুন পণ্য", Icons.Default.AddBox, MaterialTheme.dokanColors.info) { onNavigate(AppScreen.PRODUCTS) }
             }
+            Box(Modifier.weight(1f)) {
+                QuickActionTile("নতুন বিক্রয়", Icons.Default.ShoppingCart, MaterialTheme.colorScheme.primary) { onNavigate(AppScreen.POS) }
+            }
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+        ) {
             Box(Modifier.weight(1f)) {
                 QuickActionTile("বাকি খাতা", Icons.Default.AccountBalanceWallet, MaterialTheme.dokanColors.danger) { onNavigate(AppScreen.DUE_KHATA) }
             }
-            if (!isStaff) {
-                Box(Modifier.weight(1f)) {
+            Box(Modifier.weight(1f)) {
+                if (!isStaff) {
                     QuickActionTile("খরচ যোগ", Icons.Default.NoteAdd, MaterialTheme.dokanColors.warning, onAddExpense)
+                } else {
+                    QuickActionTile("রিপোর্ট", Icons.Default.ReceiptLong, MaterialTheme.dokanColors.info) { onNavigate(AppScreen.REPORTS) }
                 }
             }
         }
@@ -1062,23 +1114,23 @@ private fun QuickActionTile(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .height(88.dp)
+            .height(68.dp)
             .softShadow(1, RoundedCornerShape(Radius.md))
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(Radius.md)),
         shape = RoundedCornerShape(Radius.md),
         color = MaterialTheme.dokanColors.surfaceAlt
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(Spacing.sm),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .padding(horizontal = Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(Radius.sm))
                     .background(color.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
@@ -1089,13 +1141,14 @@ private fun QuickActionTile(
                     modifier = Modifier.size(22.dp)
                 )
             }
-            Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = title,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
             )
         }
     }
