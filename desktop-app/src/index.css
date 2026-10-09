@@ -2520,3 +2520,11 @@ input:focus-visible + .slider {
   .pos-camera-btn span { display: none; }
   .pos-camera-btn { padding: 0 12px; }
 }
+
+/* Lock screen close (signs out; never unlocks without the PIN) */
+.lock-card { position: relative; }
+.lock-close {
+  position: absolute; top: 14px; right: 14px; display: grid; place-items: center; width: 36px; height: 36px;
+  border: 0; border-radius: 50%; background: var(--bg-card); color: var(--text-secondary); cursor: pointer;
+}
+.lock-close:hover { background: var(--danger-light); color: var(--danger); }

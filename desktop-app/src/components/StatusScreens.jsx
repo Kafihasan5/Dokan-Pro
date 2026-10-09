@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle, ShieldAlert, Lock, KeyRound, Store, Eye, EyeOff, LogOut } from 'lucide-react';
+import { AlertTriangle, ShieldAlert, Lock, KeyRound, Store, Eye, EyeOff, LogOut, X } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 
 export function SplashScreen() {
@@ -97,7 +97,8 @@ function PinInput({ value, onChange, placeholder, autoFocus, id }) {
         autoComplete="off"
         maxLength={12}
         className="input-field"
-        style={{ fontFamily: 'var(--font-mono)', letterSpacing: show ? '0.1em' : '0.3em' }}
+        // Wide spacing only for the typed digits; the placeholder keeps normal Bangla text.
+        style={value ? { fontFamily: 'var(--font-mono)', letterSpacing: show ? '0.1em' : '0.3em' } : undefined}
         value={value}
         onChange={(e) => onChange(e.target.value.replace(/[^0-9০-৯]/g, ''))}
         placeholder={placeholder}
@@ -137,7 +138,11 @@ export function LockScreen() {
 
   return (
     <div className="lock-overlay" role="dialog" aria-modal="true" aria-label="স্ক্রিন লক">
-      <form className="status-card" onSubmit={submit}>
+      <form className="status-card lock-card" onSubmit={submit}>
+        {/* Closing never unlocks without the PIN: it signs out to the start screen. */}
+        <button type="button" className="lock-close" onClick={logout} aria-label="বন্ধ করুন (লগআউট)" title="বন্ধ করুন (লগআউট)">
+          <X size={18} />
+        </button>
         <div className="status-icon primary">
           <Lock size={28} />
         </div>

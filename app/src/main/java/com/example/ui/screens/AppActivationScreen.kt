@@ -114,20 +114,35 @@ fun AppActivationScreen(
         } catch (_: Throwable) {}
     }
 
-    // Modern Deep Obsidian Gradient Background
-    val bgGradient = Brush.verticalGradient(
-        colors = listOf(
-            Color(0xFF031610),
-            Color(0xFF07241A),
-            Color(0xFF02100C)
-        )
-    )
+    // Landing-page style: light surface, soft brand glow, gradient headline.
+    val ink = MaterialTheme.colorScheme.onBackground
+    val inkSoft = MaterialTheme.colorScheme.onSurfaceVariant
+    val accent = MaterialTheme.colorScheme.primary
+    val cardColor = MaterialTheme.colorScheme.surface
+    val lineColor = MaterialTheme.colorScheme.outlineVariant
+    val headlineBrush = Brush.linearGradient(listOf(Brand700, Brand500, Color(0xFF0284C7)))
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(bgGradient)
+            .background(MaterialTheme.colorScheme.background)
     ) {
+        // Soft glows behind the content (same mood as the website landing page)
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 90.dp, y = (-70).dp)
+                .size(340.dp)
+                .background(Brush.radialGradient(listOf(Brand500.copy(alpha = 0.22f), Color.Transparent)), CircleShape)
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .offset(x = (-110).dp, y = 40.dp)
+                .size(280.dp)
+                .background(Brush.radialGradient(listOf(Color(0xFF0EA5E9).copy(alpha = 0.13f), Color.Transparent)), CircleShape)
+        )
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -139,75 +154,87 @@ fun AppActivationScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
-            Spacer(modifier = Modifier.height(Spacing.xs))
-
             // =========================================================================
-            // 🌟 1. WEBIX SOLUTION OFFICIAL APP BRAND HEADER
+            // 🌟 1. BRAND ROW + HERO (hero only on the first screen)
             // =========================================================================
-            Box(
-                modifier = Modifier
-                    .size(76.dp)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(
-                        Brush.linearGradient(
-                            listOf(
-                                Brand500,
-                                Brand700
-                            )
-                        )
-                    )
-                    .border(1.5.dp, Brand300.copy(alpha = 0.5f), RoundedCornerShape(22.dp)),
-                contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.Storefront,
-                    contentDescription = "App Logo",
-                    tint = Color.White,
-                    modifier = Modifier.size(42.dp)
-                )
-            }
-
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(3.dp)
-            ) {
-                Text(
-                    text = "দোকান প্রো",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color.White
-                )
-                Text(
-                    text = "Webix Solution অফিসিয়াল সফটওয়্যার",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Brand300
-                )
-            }
-
-            // Trust & Official Version Badge
-            Surface(
-                shape = RoundedCornerShape(Radius.pill),
-                color = Brand500.copy(alpha = 0.16f),
-                border = BorderStroke(1.dp, Brand500.copy(alpha = 0.35f))
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(Brush.linearGradient(listOf(Brand700, Brand500))),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Verified,
-                        contentDescription = null,
-                        tint = Brand300,
-                        modifier = Modifier.size(14.dp)
+                    Icon(Icons.Default.Storefront, contentDescription = "App Logo", tint = Color.White, modifier = Modifier.size(21.dp))
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(text = "Dokan Pro", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = ink)
+                Spacer(modifier = Modifier.weight(1f))
+                Text(text = "v${BuildConfig.VERSION_NAME}", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = inkSoft)
+            }
+
+            if (activeFlow == "role_select") {
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                Surface(
+                    shape = RoundedCornerShape(Radius.pill),
+                    color = accent.copy(alpha = 0.10f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(Icons.Default.Verified, contentDescription = null, tint = accent, modifier = Modifier.size(14.dp))
+                        Text(text = "Webix Solution অফিসিয়াল সফটওয়্যার", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = accent)
+                    }
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "দোকানের পুরো হিসাব,",
+                        fontSize = 30.sp,
+                        lineHeight = 38.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = ink,
+                        textAlign = TextAlign.Center
                     )
                     Text(
-                        text = "Webix Solution • v${BuildConfig.VERSION_NAME}",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Brand100
+                        text = "এক অ্যাপে।",
+                        style = TextStyle(brush = headlineBrush, fontSize = 30.sp, lineHeight = 38.sp, fontWeight = FontWeight.ExtraBold),
+                        textAlign = TextAlign.Center
                     )
+                }
+                Text(
+                    text = "বিক্রি, স্টক, বাকি খাতা আর লাভের হিসাব — খাতা-কলম ছাড়াই।",
+                    fontSize = 14.sp,
+                    lineHeight = 22.sp,
+                    color = inkSoft,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = Spacing.sm)
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        Icons.Default.Lock to "পিন-সুরক্ষিত",
+                        Icons.Default.CloudDone to "ক্লাউড ব্যাকআপ",
+                        Icons.Default.WifiOff to "অফলাইনেও চলে"
+                    ).forEach { (icon, label) ->
+                        Surface(
+                            shape = RoundedCornerShape(Radius.pill),
+                            color = cardColor,
+                            border = BorderStroke(1.dp, lineColor)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(13.dp))
+                                Text(text = label, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = inkSoft)
+                            }
+                        }
+                    }
                 }
             }
 
@@ -237,7 +264,7 @@ fun AppActivationScreen(
                                 text = "অ্যাপে প্রবেশ করতে আপনার ভূমিকা বেছে নিন:",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color.White.copy(alpha = 0.90f),
+                                color = ink.copy(alpha = 0.85f),
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -383,7 +410,7 @@ fun AppActivationScreen(
                             if (!isDemoUsed || !isDemoExpired) {
                                 Surface(
                                     shape = RoundedCornerShape(Radius.md),
-                                    color = Color.White.copy(alpha = 0.08f),
+                                    color = cardColor,
                                     border = BorderStroke(1.dp, Gold500.copy(alpha = 0.45f)),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
@@ -407,14 +434,14 @@ fun AppActivationScreen(
                                                     text = "১ দিনের ফ্রি ট্রায়াল টেস্ট (২৪ ঘণ্টা)",
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 13.sp,
-                                                    color = Color.White
+                                                    color = ink
                                                 )
                                             }
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Text(
                                                 text = "অ্যাপ কেনার আগে সম্পূর্ণ ফ্রিতে সব ফিচার যাচাই করুন",
                                                 fontSize = 11.sp,
-                                                color = Color.White.copy(alpha = 0.75f)
+                                                color = inkSoft
                                             )
                                         }
                                         Button(
@@ -444,7 +471,7 @@ fun AppActivationScreen(
                             // 🛍️ ৪. WEBIX SOLUTION অফিসিয়াল লাইসেন্স কার্ড (আজীবন লাইসেন্স ও ব্র্যান্ডিং)
                             Surface(
                                 shape = RoundedCornerShape(Radius.lg),
-                                color = Color.White.copy(alpha = 0.06f),
+                                color = cardColor,
                                 border = BorderStroke(1.5.dp, Brand500.copy(alpha = 0.45f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
@@ -468,7 +495,7 @@ fun AppActivationScreen(
                                             Icon(
                                                 imageVector = Icons.Default.Verified,
                                                 contentDescription = null,
-                                                tint = Brand300,
+                                                tint = accent,
                                                 modifier = Modifier.size(24.dp)
                                             )
                                         }
@@ -478,12 +505,12 @@ fun AppActivationScreen(
                                                 text = "Webix Solution অফিসিয়াল লাইসেন্স",
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 15.sp,
-                                                color = Color.White
+                                                color = ink
                                             )
                                             Text(
                                                 text = "আজীবন মেয়াদের লাইসেন্স কী (Lifetime License)",
                                                 fontSize = 11.sp,
-                                                color = Brand300
+                                                color = accent
                                             )
                                         }
                                     }
@@ -491,7 +518,7 @@ fun AppActivationScreen(
                                     Text(
                                         text = "দোকানের সমস্ত ফিচার, ক্লাউড ব্যাকআপ ও সার্বক্ষণিক সাপোর্ট পেতে Webix Solution স্টোর থেকে সরাসরি লাইসেন্স সংগ্রহ করুন।",
                                         fontSize = 12.sp,
-                                        color = Color.White.copy(alpha = 0.80f),
+                                        color = inkSoft,
                                         lineHeight = 16.sp
                                     )
 
@@ -563,7 +590,7 @@ fun AppActivationScreen(
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                     contentDescription = "Back",
-                                    tint = Brand300,
+                                    tint = accent,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -571,15 +598,15 @@ fun AppActivationScreen(
                                     text = "পেছনে যান • ভূমিকা পরিবর্তন",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = Brand300
+                                    color = accent
                                 )
                             }
 
                             // Sub-Selector Toggle: অপশন ১ (নতুন লাইসেন্স) প্রথমে, অপশন ২ (দোকান রিস্টোর) দ্বিতীয়তে
                             Surface(
                                 shape = RoundedCornerShape(Radius.pill),
-                                color = Color.White.copy(alpha = 0.10f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f)),
+                                color = cardColor,
+                                border = BorderStroke(1.dp, lineColor),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -607,7 +634,7 @@ fun AppActivationScreen(
                                             Icon(
                                                 imageVector = Icons.Default.Key,
                                                 contentDescription = null,
-                                                tint = Color.White,
+                                                tint = if (ownerChoice == "license") Color.White else ink,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                             Spacer(modifier = Modifier.width(6.dp))
@@ -615,7 +642,7 @@ fun AppActivationScreen(
                                                 text = "নতুন লাইসেন্স সক্রিয়",
                                                 fontSize = 13.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color.White
+                                                color = if (ownerChoice == "license") Color.White else ink
                                             )
                                         }
                                     }
@@ -639,7 +666,7 @@ fun AppActivationScreen(
                                             Icon(
                                                 imageVector = Icons.Default.CloudDownload,
                                                 contentDescription = null,
-                                                tint = Color.White,
+                                                tint = if (ownerChoice == "restore") Color.White else ink,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                             Spacer(modifier = Modifier.width(6.dp))
@@ -647,7 +674,7 @@ fun AppActivationScreen(
                                                 text = "দোকান পুনরুদ্ধার",
                                                 fontSize = 13.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color.White
+                                                color = if (ownerChoice == "restore") Color.White else ink
                                             )
                                         }
                                     }
@@ -950,7 +977,7 @@ fun AppActivationScreen(
                             if (!isDemoUsed || !isDemoExpired) {
                                 Surface(
                                     shape = RoundedCornerShape(Radius.md),
-                                    color = Color.White.copy(alpha = 0.08f),
+                                    color = cardColor,
                                     border = BorderStroke(1.dp, Gold500.copy(alpha = 0.40f)),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
@@ -974,14 +1001,14 @@ fun AppActivationScreen(
                                                     text = "১ দিনের ফ্রি ট্রায়াল টেস্ট (২৪ ঘণ্টা)",
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 13.sp,
-                                                    color = Color.White
+                                                    color = ink
                                                 )
                                             }
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Text(
                                                 text = "সব ফিচার ফ্রিতে যাচাই করে দেখুন",
                                                 fontSize = 11.sp,
-                                                color = Color.White.copy(alpha = 0.75f)
+                                                color = inkSoft
                                             )
                                         }
                                         Button(
@@ -1226,8 +1253,8 @@ fun AppActivationScreen(
             ) {
                 Surface(
                     shape = RoundedCornerShape(Radius.pill),
-                    color = Color.White.copy(alpha = 0.07f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                    color = cardColor,
+                    border = BorderStroke(1.dp, lineColor),
                     onClick = {
                         clipboardManager.setText(AnnotatedString(deviceId))
                         copiedRecently = true
@@ -1243,7 +1270,7 @@ fun AppActivationScreen(
                             style = TextStyle(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 11.sp,
-                                color = if (copiedRecently) Gold500 else Color.White.copy(alpha = 0.85f),
+                                color = if (copiedRecently) Gold500 else inkSoft,
                                 fontWeight = FontWeight.Medium
                             )
                         )
@@ -1252,7 +1279,7 @@ fun AppActivationScreen(
                             imageVector = if (copiedRecently) Icons.Default.Check else Icons.Default.ContentCopy,
                             contentDescription = "Copy Device ID",
                             modifier = Modifier.size(14.dp),
-                            tint = if (copiedRecently) Gold500 else Color.White.copy(alpha = 0.7f)
+                            tint = if (copiedRecently) Gold500 else inkSoft
                         )
                     }
                 }
@@ -1260,7 +1287,7 @@ fun AppActivationScreen(
                 Text(
                     text = "সহায়তার জন্য Webix Solution সাপোর্টে যোগাযোগ করুন",
                     fontSize = 11.sp,
-                    color = Color.White.copy(alpha = 0.5f)
+                    color = inkSoft.copy(alpha = 0.8f)
                 )
             }
 
