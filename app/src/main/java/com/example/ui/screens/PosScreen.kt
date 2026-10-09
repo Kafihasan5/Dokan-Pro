@@ -76,6 +76,7 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Scale
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -112,6 +113,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
@@ -137,6 +139,8 @@ import com.example.ui.components.EmptyState
 import com.example.ui.components.FilterChipRow
 import com.example.ui.theme.Radius
 import com.example.ui.theme.Spacing
+import com.example.ui.theme.Brand700
+import com.example.ui.theme.Brand900
 import com.example.ui.theme.amountTextStyle
 import com.example.ui.theme.dokanColors
 import com.example.ui.theme.softShadow
@@ -167,7 +171,7 @@ fun PosScreen(
     var productForQuantityDialog by remember { mutableStateOf<Product?>(null) }
     var isEditingCartItem by remember { mutableStateOf(false) }
     var showHeldCartsDialog by remember { mutableStateOf(false) }
-    var isListView by remember { mutableStateOf(true) }
+    var isListView by remember { mutableStateOf(false) }
 
     val triggerScanner by viewModel.openPosQrScanner.collectAsState()
     LaunchedEffect(triggerScanner) {
@@ -218,6 +222,108 @@ fun PosScreen(
                         .statusBarsPadding()
                         .padding(horizontal = Spacing.md, vertical = Spacing.sm)
                 ) {
+                    Surface(
+                        shape = RoundedCornerShape(Radius.lg),
+                        color = Brand700,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Brush.horizontalGradient(listOf(Brand900, Brand700)))
+                                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(RoundedCornerShape(Radius.md))
+                                    .background(Color.White.copy(alpha = 0.16f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Storefront, contentDescription = null, tint = Color.White, modifier = Modifier.size(23.dp))
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = config.shopName.ifBlank { "দোকান" },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = if (config.userRole == "staff") "${config.staffName.ifBlank { "বিক্রয়কর্মী" }} · বিক্রয় কাউন্টার" else "বিক্রয় কাউন্টার",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White.copy(alpha = 0.82f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    isListView = !isListView
+                                },
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White.copy(alpha = 0.14f))
+                            ) {
+                                Icon(
+                                    imageVector = if (isListView) Icons.Default.GridView else Icons.Default.ViewList,
+                                    contentDescription = if (isListView) "গ্রিড ভিউ" else "লিস্ট ভিউ",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(21.dp)
+                                )
+                            }
+
+                            if (heldCarts.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { showHeldCartsDialog = true },
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.14f))
+                                ) {
+                                    BadgedBox(badge = { Badge { Text(heldCarts.size.toString(), style = MaterialTheme.typography.labelSmall) } }) {
+                                        Icon(Icons.Default.PauseCircle, contentDescription = "হোল্ড কার্ট", tint = Color.White, modifier = Modifier.size(21.dp))
+                                    }
+                                }
+                            }
+
+                            if (cartItems.isNotEmpty()) {
+                                IconButton(
+                                    onClick = {
+                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                        showCartModalSheet = true
+                                    },
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.14f))
+                                ) {
+                                    BadgedBox(
+                                        badge = {
+                                            Badge(containerColor = Color.White, contentColor = Brand900) {
+                                                Text(
+                                                    text = if (config.useBengaliNumerals) Formatters.toBengaliDigits(cartItems.size.toString()) else cartItems.size.toString(),
+                                                    style = MaterialTheme.typography.labelSmall
+                                                )
+                                            }
+                                        }
+                                    ) {
+                                        Icon(Icons.Default.ShoppingCart, contentDescription = "কার্ট", tint = Color.White, modifier = Modifier.size(21.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -301,83 +407,6 @@ fun PosScreen(
                             )
                         }
 
-                        // View mode toggle (List / Grid)
-                        IconButton(
-                            onClick = {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                isListView = !isListView
-                            },
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(RoundedCornerShape(Radius.sm))
-                                .background(MaterialTheme.dokanColors.surfaceAlt)
-                        ) {
-                            Icon(
-                                imageVector = if (isListView) Icons.Default.GridView else Icons.Default.ViewList,
-                                contentDescription = if (isListView) "গ্রিড ভিউ" else "লিস্ট ভিউ",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-
-                        // Held Carts indicator button
-                        if (heldCarts.isNotEmpty()) {
-                            IconButton(
-                                onClick = { showHeldCartsDialog = true },
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(RoundedCornerShape(Radius.sm))
-                                    .background(MaterialTheme.dokanColors.warningContainer.copy(alpha = 0.3f))
-                            ) {
-                                BadgedBox(
-                                    badge = {
-                                        Badge { Text(heldCarts.size.toString(), style = MaterialTheme.typography.labelSmall) }
-                                    }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.PauseCircle,
-                                        contentDescription = "হোল্ড কার্ট",
-                                        tint = MaterialTheme.dokanColors.warning,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        // Cart shortcut icon button with badge
-                        if (cartItems.isNotEmpty()) {
-                            IconButton(
-                                onClick = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    showCartModalSheet = true
-                                },
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(RoundedCornerShape(Radius.sm))
-                                    .background(MaterialTheme.colorScheme.primaryContainer)
-                            ) {
-                                BadgedBox(
-                                    badge = {
-                                        Badge(
-                                            containerColor = MaterialTheme.colorScheme.primary,
-                                            contentColor = Color.White
-                                        ) {
-                                            Text(
-                                                text = if (config.useBengaliNumerals) Formatters.toBengaliDigits(cartItems.size.toString()) else cartItems.size.toString(),
-                                                style = MaterialTheme.typography.labelSmall
-                                            )
-                                        }
-                                    }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.ShoppingCart,
-                                        contentDescription = "কার্ট",
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
-                        }
                     }
 
                     Spacer(modifier = Modifier.height(Spacing.xs))
@@ -483,6 +512,14 @@ fun PosScreen(
                             product = product,
                             inCartQty = inCartQty,
                             config = config,
+                            onIncreaseQty = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                viewModel.addProductToCart(product, 1.0)
+                            },
+                            onDecreaseQty = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                viewModel.updateCartItemQty(product.id, (inCartQty - 1.0).coerceAtLeast(0.0))
+                            },
                             onTap = {
                                 view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                                 if (searchQuery.isNotEmpty()) {
@@ -978,6 +1015,8 @@ private fun PosProductGridCard(
     product: Product,
     inCartQty: Double,
     config: ShopConfig,
+    onIncreaseQty: () -> Unit,
+    onDecreaseQty: () -> Unit,
     onTap: () -> Unit,
     onLongTap: () -> Unit
 ) {
@@ -1028,7 +1067,7 @@ private fun PosProductGridCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(115.dp)
+                    .height(122.dp)
                     .background(MaterialTheme.dokanColors.surfaceAlt),
                 contentAlignment = Alignment.Center
             ) {
@@ -1036,7 +1075,7 @@ private fun PosProductGridCard(
                     AsyncImage(
                         model = localFile,
                         contentDescription = product.nameBn,
-                        contentScale = ContentScale.Fit,
+                        contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(Spacing.xs)
@@ -1085,7 +1124,7 @@ private fun PosProductGridCard(
                 }
             }
 
-            // Product Information
+            // Product information with a quick cart control, like the supplied POS reference.
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1100,22 +1139,77 @@ private fun PosProductGridCard(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(Spacing.xs))
 
-                Text(
-                    text = Formatters.formatMoney(product.salePricePoisha, config.useBengaliNumerals, config.currencySymbol),
-                    style = amountTextStyle(16.sp),
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = Formatters.formatMoney(product.salePricePoisha, config.useBengaliNumerals, config.currencySymbol),
+                            style = amountTextStyle(16.sp),
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                        Text(
+                            text = "স্টক ${Formatters.formatQty(product.stockQty, product.unitName, config.useBengaliNumerals)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isLowStock) MaterialTheme.dokanColors.warning else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = if (isLowStock) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
 
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = "স্টক: ${Formatters.formatQty(product.stockQty, product.unitName, config.useBengaliNumerals)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (isLowStock) MaterialTheme.dokanColors.warning else MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = if (isLowStock) FontWeight.Bold else FontWeight.Normal
-                )
+                    if (inCartQty > 0.0) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Surface(
+                                onClick = onDecreaseQty,
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Remove, contentDescription = "পরিমাণ কমান", modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.onSurface)
+                                }
+                            }
+                            Text(
+                                text = Formatters.formatQty(inCartQty, "", config.useBengaliNumerals).trim(),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                            Surface(
+                                onClick = onIncreaseQty,
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Add, contentDescription = "পরিমাণ বাড়ান", modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                                }
+                            }
+                        }
+                    } else {
+                        Surface(
+                            onClick = onIncreaseQty,
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Add, contentDescription = "কার্টে যোগ করুন", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                            }
+                        }
+                    }
+                }
             }
         }
     }

@@ -22,3 +22,9 @@ build-apk/
 *.jks
 *.keystore
 keystore.properties
+
+# Desktop web app generated files
+desktop-app/node_modules/
+desktop-app/dist/
+desktop-app/release/
+desktop-app/.env

@@ -49,6 +49,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.AppScreen
 import com.example.ui.theme.Radius
+import com.example.ui.theme.Brand900
+import com.example.ui.theme.Brand500
+import com.example.ui.theme.Ink2Light
+import com.example.ui.theme.SurfaceLight
+import com.example.ui.theme.BorderLight
+import com.example.ui.theme.Gold100
+import com.example.ui.theme.Gold500
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -69,24 +76,24 @@ fun FloatingNavBar(
             .padding(horizontal = 8.dp, vertical = 8.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
-        // Pill container: 66dp tall with Radius.pill, soft shadow & subtle border
+        // Compact white navigation bar with a small icon-only active marker.
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(66.dp)
                 .shadow(
-                    elevation = 20.dp,
-                    shape = RoundedCornerShape(Radius.pill),
+                    elevation = 14.dp,
+                    shape = RoundedCornerShape(22.dp),
                     ambientColor = Color.Black.copy(alpha = 0.05f),
                     spotColor = Color.Black.copy(alpha = 0.10f)
                 )
                 .border(
                     width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
-                    shape = RoundedCornerShape(Radius.pill)
+                    color = BorderLight,
+                    shape = RoundedCornerShape(22.dp)
                 ),
-            shape = RoundedCornerShape(Radius.pill),
-            color = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(22.dp),
+            color = SurfaceLight,
             tonalElevation = 0.dp
         ) {
             Row(
@@ -120,11 +127,12 @@ fun FloatingNavBar(
                     modifier = Modifier.weight(1f)
                 )
 
-                // 3. বিক্রয় (Regular POS Cash Counter)
+                // 3. বিক্রয় (opens the cash counter with the scanner ready)
                 NavSlot(
                     icon = Icons.Default.PointOfSale,
                     label = "বিক্রয়",
                     isSelected = currentScreen == AppScreen.POS,
+                    isFeatured = true,
                     onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         onNavigate(AppScreen.POS)
@@ -136,24 +144,19 @@ fun FloatingNavBar(
                     modifier = Modifier.weight(1f)
                 )
 
-                // 4. QR সেল (Dedicated QR & Barcode Scan Sale)
+                // QR scanning remains a dedicated shortcut alongside regular POS.
                 NavSlot(
                     icon = Icons.Default.QrCodeScanner,
-                    label = "QR সেল",
+                    label = "স্ক্যান",
                     isSelected = false,
-                    isFeatured = true,
                     onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         onQrScanClick()
                     },
-                    onLongClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                        onFabLongPress()
-                    },
-                    modifier = Modifier.weight(1.05f)
+                    modifier = Modifier.weight(1f)
                 )
 
-                // 5. খাতা (Due Khata)
+                // 4. খাতা (Due Khata)
                 NavSlot(
                     icon = Icons.Default.MenuBook,
                     label = "খাতা",
@@ -165,7 +168,7 @@ fun FloatingNavBar(
                     modifier = Modifier.weight(1f)
                 )
 
-                // 6. রিপোর্ট (Reports) - শুধুমাত্র দোকান মালিকের জন্য
+                // 5. রিপোর্ট (Reports) - শুধুমাত্র দোকান মালিকের জন্য
                 if (!isStaff) {
                     NavSlot(
                         icon = Icons.Default.BarChart,
@@ -198,9 +201,9 @@ private fun NavSlot(
 
     val iconTint by animateColorAsState(
         targetValue = when {
-            isFeatured -> MaterialTheme.colorScheme.primary
-            isSelected -> MaterialTheme.colorScheme.primary
-            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+            isFeatured -> Color.White
+            isSelected -> Brand500
+            else -> Ink2Light
         },
         animationSpec = tween(durationMillis = 200),
         label = "nav_icon_tint"
@@ -208,9 +211,8 @@ private fun NavSlot(
 
     val textColor by animateColorAsState(
         targetValue = when {
-            isFeatured -> MaterialTheme.colorScheme.primary
-            isSelected -> MaterialTheme.colorScheme.primary
-            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+            isSelected -> Brand500
+            else -> Ink2Light
         },
         animationSpec = tween(durationMillis = 200),
         label = "nav_text_color"
@@ -218,8 +220,8 @@ private fun NavSlot(
 
     val pillBackground by animateColorAsState(
         targetValue = when {
-            isFeatured -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-            isSelected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+            isFeatured -> Brand500
+            isSelected -> Brand500.copy(alpha = 0.12f)
             else -> Color.Transparent
         },
         animationSpec = tween(durationMillis = 200),
@@ -239,34 +241,32 @@ private fun NavSlot(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier
-                .clip(RoundedCornerShape(Radius.sm))
-                .background(pillBackground)
-                .then(
-                    if (isFeatured) {
-                        Modifier.border(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-                            shape = RoundedCornerShape(Radius.sm)
-                        )
-                    } else Modifier
-                )
-                .padding(horizontal = 3.dp, vertical = 3.dp)
+            verticalArrangement = Arrangement.Center
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = iconTint,
-                modifier = Modifier.size(if (isFeatured) 22.dp else 21.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .size(width = 34.dp, height = 32.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(pillBackground)
+                    .then(
+                        Modifier
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = iconTint,
+                    modifier = Modifier.size(if (isFeatured) 22.dp else 21.dp)
+                )
+            }
 
             Spacer(modifier = Modifier.height(2.dp))
 
             Text(
                 text = label,
                 fontSize = 10.5.sp,
-                fontWeight = if (isSelected || isFeatured) FontWeight.Bold else FontWeight.Medium,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                 color = textColor,
                 style = MaterialTheme.typography.labelSmall,
                 maxLines = 1,

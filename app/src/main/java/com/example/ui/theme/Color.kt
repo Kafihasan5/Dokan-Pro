@@ -5,17 +5,17 @@ import androidx.compose.ui.graphics.Color
 // ==============================================================================
 // 1. BRAND COLOR RAMP
 // ==============================================================================
-val Brand900 = Color(0xFF04231A)
-val Brand700 = Color(0xFF076B4C)
-val Brand500 = Color(0xFF0E9F6E)
-val Brand300 = Color(0xFF5FD3AC)
-val Brand100 = Color(0xFFD7F5E9)
+val Brand900 = Color(0xFF102D27)
+val Brand700 = Color(0xFF155545)
+val Brand500 = Color(0xFF258269)
+val Brand300 = Color(0xFF76C7A8)
+val Brand100 = Color(0xFFE2F2EA)
 
 // ==============================================================================
 // 2. GOLD RAMP (ONLY for money highlights and primary CTAs)
 // ==============================================================================
-val Gold500 = Color(0xFFE0A106)
-val Gold100 = Color(0xFFFDF0D2)
+val Gold500 = Color(0xFFD09A4A)
+val Gold100 = Color(0xFFFAEEDC)
 
 // ==============================================================================
 // 3. SEMANTIC COLORS & CONTAINERS
@@ -39,13 +39,13 @@ val InfoContainerDark = Color(0xFF172554)
 // ==============================================================================
 // 4. LIGHT NEUTRALS
 // ==============================================================================
-val BgLight = Color(0xFFF5F7F8)
+val BgLight = Color(0xFFF5F4EF)
 val SurfaceLight = Color(0xFFFFFFFF)
-val SurfaceAltLight = Color(0xFFEDF1F2)
-val BorderLight = Color(0xFFE1E7E9)
-val InkLight = Color(0xFF0C1512)
-val Ink2Light = Color(0xFF5B6A64)
-val Ink3Light = Color(0xFF8A9993)
+val SurfaceAltLight = Color(0xFFEEF0EB)
+val BorderLight = Color(0xFFE0E4DD)
+val InkLight = Color(0xFF17221D)
+val Ink2Light = Color(0xFF59675F)
+val Ink3Light = Color(0xFF89958E)
 
 // ==============================================================================
 // 5. DARK NEUTRALS

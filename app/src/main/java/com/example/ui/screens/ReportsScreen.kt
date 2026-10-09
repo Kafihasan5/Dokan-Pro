@@ -137,20 +137,33 @@ fun ReportsScreen(
     ) {
         // Screen Header & Period Selector
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                Text(
-                    text = "দোকানের হিসাব ও রিপোর্ট",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-
-                // 1) Period selector at the top using FilterChipRow
-                FilterChipRow(
-                    options = periods,
-                    selected = selectedPeriod,
-                    onSelect = { selectedPeriod = it }
-                )
+            Surface(
+                shape = RoundedCornerShape(Radius.lg),
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(Spacing.lg),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                ) {
+                    Text(
+                        text = "দোকানের হিসাব ও রিপোর্ট",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                    Text(
+                        text = "বিক্রয়, লাভ, খরচ ও স্টকের সারাংশ",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f)
+                    )
+                }
             }
+            FilterChipRow(
+                options = periods,
+                selected = selectedPeriod,
+                onSelect = { selectedPeriod = it }
+            )
         }
 
         // 2) PROFIT & LOSS WATERFALL

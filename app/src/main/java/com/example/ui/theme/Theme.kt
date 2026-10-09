@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
@@ -64,7 +65,9 @@ fun DokanProTheme(
             val window = (view.context as? Activity)?.window
             if (window != null) {
                 val insetsController = WindowCompat.getInsetsController(window, view)
-                insetsController.isAppearanceLightStatusBars = !darkTheme
+                // Match the reference screens: a consistent branded green status strip.
+                window.statusBarColor = Brand700.toArgb()
+                insetsController.isAppearanceLightStatusBars = false
                 insetsController.isAppearanceLightNavigationBars = !darkTheme
             }
         }

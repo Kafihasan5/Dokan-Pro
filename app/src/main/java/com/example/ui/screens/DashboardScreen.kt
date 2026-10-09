@@ -126,6 +126,7 @@ import com.example.ui.components.TopHeader
 import com.example.ui.components.NotificationBottomSheet
 import com.example.ui.theme.Brand500
 import com.example.ui.theme.Brand700
+import com.example.ui.theme.Brand900
 import com.example.ui.theme.Radius
 import com.example.ui.theme.Spacing
 import com.example.ui.theme.amountTextStyle
@@ -598,41 +599,44 @@ fun DashboardScreen(
                     }
                 }
 
-                // 1) HERO SUMMARY
-                DashboardHeroSummary(
-                    periodLabel = periodLabel,
-                    salesTotalPoisha = periodSalesTotalPoisha,
-                    grossProfitPoisha = periodGrossProfitPoisha,
-                    netProfitPoisha = periodNetProfitPoisha,
-                    salesCount = periodSales.size,
-                    todaySalesCount = todaySalesCount,
-                    yesterdaySalesCount = yesterdaySalesCount,
-                    totalSalesCount = if (isStaff) staffPersonalSales.size else sales.size,
-                    dashboardFilterMode = dashboardFilterMode,
-                    customSelectedDate = customSelectedDate,
-                    config = config,
-                    onSelectFilter = { mode ->
-                        dashboardFilterMode = mode
-                        currentSalesPage = 1
-                    },
-                    onOpenDatePicker = { showDatePickerDialog() }
-                )
+                // Sales, filter, profit and account cards flow together without a separate summary card.
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                ) {
+                    DashboardHeroSummary(
+                        salesTotalPoisha = periodSalesTotalPoisha,
+                        grossProfitPoisha = periodGrossProfitPoisha,
+                        netProfitPoisha = periodNetProfitPoisha,
+                        salesCount = periodSales.size,
+                        todaySalesCount = todaySalesCount,
+                        yesterdaySalesCount = yesterdaySalesCount,
+                        totalSalesCount = if (isStaff) staffPersonalSales.size else sales.size,
+                        dashboardFilterMode = dashboardFilterMode,
+                        customSelectedDate = customSelectedDate,
+                        config = config,
+                        onSelectFilter = { mode ->
+                            dashboardFilterMode = mode
+                            currentSalesPage = 1
+                        },
+                        onOpenDatePicker = { showDatePickerDialog() }
+                    )
 
-                // 2) SECONDARY STATS (2-Column Grid)
-                DashboardSecondaryStats(
-                    periodExpenseTotalPoisha = periodExpenseTotalPoisha,
-                    periodExpensesCount = periodExpenses.size,
-                    totalDue = totalDue,
-                    totalStockSaleValue = totalStockSaleValue,
-                    totalStockPurchaseValue = totalStockPurchaseValue,
-                    productsCount = products.size,
-                    lowStockCount = lowStockProducts.size,
-                    config = config,
-                    onNavigateToDue = { onNavigate(AppScreen.DUE_KHATA) },
-                    onNavigateToProducts = { onNavigate(AppScreen.PRODUCTS) }
-                )
+                    DashboardSecondaryStats(
+                        periodExpenseTotalPoisha = periodExpenseTotalPoisha,
+                        periodExpensesCount = periodExpenses.size,
+                        totalDue = totalDue,
+                        totalStockSaleValue = totalStockSaleValue,
+                        totalStockPurchaseValue = totalStockPurchaseValue,
+                        productsCount = products.size,
+                        lowStockCount = lowStockProducts.size,
+                        config = config,
+                        onNavigateToDue = { onNavigate(AppScreen.DUE_KHATA) },
+                        onNavigateToProducts = { onNavigate(AppScreen.PRODUCTS) }
+                    )
+                }
 
-                // 3) QUICK ACTIONS (4 Square Tiles)
+                // Sales and the most-used store actions follow the account overview.
                 DashboardQuickActions(
                     config = config,
                     onNavigate = onNavigate,
@@ -711,7 +715,6 @@ fun DashboardScreen(
 // ==============================================================================
 @Composable
 private fun DashboardHeroSummary(
-    periodLabel: String,
     salesTotalPoisha: Long,
     grossProfitPoisha: Long,
     netProfitPoisha: Long,
@@ -727,25 +730,7 @@ private fun DashboardHeroSummary(
 ) {
     var isFilterMenuExpanded by remember { mutableStateOf(false) }
 
-    val heroGradient = Brush.linearGradient(
-        colors = listOf(Brand700, Brand500),
-        start = Offset(0f, 0f),
-        end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
-    )
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .softShadow(2, RoundedCornerShape(Radius.lg)),
-        shape = RoundedCornerShape(Radius.lg)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(heroGradient)
-                .padding(Spacing.lg)
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
+    Column(modifier = Modifier.fillMaxWidth()) {
                 // Top Row: Period Label + Filter Dropdown Chip
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -754,9 +739,9 @@ private fun DashboardHeroSummary(
                 ) {
                     val isStaff = config.userRole == "staff"
                     Text(
-                        text = if (isStaff) "$periodLabel বিক্রি" else "$periodLabel হিসাব",
+                        text = if (isStaff) "আপনার মোট বিক্রয়" else "মোট বিক্রয়",
                         style = MaterialTheme.typography.labelMedium,
-                        color = Color.White.copy(alpha = 0.85f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     // Filter Chip Button
@@ -764,8 +749,8 @@ private fun DashboardHeroSummary(
                         Surface(
                             onClick = { isFilterMenuExpanded = true },
                             shape = RoundedCornerShape(Radius.pill),
-                            color = Color.White.copy(alpha = 0.18f),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.35f))
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.55f))
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -774,7 +759,7 @@ private fun DashboardHeroSummary(
                                 Icon(
                                     imageVector = Icons.Default.CalendarMonth,
                                     contentDescription = null,
-                                    tint = Color.White,
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -793,13 +778,13 @@ private fun DashboardHeroSummary(
                                     },
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Spacer(modifier = Modifier.width(2.dp))
                                 Icon(
                                     imageVector = Icons.Default.ArrowDropDown,
                                     contentDescription = "ফিল্টার ড্রপডাউন",
-                                    tint = Color.White,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
@@ -860,13 +845,11 @@ private fun DashboardHeroSummary(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.sm))
-
                 // Sales Amount Figure at 34sp
                 AnimatedAmount(
                     value = salesTotalPoisha,
                     style = amountTextStyle(34.sp),
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.primary,
                     useBengaliNumerals = config.useBengaliNumerals,
                     currencySymbol = config.currencySymbol
                 )
@@ -875,82 +858,60 @@ private fun DashboardHeroSummary(
                 Text(
                     text = if (isStaffUser) "আপনার মোট ${if (config.useBengaliNumerals) Formatters.toBengaliDigits(salesCount.toString()) else salesCount} টি বিক্রয় সম্পন্ন" else "${if (config.useBengaliNumerals) Formatters.toBengaliDigits(salesCount.toString()) else salesCount} টি বিক্রয় সম্পন্ন",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.80f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 if (!isStaffUser) {
                     Spacer(modifier = Modifier.height(Spacing.md))
-
-                    // Dedicated "পণ্যের লাভ" (Profit from Products) Card
-                    val isGrossProfit = grossProfitPoisha >= 0
-                    val netPrefix = if (netProfitPoisha < 0) "-" else ""
-                    val netFormatted = Formatters.formatMoney(kotlin.math.abs(netProfitPoisha), config.useBengaliNumerals, config.currencySymbol)
-
-                    Surface(
-                        shape = RoundedCornerShape(Radius.md),
-                        color = Color.White.copy(alpha = 0.18f),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.28f)),
-                        modifier = Modifier.fillMaxWidth()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = Spacing.md, vertical = 10.dp)
-                        ) {
-                            // Main Line: পণ্যের লাভ: ৳ ২,৫০০
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.fillMaxWidth()
+                        listOf(
+                            "পণ্যের লাভ" to Formatters.formatMoney(grossProfitPoisha, config.useBengaliNumerals, config.currencySymbol),
+                            "খরচ বাদে লাভ" to Formatters.formatMoney(netProfitPoisha, config.useBengaliNumerals, config.currencySymbol)
+                        ).forEachIndexed { index, metric ->
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(Radius.md),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .clip(CircleShape)
-                                            .background(Color.White.copy(alpha = 0.22f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
-                                            imageVector = if (isGrossProfit) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                                            imageVector = if (index == 0) {
+                                                if (grossProfitPoisha >= 0) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown
+                                            } else Icons.Default.AccountBalanceWallet,
                                             contentDescription = null,
-                                            tint = Color.White,
+                                            tint = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier.size(15.dp)
                                         )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = metric.first,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
                                     }
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "পণ্যের লাভ:",
+                                        text = metric.second,
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = if (index == 1 && netProfitPoisha < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
-
-                                Text(
-                                    text = Formatters.formatMoney(grossProfitPoisha, config.useBengaliNumerals, config.currencySymbol),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color.White
-                                )
                             }
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            // Sub Line: (দোকান খরচ বাদে চূড়ান্ত উদ্বৃত্ত: ৳ ১,৮০০)
-                            val netColor = if (netProfitPoisha >= 0) Color.White.copy(alpha = 0.88f) else Color(0xFFFFCDD2)
-                            Text(
-                                text = "(দোকান খরচ বাদে চূড়ান্ত উদ্বৃত্ত: $netPrefix$netFormatted)",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Medium,
-                                color = netColor,
-                                modifier = Modifier.padding(start = 32.dp)
-                            )
                         }
                     }
                 }
-            }
-        }
     }
 }
 
@@ -1068,40 +1029,23 @@ private fun DashboardQuickActions(
 ) {
     val isStaff = config.userRole == "staff"
     Column {
-        SectionHeader(title = "কুইক অ্যাকশন")
-
+        SectionHeader(title = "দ্রুত শুরু করুন")
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(vertical = Spacing.xs),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+                .padding(top = Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
-            QuickActionTile(
-                title = "নতুন বিক্রয়",
-                icon = Icons.Default.ShoppingCart,
-                color = MaterialTheme.colorScheme.primary,
-                onClick = { onNavigate(AppScreen.POS) }
-            )
-            QuickActionTile(
-                title = "পণ্য তালিকা",
-                icon = Icons.Default.AddBox,
-                color = MaterialTheme.dokanColors.info,
-                onClick = { onNavigate(AppScreen.PRODUCTS) }
-            )
-            QuickActionTile(
-                title = "বাকি খাতা",
-                icon = Icons.Default.AccountBalanceWallet,
-                color = MaterialTheme.dokanColors.danger,
-                onClick = { onNavigate(AppScreen.DUE_KHATA) }
-            )
+            Box(Modifier.weight(1f)) {
+                QuickActionTile("পণ্য", Icons.Default.AddBox, MaterialTheme.dokanColors.info) { onNavigate(AppScreen.PRODUCTS) }
+            }
+            Box(Modifier.weight(1f)) {
+                QuickActionTile("বাকি খাতা", Icons.Default.AccountBalanceWallet, MaterialTheme.dokanColors.danger) { onNavigate(AppScreen.DUE_KHATA) }
+            }
             if (!isStaff) {
-                QuickActionTile(
-                    title = "খরচ যোগ",
-                    icon = Icons.Default.NoteAdd,
-                    color = MaterialTheme.dokanColors.warning,
-                    onClick = onAddExpense
-                )
+                Box(Modifier.weight(1f)) {
+                    QuickActionTile("খরচ যোগ", Icons.Default.NoteAdd, MaterialTheme.dokanColors.warning, onAddExpense)
+                }
             }
         }
     }
@@ -1117,7 +1061,8 @@ private fun QuickActionTile(
     Surface(
         onClick = onClick,
         modifier = Modifier
-            .size(96.dp)
+            .fillMaxWidth()
+            .height(88.dp)
             .softShadow(1, RoundedCornerShape(Radius.md))
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(Radius.md)),
         shape = RoundedCornerShape(Radius.md),

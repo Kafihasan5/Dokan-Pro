@@ -9,7 +9,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.composed
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -104,21 +106,28 @@ fun DokanScreenScaffold(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface)
+                    .background(MaterialTheme.colorScheme.primary)
                     .statusBarsPadding()
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = Spacing.sm, vertical = Spacing.sm),
+                        .background(MaterialTheme.colorScheme.primary)
+                        .padding(horizontal = Spacing.md, vertical = Spacing.sm),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (onBack != null) {
-                        IconButton(onClick = onBack) {
+                        IconButton(
+                            onClick = onBack,
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(Radius.sm))
+                                .background(Color.White.copy(alpha = 0.16f))
+                        ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "পেছনে যান",
-                                tint = MaterialTheme.colorScheme.onSurface
+                                tint = Color.White
                             )
                         }
                     } else {
@@ -133,13 +142,14 @@ fun DokanScreenScaffold(
                         Text(
                             text = title,
                             style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onSurface
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary
                         )
                         if (!subtitle.isNullOrBlank()) {
                             Text(
                                 text = subtitle,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f)
                             )
                         }
                     }
@@ -153,7 +163,7 @@ fun DokanScreenScaffold(
 
                 HorizontalDivider(
                     thickness = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.88f)
                 )
             }
         },
@@ -183,6 +193,7 @@ fun StatCard(
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    var valueFontSize by remember(value) { mutableFloatStateOf(23f) }
     val accentColor = when (tone) {
         StatTone.Neutral -> MaterialTheme.colorScheme.outline
         StatTone.Positive -> MaterialTheme.dokanColors.success
@@ -204,68 +215,66 @@ fun StatCard(
         StatTone.Gold -> MaterialTheme.dokanColors.goldContainer.copy(alpha = 0.15f)
     }
 
+    val shape = RoundedCornerShape(Radius.lg)
     Surface(
         modifier = modifier
-            .softShadow(1, RoundedCornerShape(Radius.md))
-            .clip(RoundedCornerShape(Radius.md))
+            .softShadow(2, shape)
+            .clip(shape)
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
-        shape = RoundedCornerShape(Radius.md),
+        shape = shape,
         color = surfaceColor
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(IntrinsicSize.Min)
+                .padding(horizontal = Spacing.md, vertical = Spacing.md)
         ) {
-            // Subtle left accent stripe
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .fillMaxHeight()
-                    .background(accentColor)
-            )
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(Spacing.md)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
-                    )
-                    if (icon != null) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = accentColor
-                        )
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.74f),
+                    maxLines = 1
+                )
+                if (icon != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(accentColor.copy(alpha = 0.12f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(17.dp), tint = accentColor)
                     }
                 }
+            }
 
-                Spacer(modifier = Modifier.height(Spacing.xs))
-
-                Text(
-                    text = value,
-                    style = amountTextStyle(24.sp),
-                    color = valueColor
-                )
-
-                if (!caption.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(Spacing.xs))
-                    Text(
-                        text = caption,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
-                    )
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            Text(
+                text = value,
+                modifier = Modifier.fillMaxWidth(),
+                style = amountTextStyle(valueFontSize.sp),
+                color = valueColor,
+                maxLines = 1,
+                softWrap = false,
+                onTextLayout = { layout ->
+                    if (layout.hasVisualOverflow && valueFontSize > 16f) {
+                        valueFontSize -= 1f
+                    }
                 }
+            )
+            if (!caption.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                Text(
+                    text = caption,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+                    maxLines = 1,
+                    softWrap = false
+                )
             }
         }
     }
@@ -543,10 +552,12 @@ fun DokanTextField(
             isError = isError,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
             keyboardActions = keyboardActions,
-            shape = RoundedCornerShape(Radius.sm),
+            shape = RoundedCornerShape(Radius.md),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                 errorBorderColor = MaterialTheme.dokanColors.danger
             )
         )

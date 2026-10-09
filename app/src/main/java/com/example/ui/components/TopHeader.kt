@@ -56,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -66,6 +67,10 @@ import com.example.ui.AppScreen
 import com.example.ui.ShopConfig
 import com.example.ui.theme.Radius
 import com.example.ui.theme.Spacing
+import com.example.ui.theme.Brand500
+import com.example.ui.theme.Brand700
+import com.example.ui.theme.Brand900
+import com.example.ui.theme.Gold500
 import com.example.ui.theme.dokanColors
 import com.example.util.Formatters
 
@@ -111,19 +116,20 @@ fun TopHeader(
         val isOwner = config.userRole == "owner"
 
         Surface(
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 1.dp,
+            color = Brand700,
+            tonalElevation = 0.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = Spacing.lg)
-                    .padding(top = 10.dp, bottom = Spacing.sm),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = Spacing.lg)
+                        .padding(top = 12.dp, bottom = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                 // Left: Two-line layout with shop icon + shop name on top, owner/staff badge + sync indicator + date under it
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -131,16 +137,16 @@ fun TopHeader(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(42.dp)
-                            .clip(RoundedCornerShape(Radius.sm))
-                            .background(MaterialTheme.colorScheme.primaryContainer),
+                            .size(46.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Brush.linearGradient(listOf(Brand900, Brand500))),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Storefront,
                             contentDescription = "দোকানের লোগো",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
+                            tint = Color.White,
+                            modifier = Modifier.size(25.dp)
                         )
                     }
 
@@ -152,7 +158,7 @@ fun TopHeader(
                             text = config.shopName,
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = Color.White,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -170,8 +176,8 @@ fun TopHeader(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(Radius.pill))
                                     .background(
-                                        if (isOwner) MaterialTheme.colorScheme.primaryContainer
-                                        else MaterialTheme.dokanColors.surfaceAlt
+                                        if (isOwner) MaterialTheme.dokanColors.goldContainer
+                                        else Color.White.copy(alpha = 0.16f)
                                     )
                                     .padding(horizontal = 8.dp, vertical = 2.dp)
                             ) {
@@ -179,8 +185,8 @@ fun TopHeader(
                                     text = if (isOwner) "মালিক" else "কর্মচারী",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = if (isOwner) MaterialTheme.colorScheme.onPrimaryContainer
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = if (isOwner) MaterialTheme.dokanColors.gold
+                                    else Color.White
                                 )
                             }
 
@@ -190,14 +196,14 @@ fun TopHeader(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(Radius.pill))
-                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                                        .background(Color.White.copy(alpha = 0.16f))
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                         .testTag("sync_status_badge")
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Sync,
                                         contentDescription = "হালনাগাদ হচ্ছে",
-                                        tint = MaterialTheme.colorScheme.primary,
+                                        tint = Color.White,
                                         modifier = Modifier
                                             .size(12.dp)
                                             .rotate(rotation)
@@ -206,7 +212,7 @@ fun TopHeader(
                                     Text(
                                         text = "সিঙ্ক...",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary,
+                                        color = Color.White,
                                         fontWeight = FontWeight.Medium
                                     )
                                 }
@@ -216,7 +222,7 @@ fun TopHeader(
                             Text(
                                 text = "• " + Formatters.formatBengaliDate(System.currentTimeMillis()),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = Color.White.copy(alpha = 0.78f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -224,7 +230,7 @@ fun TopHeader(
                     }
                 }
 
-                // Right: 40dp Icon Buttons with circular ripple (Theme Toggle, Refresh, Overflow Menu)
+                // Compact rounded controls keep the shop identity as the visual focus.
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
@@ -233,16 +239,16 @@ fun TopHeader(
                     IconButton(
                         onClick = onToggleTheme,
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(44.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                            .background(Color.White.copy(alpha = 0.14f))
                             .testTag("theme_toggle_button")
                     ) {
                         Icon(
                             imageVector = if (isDark) Icons.Default.LightMode else Icons.Default.DarkMode,
                             contentDescription = if (isDark) "ডে মোড চালু করুন" else "নাইট মোড চালু করুন",
-                            tint = if (isDark) MaterialTheme.dokanColors.gold else MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(20.dp)
+                            tint = if (isDark) Gold500 else Color.White,
+                            modifier = Modifier.size(19.dp)
                         )
                     }
 
@@ -251,9 +257,9 @@ fun TopHeader(
                         IconButton(
                             onClick = onOpenNotifications,
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(44.dp)
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                                .background(Color.White.copy(alpha = 0.14f))
                                 .testTag("notification_button")
                         ) {
                             BadgedBox(
@@ -275,8 +281,8 @@ fun TopHeader(
                                 Icon(
                                     imageVector = Icons.Default.Notifications,
                                     contentDescription = "বিজ্ঞপ্তি ও বার্তা",
-                                    tint = bellTint,
-                                    modifier = Modifier.size(20.dp)
+                                    tint = Color.White,
+                                    modifier = Modifier.size(19.dp)
                                 )
                             }
                         }
@@ -287,9 +293,9 @@ fun TopHeader(
                         IconButton(
                             onClick = { showMenu = true },
                             modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.14f))
                                 .testTag("top_menu_button")
                         ) {
                             BadgedBox(
@@ -305,8 +311,8 @@ fun TopHeader(
                                 Icon(
                                     imageVector = Icons.Default.MoreVert,
                                     contentDescription = "মেনু",
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.size(20.dp)
+                                    tint = Color.White,
+                                    modifier = Modifier.size(19.dp)
                                 )
                             }
                         }
@@ -516,6 +522,13 @@ fun TopHeader(
                         }
                     }
                 }
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(2.dp)
+                        .background(Brush.horizontalGradient(listOf(Gold500.copy(alpha = 0.8f), Brand500.copy(alpha = 0.42f), Color.Transparent)))
+                )
             }
         }
 
