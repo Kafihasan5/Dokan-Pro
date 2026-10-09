@@ -2289,3 +2289,104 @@ input:focus-visible + .slider {
     font-size: 16px !important;
   }
 }
+
+/* ==========================================================================
+   ACTIVATION — landing-page style shell (nav, soft glow, copy + form card)
+   ========================================================================== */
+.as-screen {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  background: var(--bg-surface);
+  font-family: var(--font-bn);
+}
+.as-glow {
+  position: absolute; inset: -20% -10% auto -10%; height: 90%; pointer-events: none;
+  background:
+    radial-gradient(40% 46% at 80% 26%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 70%),
+    radial-gradient(34% 40% at 10% 8%, color-mix(in srgb, #0ea5e9 11%, transparent), transparent 70%);
+}
+.as-wrap { position: relative; width: min(1140px, 100% - 32px); margin-inline: auto; }
+.as-nav {
+  position: sticky; top: 0; z-index: 20;
+  background: color-mix(in srgb, var(--bg-surface) 82%, transparent);
+  backdrop-filter: saturate(160%) blur(14px); -webkit-backdrop-filter: saturate(160%) blur(14px);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.as-nav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+.as-brand { display: inline-flex; align-items: center; gap: 10px; font: 700 1.12rem/1 var(--font-main); color: var(--text-primary); }
+.as-brand-icon {
+  display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; color: #fff;
+  background: linear-gradient(135deg, #047857, #0f766e); box-shadow: 0 6px 14px -6px rgba(4, 120, 87, .7);
+}
+.as-home {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px;
+  border: 1px solid var(--border-subtle); border-radius: 999px; background: var(--bg-surface);
+  color: var(--text-secondary); font: 600 .9rem/1 var(--font-bn); cursor: pointer;
+}
+.as-home:hover { color: var(--primary); border-color: var(--primary); }
+.as-body {
+  flex: 1; display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); gap: 56px;
+  align-items: center; padding: 48px 0 56px;
+}
+.as-eyebrow {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+  background: var(--primary-light); color: var(--primary); font-size: .84rem; font-weight: 600;
+}
+.as-copy h1 { margin: 18px 0 14px; font-size: clamp(2rem, 3.6vw, 3rem); line-height: 1.2; font-weight: 700; color: var(--text-primary); }
+.as-copy h1 span {
+  background: linear-gradient(120deg, #047857, #0d9488 55%, #0284c7);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+:root[data-theme='dark'] .as-copy h1 span { background: linear-gradient(120deg, #34d399, #2dd4bf 55%, #38bdf8); -webkit-background-clip: text; background-clip: text; }
+.as-copy > p { max-width: 30rem; margin: 0 0 26px; color: var(--text-secondary); font-size: 1.05rem; line-height: 1.75; }
+.as-points { display: grid; gap: 12px; max-width: 30rem; margin: 0; padding: 0; list-style: none; }
+.as-points li {
+  display: flex; align-items: center; gap: 13px; padding: 14px 16px; border-radius: 16px;
+  background: var(--bg-surface); border: 1px solid var(--border-subtle); box-shadow: 0 2px 6px rgba(15, 23, 42, .03);
+}
+.as-points b { display: block; font-size: .95rem; color: var(--text-primary); }
+.as-points small { color: var(--text-secondary); font-size: .84rem; }
+.as-point-icon { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: rgba(5, 150, 105, .12); color: #059669; }
+.as-point-icon.blue { background: rgba(37, 99, 235, .11); color: #2563eb; }
+.as-point-icon.purple { background: rgba(109, 40, 217, .11); color: #7c3aed; }
+.as-card-col { display: flex; justify-content: center; min-width: 0; }
+.as-card.activation-form {
+  width: 100%; max-width: 560px; margin: 0; padding: 30px;
+  border-radius: 24px; border: 1px solid var(--border-subtle); background: var(--bg-surface);
+  box-shadow: 0 30px 60px -30px rgba(2, 44, 34, .28), 0 2px 8px rgba(15, 23, 42, .04);
+}
+.as-card .activation-role-screen { padding: 0; border: 0; box-shadow: none; background: none; }
+.as-card .activation-heading:first-child,
+.as-card .activation-back + .activation-heading { margin-top: 4px; }
+.as-card .activation-kicker { color: var(--primary); }
+.as-card .activation-action-card { border-radius: 16px; }
+.as-card .activation-trial-banner button,
+.as-card .activation-license-banner a { border-radius: 999px; padding: 10px 15px; }
+.as-card .activation-trial-banner button { background: linear-gradient(135deg, #047857, #0f766e); }
+.as-footer { padding: 22px 16px; border-top: 1px solid var(--border-subtle); text-align: center; color: var(--text-muted); font-size: .88rem; }
+:root[data-theme='dark'] .as-points li,
+:root[data-theme='dark'] .as-card.activation-form { box-shadow: none; }
+:root[data-theme='dark'] .as-card .activation-action-card:hover { background: var(--bg-card-hover); }
+
+@media (max-width: 980px) {
+  .as-body { grid-template-columns: 1fr; gap: 24px; padding: 28px 0 40px; }
+  .as-copy { text-align: center; }
+  .as-copy h1 { font-size: 1.75rem; margin: 14px 0 0; }
+  .as-copy > p, .as-points { display: none; }
+}
+@media (max-width: 600px) {
+  .as-nav-inner { height: 58px; }
+  .as-body { padding: 20px 0 32px; }
+  .as-copy h1 { font-size: 1.5rem; }
+  .as-card.activation-form { padding: 20px 16px; border-radius: 20px; }
+}
+:root[data-theme='dark'] .as-card .activation-action-icon,
+:root[data-theme='dark'] .as-card .activation-mini-icon { background: rgba(16, 185, 129, .16); color: #34d399; }
+:root[data-theme='dark'] .as-card .activation-action-card.blue .activation-action-icon,
+:root[data-theme='dark'] .as-card .activation-mini-icon.blue { background: rgba(59, 130, 246, .18); color: #93c5fd; }
+:root[data-theme='dark'] .as-card .activation-trial-icon { background: rgba(245, 158, 11, .18); color: #fbbf24; }
+:root[data-theme='dark'] .as-card .activation-license-icon { background: rgba(59, 130, 246, .18); color: #93c5fd; }

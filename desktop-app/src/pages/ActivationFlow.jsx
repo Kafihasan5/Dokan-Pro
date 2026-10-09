@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, BadgeCheck, BriefcaseBusiness, Check, ChevronRight, CircleHelp,
   CloudDownload, Crown, Gift, KeyRound, LoaderCircle, LockKeyhole, Mail, MonitorSmartphone,
@@ -62,7 +62,7 @@ function Stepper({ step }) {
   );
 }
 
-export default function ActivationFlow() {
+export default function ActivationFlow({ onHome }) {
   const { login, createOwnerShop } = useShop();
   const [flow, setFlow] = useState('roles');
   const [ownerMode, setOwnerMode] = useState('license');
@@ -101,6 +101,38 @@ export default function ActivationFlow() {
 
   const openFlow = (next) => { setError(''); setFlow(next); };
   const backToRoles = () => { setError(''); setFlow('roles'); };
+
+  // One step back — the same for the on-screen back button and the browser/phone back button.
+  const goBack = () => {
+    setError('');
+    if (flow === 'setup' && step > 1) return setStep(step - 1);
+    if (flow === 'restore-check') return setFlow('license-next');
+    if (flow === 'license-next') { setOwnerMode('license'); return setFlow('owner'); }
+    return setFlow('roles');
+  };
+
+  // Every new screen gets a browser history entry, so the browser back button walks back step by step.
+  const screenKey = `${flow}:${flow === 'setup' ? step : 0}`;
+  const lastScreen = useRef(screenKey);
+  const popping = useRef(false);
+  const goBackRef = useRef(goBack);
+  goBackRef.current = goBack;
+  useEffect(() => {
+    if (lastScreen.current === screenKey) return;
+    lastScreen.current = screenKey;
+    if (popping.current) { popping.current = false; return; }
+    if (screenKey !== 'roles:0') window.history.pushState({ dokanStep: screenKey }, '');
+  }, [screenKey]);
+  useEffect(() => {
+    const onPop = () => {
+      if (lastScreen.current === 'roles:0') return; // the app shell takes this one (back to the home page)
+      popping.current = true;
+      goBackRef.current();
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+  const stepBack = () => (window.history.state?.dokanStep ? window.history.back() : goBack());
   const handleLicense = () => run(async () => {
     const result = await activateDesktopLicense(licenseEmail);
     const existingShop = await findExistingOwnerShop(licenseEmail).catch(() => null);
@@ -147,28 +179,31 @@ export default function ActivationFlow() {
 
   const isNested = flow !== 'roles';
   return (
-    <div className="auth-screen">
-      <aside className="auth-brand-panel activation-brand-panel">
-        <div className="activation-brand-lockup">
-          <div className="activation-brand-mark"><Store size={24} /></div>
-          <div><strong>Dokan Pro</strong><small>Business Suite</small></div>
+    <div className="as-screen">
+      <div className="as-glow" aria-hidden="true" />
+      <header className="as-nav">
+        <div className="as-wrap as-nav-inner">
+          <span className="as-brand"><span className="as-brand-icon"><Store size={18} /></span>Dokan Pro</span>
+          {onHome && <button type="button" className="as-home" onClick={onHome}><ArrowLeft size={16} /> হোম পেজ</button>}
         </div>
-        <div className="activation-brand-content">
-          <span className="activation-eyebrow"><ShieldCheck size={15} /> Webix Solution অফিসিয়াল সফটওয়্যার</span>
-          <h1 className="auth-brand-title">আপনার দোকানের হিসাব, সুরক্ষিতভাবে শুরু করুন।</h1>
-          <ul className="auth-feature-list">
-            <li><BriefcaseBusiness size={18} /><span>দোকানের পণ্য, বিক্রয় ও বকেয়া এক জায়গায় পরিচালনা করুন</span></li>
-            <li><ShieldCheck size={18} /><span>লাইসেন্স যাচাই ও PIN সুরক্ষিত লগইন</span></li>
-            <li><MonitorSmartphone size={18} /><span>মোবাইল ও কম্পিউটারে একই দোকানের হিসাব ব্যবহার করুন</span></li>
-          </ul>
-        </div>
-        <div className="activation-brand-footer">© {new Date().getFullYear()} Webix Solution</div>
-      </aside>
+      </header>
 
-      <main className="auth-form-panel activation-form-panel">
-        <div className="auth-form activation-form">
+      <div className="as-wrap as-body">
+        <aside className="as-copy">
+          <span className="as-eyebrow"><ShieldCheck size={14} /> Webix Solution অফিসিয়াল সফটওয়্যার</span>
+          <h1>দোকানের হিসাব,<br /><span>সুরক্ষিতভাবে শুরু করুন।</span></h1>
+          <p>কয়েকটি সহজ ধাপে দোকান চালু করুন — মোবাইল, কম্পিউটার আর iPhone-এ একই হিসাব।</p>
+          <ul className="as-points">
+            <li><span className="as-point-icon"><BriefcaseBusiness size={18} /></span><span><b>সব হিসাব এক জায়গায়</b><small>পণ্য, বিক্রি ও বাকি খাতা</small></span></li>
+            <li><span className="as-point-icon blue"><ShieldCheck size={18} /></span><span><b>পিন-সুরক্ষিত লগইন</b><small>লাইসেন্স যাচাই ও নিরাপদ প্রবেশ</small></span></li>
+            <li><span className="as-point-icon purple"><MonitorSmartphone size={18} /></span><span><b>সব ডিভাইসে একই দোকান</b><small>লাইভ ক্লাউড সিঙ্ক</small></span></li>
+          </ul>
+        </aside>
+
+        <main className="as-card-col">
+          <div className="auth-form activation-form as-card">
           {isNested && (
-            <button type="button" className="activation-back" onClick={flow === 'setup' ? () => setStep((n) => Math.max(1, n - 1)) : flow === 'restore-check' ? () => { setError(''); setFlow('license-next'); } : flow === 'license-next' ? () => { setError(''); setFlow('owner'); setOwnerMode('license'); } : backToRoles}>
+            <button type="button" className="activation-back" onClick={stepBack}>
               <ArrowLeft size={16} /> {flow === 'setup' ? 'পূর্ববর্তী ধাপ' : 'পেছনে যান • ভূমিকা পরিবর্তন'}
             </button>
           )}
@@ -267,7 +302,7 @@ export default function ActivationFlow() {
               <label className="activation-toggle"><span><strong>ভ্যাট (VAT) সক্রিয় করুন</strong><small>চালানে স্বয়ংক্রিয়ভাবে ভ্যাট যুক্ত হবে</small></span><input type="checkbox" checked={vatEnabled} onChange={(e) => setVatEnabled(e.target.checked)} /></label>
               {vatEnabled && <Field id="vat-percent" label="ভ্যাটের হার (%)" type="number" min="0" max="100" value={vatPercentage} onChange={(e) => setVatPercentage(e.target.value)} />}
               <div className="input-group"><label className="input-label">থিম নির্বাচন</label><div className="activation-choice-row">{[['system', 'সিস্টেম'], ['light', 'লাইট'], ['dark', 'ডার্ক']].map(([mode, label]) => <button key={mode} type="button" className={themeMode === mode ? 'selected' : ''} onClick={() => setThemeMode(mode)}>{label}</button>)}</div></div>
-              <div className="activation-step-actions"><button type="button" className="btn btn-secondary" onClick={() => setStep(1)}><ArrowLeft size={16} /> পূর্ববর্তী</button><button type="button" className="btn btn-primary" onClick={() => { setError(''); setStep(3); }}>পরবর্তী ধাপ <ArrowRight size={16} /></button></div>
+              <div className="activation-step-actions"><button type="button" className="btn btn-secondary" onClick={stepBack}><ArrowLeft size={16} /> পূর্ববর্তী</button><button type="button" className="btn btn-primary" onClick={() => { setError(''); setStep(3); }}>পরবর্তী ধাপ <ArrowRight size={16} /></button></div>
             </div>}
             {step === 3 && <div className="activation-action-list">
               <div className="activation-setup-code"><span className="activation-mini-icon"><KeyRound size={18} /></span><span><small>আপনার দোকান কোড</small><strong>{shopCode}</strong></span><small>এই কোডটি নিরাপদে রাখুন—অন্য ডিভাইস থেকে রিস্টোরে লাগবে।</small></div>
@@ -275,13 +310,15 @@ export default function ActivationFlow() {
               <ActionCard icon={ShoppingBag} title="নিজের পণ্য যোগ করব" description="খালি দোকান তৈরি করে পণ্য নিজে যোগ করুন" tone="blue" onClick={() => finishSetup(false)} />
               {busy && <div className="activation-loading"><LoaderCircle className="spin" size={18} /> দোকান নিরাপদে তৈরি হচ্ছে…</div>}
               {error && <div className="alert alert-error"><CircleHelp size={16} /><span>{error}</span></div>}
-              <button type="button" className="btn btn-secondary btn-block" onClick={() => setStep(2)} disabled={busy}><ArrowLeft size={16} /> পূর্ববর্তী ধাপ</button>
+              <button type="button" className="btn btn-secondary btn-block" onClick={stepBack} disabled={busy}><ArrowLeft size={16} /> পূর্ববর্তী ধাপ</button>
             </div>}
           </>}
 
           {isNested && flow !== 'setup' && <div className="activation-footer-link"><ShieldCheck size={15} /> PIN বা দোকান কোড না জানলে দোকানের মালিকের সঙ্গে যোগাযোগ করুন।</div>}
-        </div>
-      </main>
+          </div>
+        </main>
+      </div>
+      <footer className="as-footer">© {new Date().getFullYear()} Webix Solution</footer>
     </div>
   );
 }
