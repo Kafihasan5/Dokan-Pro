@@ -2756,3 +2756,17 @@ input:focus-visible + .slider {
   .page-wrapper :has(> .tab-btn + .tab-btn) { flex-wrap: wrap !important; overflow-x: visible !important; }
   .page-wrapper :has(> .tab-btn + .tab-btn) > .tab-btn { flex: 1 1 auto; }
 }
+
+/* Product form: barcode by hand or by camera */
+.barcode-modes { display: flex; gap: 6px; margin-bottom: 6px; }
+.barcode-modes button {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 10px;
+  border: 1px solid var(--border-default); border-radius: 10px; background: var(--bg-surface); color: var(--text-secondary);
+  font: 600 .82rem/1 var(--font-bn); cursor: pointer;
+}
+.barcode-modes button.camera { border-color: color-mix(in srgb, var(--primary) 40%, transparent); background: var(--primary-light); color: var(--primary); }
+.barcode-dup { margin-top: 6px; padding: 7px 10px; border-radius: 8px; background: rgba(217, 119, 6, .12); color: #b45309; font-size: .8rem; font-weight: 600; }
+@media (max-width: 600px) {
+  /* Forms inside popups: one field per row on phones */
+  .modal-card form div[style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
+}

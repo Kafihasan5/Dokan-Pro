@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { Suspense, lazy, useRef, useState } from 'react';
 import { useShop } from '../context/ShopContext';
 import {
   Package,
@@ -11,9 +11,14 @@ import {
   AlertCircle,
   Barcode,
   Printer,
+  Camera,
+  Keyboard,
 } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 import BarcodePrintModal from '../components/BarcodePrintModal';
+
+// Loaded only when the camera opens (the barcode library is large).
+const CameraScanner = lazy(() => import('../components/CameraScanner'));
 import { generateRandomBarcode } from '../utils/barcode';
 import { notify, confirmDialog } from '../components/Feedback';
 
@@ -25,6 +30,8 @@ export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const barcodeInputRef = useRef(null);
   const [printingProduct, setPrintingProduct] = useState(null);
 
   // Form State
@@ -384,6 +391,10 @@ export default function ProductsPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div className="input-group">
                     <label className="input-label">বারকোড (Barcode)</label>
+                    <div className="barcode-modes" role="group" aria-label="বারকোড দেওয়ার উপায়">
+                      <button type="button" onClick={() => barcodeInputRef.current?.focus()}><Keyboard size={15} /> হাতে লিখুন</button>
+                      <button type="button" className="camera" onClick={() => setShowBarcodeScanner(true)}><Camera size={15} /> ক্যামেরা স্ক্যান</button>
+                    </div>
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <div style={{ position: 'relative', flex: 1 }}>
                         <Barcode
@@ -391,7 +402,9 @@ export default function ProductsPage() {
                           style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}
                         />
                         <input
+                          ref={barcodeInputRef}
                           type="text"
+                          inputMode="text"
                           className="input-field"
                           style={{ paddingLeft: '36px' }}
                           placeholder="বারকোড স্ক্যান করুন বা লিখুন"
@@ -409,6 +422,11 @@ export default function ProductsPage() {
                         জেনারেট
                       </button>
                     </div>
+                    {(() => {
+                      const code = String(formData.barcode || '').trim().toLowerCase();
+                      const other = code && products.find((x) => x.barcode && String(x.barcode).trim().toLowerCase() === code && String(x.id) !== String(editingProduct?.id));
+                      return other ? <div className="barcode-dup">⚠ এই বারকোড আগে থেকেই "{other.nameBn || other.nameEn}" পণ্যে আছে</div> : null;
+                    })()}
                   </div>
 
                   <div className="input-group">
@@ -519,6 +537,16 @@ export default function ProductsPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {showBarcodeScanner && (
+        <Suspense fallback={null}>
+          <CameraScanner
+            mode="capture"
+            onDetected={(code) => setFormData((f) => ({ ...f, barcode: code }))}
+            onClose={() => setShowBarcodeScanner(false)}
+          />
+        </Suspense>
       )}
 
       {/* Barcode Print Modal */}

@@ -33,7 +33,9 @@ async function makeNativeDetector() {
  *   (native BarcodeDetector where available, ZXing otherwise).
  * onDetected(code) returns true when the code matched a product.
  */
-export default function CameraScanner({ onDetected, onClose }) {
+export default function CameraScanner({ onDetected, onClose, mode = 'sale' }) {
+  // mode "capture": read one code (e.g. for a new product's barcode field) and close.
+  const capture = mode === 'capture';
   const videoRef = useRef(null);
   const lastRef = useRef({ code: '', at: 0 });
   const continuousRef = useRef(true);
@@ -59,6 +61,11 @@ export default function CameraScanner({ onDetected, onClose }) {
     }
     lastRef.current = { code, at: now };
     if (navigator.vibrate) navigator.vibrate(60);
+    if (capture) {
+      onDetectedRef.current(code);
+      onClose();
+      return;
+    }
     const ok = onDetectedRef.current(code);
     setStatus(ok ? { tone: 'ok', text: `✓ ${code} — কার্টে যোগ হয়েছে` } : { tone: 'err', text: `কোড পাওয়া গেছে: ${code} — কিন্তু এই কোডের কোনো পণ্য নেই` });
     if (ok && !continuousRef.current) onClose();
@@ -172,18 +179,18 @@ export default function CameraScanner({ onDetected, onClose }) {
         <div className={`scanner-status-line ${status.tone}`}>{status.text}</div>
 
 
-        <label className="scanner-toggle">
+        {!capture && <label className="scanner-toggle">
           <span><Repeat size={16} /> একটানা স্ক্যান <small>(পরপর অনেক পণ্য)</small></span>
           <input type="checkbox" checked={continuous} onChange={(e) => setContinuous(e.target.checked)} />
-        </label>
+        </label>}
 
-        <form className="scanner-manual" onSubmit={submitManual}>
+        {!capture && <form className="scanner-manual" onSubmit={submitManual}>
           <Keyboard size={17} />
           <input value={manual} onChange={(e) => setManual(e.target.value)} placeholder="অথবা কোড লিখুন" inputMode="text" autoComplete="off" />
           <button type="submit">যোগ</button>
-        </form>
+        </form>}
 
-        <button type="button" className="scanner-done" onClick={onClose}>শেষ — কার্টে ফিরে যান</button>
+        <button type="button" className="scanner-done" onClick={onClose}>{capture ? 'বাতিল' : 'শেষ — কার্টে ফিরে যান'}</button>
       </div>
     </div>
   );
