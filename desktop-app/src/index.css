@@ -2770,3 +2770,26 @@ input:focus-visible + .slider {
   /* Forms inside popups: one field per row on phones */
   .modal-card form div[style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
 }
+
+/* ==========================================================================
+   TOP BAR FITS EVERY WIDTH (desktop too): the search box takes the free space
+   ========================================================================== */
+.top-navbar { min-width: 0; }
+.navbar-left { flex: 0 1 auto; min-width: 0; }
+.navbar-right { flex: none; }
+.navbar-shop-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.global-search-wrap { flex: 1 1 260px; width: auto; max-width: 520px; min-width: 140px; margin-left: 16px; margin-right: 8px; }
+@media (max-width: 1360px) {
+  .top-navbar .badge { display: none; }
+}
+@media (max-width: 1200px) {
+  .top-navbar .user-chip { display: none; }
+  .top-navbar .shop-code-chip { display: none; }
+}
+@media (max-width: 1024px) {
+  .sync-status-pill .hide-mobile { display: none; }
+}
+/* Dashboard payment panel: legend drops under the donut when space is tight */
+.payment-content { flex-wrap: wrap; min-width: 0; }
+.payment-legend { min-width: 0 !important; flex: 1 1 140px; }
+.desk-panel { min-width: 0; }
