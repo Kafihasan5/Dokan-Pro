@@ -41,6 +41,8 @@ data class ShopConfig(
     val shopAddress: String = "বাজার রোড, ঢাকা",
     val shopPhone: String = "০১৭১১-০০০০০০",
     val ownerEmail: String = "",
+    val existingCloudShop: Boolean? = null,
+    val existingCloudShopLookupComplete: Boolean = false,
     val tagline: String = "আপনার বিশ্বস্ত মুদি দোকান",
     val currencySymbol: String = "৳",
     val useBengaliNumerals: Boolean = true,
@@ -179,6 +181,7 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     val isDemoExpired: StateFlow<Boolean> = _isDemoExpired.asStateFlow()
 
     private var demoTimerJob: Job? = null
+    private var ownerShopLookupJob: Job? = null
 
     private fun startDemoTimerTicker() {
         demoTimerJob?.cancel()
@@ -388,10 +391,13 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                         val cleanEmail = email.trim()
                         val updatedCfg = _shopConfig.value.copy(
                             ownerEmail = cleanEmail,
-                            userRole = "owner"
+                            userRole = "owner",
+                            existingCloudShop = null,
+                            existingCloudShopLookupComplete = false
                         )
                         _shopConfig.value = updatedCfg
                         saveShopConfig(updatedCfg)
+                        detectExistingCloudShop(cleanEmail)
                         _licenseInfo.value = res.info
                         _isActivating.value = false
                         _isAppActivated.value = true
@@ -408,6 +414,28 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 _isActivating.value = false
                 showToast("অ্যাক্টিভেশন ব্যর্থ হয়েছে: ${t.message ?: "পুনরায় চেষ্টা করুন"}")
             }
+        }
+    }
+
+    /** Finds whether a valid activated owner account already has a cloud shop. */
+    fun detectExistingCloudShop(email: String = _shopConfig.value.ownerEmail) {
+        val cleanEmail = email.trim().lowercase()
+        if (!cleanEmail.contains("@") || _shopConfig.value.existingCloudShopLookupComplete) return
+        if (ownerShopLookupJob?.isActive == true) return
+        ownerShopLookupJob = viewModelScope.launch {
+            val found = try {
+                firebaseSyncManager.cloudAuth.findExistingOwnerShop(cleanEmail, licenseManager.getDeviceId())
+            } catch (t: Throwable) {
+                Log.w("PaponViewModel", "Owner shop lookup deferred: ${t.message}")
+                null
+            }
+            val updated = _shopConfig.value.copy(
+                ownerEmail = cleanEmail,
+                existingCloudShop = found,
+                existingCloudShopLookupComplete = true
+            )
+            _shopConfig.value = updated
+            saveShopConfig(updated)
         }
     }
 
@@ -1618,7 +1646,10 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                             promptCloud(CloudPrompt.SET_STRONG_PIN, "ক্লাউড ব্যাকআপ ও লাইভ সিঙ্ক চালু করতে একটি নিরাপদ মাস্টার পিন সেট করুন।")
                             return@launch
                         }
-                        when (val reg = cloud.registerShop(code, pin, cfg.ownerEmail, cfg.shopName)) {
+                        val licenseEmail = licenseManager.getLicenseInfo()?.email.orEmpty()
+                            .takeIf { it.contains("@") && !it.startsWith("owner@") && !it.startsWith("staff@") }
+                            .orEmpty()
+                        when (val reg = cloud.registerShop(code, pin, cfg.ownerEmail, cfg.shopName, licenseEmail)) {
                             is CloudAuthManager.AuthResult.Success -> {
                                 val staffPin = CloudAuthManager.normalizePin(cfg.staffPin)
                                 if (CloudAuthManager.isValidPin(staffPin) && !CloudAuthManager.isWeakPin(staffPin)) {
@@ -1740,6 +1771,12 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
             val shopAddress = prefs.getString("shop_address", "বাজার রোড, ঢাকা") ?: "বাজার রোড, ঢাকা"
             val shopPhone = prefs.getString("shop_phone", "০১৭১১-০০০০০০") ?: "০১৭১১-০০০০০০"
             val ownerEmail = prefs.getString("owner_email", "") ?: ""
+            val existingCloudShop = when (prefs.getString("existing_cloud_shop", "")) {
+                "true" -> true
+                "false" -> false
+                else -> null
+            }
+            val existingCloudShopLookupComplete = prefs.getBoolean("existing_cloud_shop_lookup_complete", false)
             val tagline = prefs.getString("tagline", "আপনার বিশ্বস্ত মুদি দোকান") ?: "আপনার বিশ্বস্ত মুদি দোকান"
             val currencySymbol = prefs.getString("currency_symbol", "৳") ?: "৳"
             val useBengaliNumerals = prefs.getBoolean("use_bengali_numerals", true)
@@ -1772,6 +1809,8 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 shopAddress = shopAddress,
                 shopPhone = shopPhone,
                 ownerEmail = ownerEmail,
+                existingCloudShop = existingCloudShop,
+                existingCloudShopLookupComplete = existingCloudShopLookupComplete,
                 tagline = tagline,
                 currencySymbol = currencySymbol,
                 useBengaliNumerals = useBengaliNumerals,
@@ -1801,6 +1840,8 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
                 putString("shop_address", config.shopAddress)
                 putString("shop_phone", config.shopPhone)
                 putString("owner_email", config.ownerEmail)
+                putString("existing_cloud_shop", config.existingCloudShop?.toString() ?: "")
+                putBoolean("existing_cloud_shop_lookup_complete", config.existingCloudShopLookupComplete)
                 putString("tagline", config.tagline)
                 putString("currency_symbol", config.currencySymbol)
                 putBoolean("use_bengali_numerals", config.useBengaliNumerals)

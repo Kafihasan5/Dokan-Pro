@@ -1,0 +1,16 @@
+name = "dokan-pro-api"
+main = "worker.js"
+compatibility_date = "2025-09-01"
+# node:crypto (PIN hashing), Buffer, and process.env populated from secrets.
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+preview_urls = false
+
+# The shared server code imports firebase-admin / firebase-functions; on Workers those are REST shims.
+[alias]
+"firebase-admin/database" = "./shim/database.js"
+"firebase-admin/auth" = "./shim/auth.js"
+"firebase-functions/v2/https" = "./shim/https.js"
+
+[observability]
+enabled = true

@@ -82,10 +82,31 @@ class CloudAuthManager {
     suspend fun login(identifier: String, rawPin: String, role: String): AuthResult =
         callForToken("shopLogin", mapOf("identifier" to identifier.trim(), "pin" to normalizePin(rawPin), "role" to role))
 
-    suspend fun registerShop(shopCode: String, rawPin: String, ownerEmail: String, shopName: String): AuthResult =
+    /** Checks only whether a validly licensed device's owner email has a cloud shop. */
+    suspend fun findExistingOwnerShop(email: String, deviceId: String): Boolean? = withContext(Dispatchers.IO) {
+        try {
+            val result = withTimeout(12_000L) {
+                functions.getHttpsCallableFromUrl(endpoint("findExistingOwnerShop"))
+                    .call(mapOf("email" to email.trim().lowercase(), "deviceId" to deviceId.trim()))
+                    .awaitTask()
+            }
+            (result.getData() as? Map<*, *>)?.get("hasExistingShop") as? Boolean
+        } catch (t: Throwable) {
+            Log.w(tag, "Owner shop lookup deferred: ${t.message}")
+            null
+        }
+    }
+
+    suspend fun registerShop(shopCode: String, rawPin: String, ownerEmail: String, shopName: String, licenseEmail: String = ""): AuthResult =
         callForToken(
             "registerShop",
-            mapOf("shopCode" to shopCode, "pin" to normalizePin(rawPin), "ownerEmail" to ownerEmail.trim(), "shopName" to shopName.trim())
+            mapOf(
+                "shopCode" to shopCode,
+                "pin" to normalizePin(rawPin),
+                "ownerEmail" to ownerEmail.trim(),
+                "licenseEmail" to licenseEmail.trim(),
+                "shopName" to shopName.trim()
+            )
         )
 
     suspend fun changeOwnerPin(oldPin: String, newPin: String): AuthResult =

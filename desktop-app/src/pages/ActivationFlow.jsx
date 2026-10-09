@@ -5,7 +5,7 @@ import {
   PackagePlus, ShieldCheck, ShoppingBag, Store, UserRound, Wallet,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
-import { activateDesktopLicense, getDesktopDeviceId, startDesktopTrial } from '../utils/activation';
+import { activateDesktopLicense, findExistingOwnerShop, getDesktopDeviceId, startDesktopTrial } from '../utils/activation';
 import { PinInput } from '../components/StatusScreens';
 
 const sampleProducts = [
@@ -103,10 +103,11 @@ export default function ActivationFlow() {
   const backToRoles = () => { setError(''); setFlow('roles'); };
   const handleLicense = () => run(async () => {
     const result = await activateDesktopLicense(licenseEmail);
+    const existingShop = await findExistingOwnerShop(licenseEmail).catch(() => null);
     setOwnerEmail(licenseEmail.trim().toLowerCase());
     setShopName(result.customer_name ? `${result.customer_name} স্টোর` : '');
     setStep(1);
-    setFlow('license-next');
+    setFlow(existingShop === true ? 'restore-check' : existingShop === false ? 'setup' : 'license-next');
   });
   const handleTrial = () => run(async () => {
     await startDesktopTrial();
@@ -135,9 +136,11 @@ export default function ActivationFlow() {
       vatPercentage: vatEnabled ? Number(vatPercentage) || 0 : 0, useBengaliNumerals, themeMode,
     };
     const expiry = Number(localStorage.getItem('dokan_desktop_trial_expires_at') || 0);
+    const registeredLicenseEmail = expiry > 0 ? '' : (localStorage.getItem('dokan_desktop_license_email') || '');
     if (expiry > 0) localStorage.setItem('dokan_desktop_trial_shop', shopCode);
     await createOwnerShop({
-      shopCode, pin: masterPin, ownerEmail: ownerEmail.trim(), shopName: shopName.trim(), profile,
+      shopCode, pin: masterPin, ownerEmail: ownerEmail.trim(), licenseEmail: registeredLicenseEmail,
+      shopName: shopName.trim(), profile,
       demoProducts: withDemoProducts ? sampleProducts : [],
     });
   });

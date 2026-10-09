@@ -1,3 +1,5 @@
+import { callable } from '../config/firebase';
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://fbkyfxghhzjonihnntip.supabase.co';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZia3lmeGdoaHpqb25paG5udGlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0NDEyMTYsImV4cCI6MjEwNTAxNzIxNn0.Sn_4D24ZyVRbqa34WyV9lXZ0EBlHmqwVoSU0csRSPbo';
 
@@ -40,6 +42,15 @@ export async function activateDesktopLicense(email) {
   localStorage.removeItem('dokan_desktop_trial_expires_at');
   localStorage.setItem('dokan_desktop_license_email', normalizedEmail);
   return result;
+}
+
+/** Returns true/false for a verified shop lookup, or null if the cloud check is unavailable. */
+export async function findExistingOwnerShop(email) {
+  const result = await callable('findExistingOwnerShop')({
+    email: email.trim().toLowerCase(),
+    deviceId: getDesktopDeviceId(),
+  });
+  return typeof result.data?.hasExistingShop === 'boolean' ? result.data.hasExistingShop : null;
 }
 
 export async function startDesktopTrial() {

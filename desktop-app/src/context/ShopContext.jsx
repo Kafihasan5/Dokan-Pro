@@ -452,18 +452,19 @@ export function ShopProvider({ children }) {
     }
   };
 
-  const createOwnerShop = async ({ shopCode, pin: rawPin, ownerEmail, shopName, profile, demoProducts = [] }) => {
+  const createOwnerShop = async ({ shopCode, pin: rawPin, ownerEmail, licenseEmail = '', shopName, profile, demoProducts = [] }) => {
     if (!SECURE_AUTH) throw new Error('নতুন দোকান তৈরি করতে নিরাপদ লগইন চালু থাকতে হবে।');
     const code = sanitizeFirebaseKey(cleanText(shopCode, 40).toUpperCase());
     const pin = normalizePin(rawPin);
     const email = cleanText(ownerEmail, 120).toLowerCase();
+    const paidLicenseEmail = cleanText(licenseEmail, 120).toLowerCase();
     const name = cleanText(shopName, 120);
     if (!code || !name || !isValidPin(pin) || isWeakPin(pin)) {
       throw new Error('দোকানের নাম ও নিরাপদ ৪-১২ সংখ্যার মাস্টার পিন দিন।');
     }
     try {
       await setRememberDevice(true);
-      const { data } = await callable('registerShop')({ shopCode: code, pin, ownerEmail: email, shopName: name });
+      const { data } = await callable('registerShop')({ shopCode: code, pin, ownerEmail: email, licenseEmail: paidLicenseEmail, shopName: name });
       await signInWithCustomToken(firebaseAuth, data.token);
       const targetCode = sanitizeFirebaseKey(String(data.shopCode || code).toUpperCase());
       const allowedProfile = {};

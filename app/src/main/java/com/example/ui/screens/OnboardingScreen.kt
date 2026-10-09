@@ -47,7 +47,15 @@ fun OnboardingScreen(
     // Setup choice: "new" (নতুন দোকান সেটআপ) or "restore" (আগের ডাটা রিস্টোর)
     // New activations start with fresh setup; returning owners can explicitly choose recovery.
     var setupMode by remember {
-        mutableStateOf("new")
+        mutableStateOf(
+            when {
+                !config.ownerEmail.contains("@") -> "new"
+                !config.existingCloudShopLookupComplete -> "checking"
+                config.existingCloudShop == true -> "restore"
+                config.existingCloudShop == false -> "new"
+                else -> "choose"
+            }
+        )
     }
 
     // Cloud Restore State
@@ -93,6 +101,21 @@ fun OnboardingScreen(
 
     val scrollState = rememberScrollState()
 
+    LaunchedEffect(config.ownerEmail, config.existingCloudShopLookupComplete, config.existingCloudShop) {
+        if (!config.ownerEmail.contains("@")) {
+            setupMode = "new"
+        } else if (!config.existingCloudShopLookupComplete) {
+            setupMode = "checking"
+            viewModel.detectExistingCloudShop(config.ownerEmail)
+        } else {
+            setupMode = when (config.existingCloudShop) {
+                true -> "restore"
+                false -> "new"
+                null -> "choose"
+            }
+        }
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
@@ -132,7 +155,12 @@ fun OnboardingScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = if (setupMode == "restore") "সংরক্ষিত হিসাব পুনরুদ্ধার" else "প্রথম ব্যবহারের প্রস্তুতি",
+                            text = when (setupMode) {
+                                "restore" -> "সংরক্ষিত হিসাব পুনরুদ্ধার"
+                                "checking" -> "সংরক্ষিত হিসাব খোঁজা হচ্ছে"
+                                "choose" -> "সেটআপের ধরন বেছে নিন"
+                                else -> "প্রথম ব্যবহারের প্রস্তুতি"
+                            },
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -141,8 +169,8 @@ fun OnboardingScreen(
 
                 Spacer(modifier = Modifier.height(Spacing.sm))
 
-                // Setup Mode Toggle (নতুন দোকান vs আগের ডাটা রিস্টোর)
-                Surface(
+                // Keep the progress/choice state stable while the server checks the licensed email.
+                if (setupMode != "checking" && setupMode != "choose") Surface(
                     shape = RoundedCornerShape(Radius.pill),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
@@ -264,7 +292,33 @@ fun OnboardingScreen(
                 .padding(Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.lg)
         ) {
-            if (setupMode == "restore") {
+            if (setupMode == "checking") {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(Radius.lg),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(Spacing.xl),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                    ) {
+                        CircularProgressIndicator(color = Brand500)
+                        Text("আপনার লাইসেন্স ইমেইলে সংরক্ষিত হিসাব আছে কি না যাচাই করা হচ্ছে…", textAlign = TextAlign.Center)
+                    }
+                }
+            } else if (setupMode == "choose") {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                    Text(
+                        "এখন অনলাইনে হিসাব যাচাই করা যায়নি। আপনার ক্ষেত্রে যেটি প্রযোজ্য, সেটি বেছে নিন।",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    DokanPrimaryButton(text = "নতুন দোকান সেটআপ", onClick = { setupMode = "new" })
+                    DokanSecondaryButton(text = "সংরক্ষিত হিসাব পুনরুদ্ধার", onClick = { setupMode = "restore" })
+                }
+            } else if (setupMode == "restore") {
                 // =============================================================
                 // 🔄 RESTORE PREVIOUS DATA WITH PIN (মাস্টার পিন দিয়ে রিস্টোর)
                 // =============================================================
