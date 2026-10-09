@@ -2668,3 +2668,9 @@ input:focus-visible + .slider {
 }
 .chat-btn { position: relative; color: var(--primary); }
 .chat-count { background: var(--primary); }
+
+/* Notice banner stays pinned just under the (translucent) top bar instead of sliding beneath it. */
+.notice-banner { position: sticky; top: var(--navbar-h); z-index: 39; }
+@media (max-width: 900px) {
+  .notice-banner { top: calc(var(--navbar-h) + env(safe-area-inset-top)); padding: 8px 14px; font-size: .8rem; flex-wrap: wrap; row-gap: 2px; }
+}
