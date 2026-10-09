@@ -87,6 +87,8 @@ export default function PosPage({ onCompleteSale, scanRequest = 0, onScanHandled
   const [customerPhone, setCustomerPhone] = useState('');
   const [paymentType, setPaymentType] = useState('নগদ');
   const [paidAmount, setPaidAmount] = useState('');
+  // Cash handed over by the customer (for the change calculation).
+  const [cashReceived, setCashReceived] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Search input ref for quick keyboard focus
@@ -264,8 +266,15 @@ export default function PosPage({ onCompleteSale, scanRequest = 0, onScanHandled
   const grandTotal = Math.round(taxableAmount + vatAmount);
 
   // Set paid amount default when grand total changes
-  const effectivePaid = paidAmount === '' ? grandTotal : Number(paidAmount);
+  const received = cashReceived === '' ? null : Number(cashReceived);
+  const effectivePaid =
+    paidAmount !== '' ? Number(paidAmount) : received !== null ? Math.min(received, grandTotal) : grandTotal;
   const dueAmount = Math.max(0, grandTotal - effectivePaid);
+  const changeAmount = received !== null ? Math.max(0, received - grandTotal) : 0;
+  // One-tap amounts: exact bill, then the next round notes above it.
+  const cashSuggestions = [...new Set([grandTotal, ...[50, 100, 500, 1000].map((n) => Math.ceil(grandTotal / n) * n)])]
+    .filter((v) => v >= grandTotal && v > 0)
+    .slice(0, 4);
 
   // Auto fill customer phone on customer select
   const handleCustomerChange = (custId) => {
@@ -343,6 +352,7 @@ export default function PosPage({ onCompleteSale, scanRequest = 0, onScanHandled
       setCustomerName('');
       setCustomerPhone('');
       setPaidAmount('');
+      setCashReceived('');
       setPaymentType('নগদ');
 
       // Pop up Receipt Modal
@@ -377,6 +387,7 @@ export default function PosPage({ onCompleteSale, scanRequest = 0, onScanHandled
     setCustomerName('');
     setCustomerPhone('');
     setPaidAmount('');
+    setCashReceived('');
     notify('বিল সফলভাবে হোল্ড করা হয়েছে! পরবর্তী ক্রেতাকে সার্ভিস দিতে পারেন।');
   };
 
@@ -998,6 +1009,7 @@ export default function PosPage({ onCompleteSale, scanRequest = 0, onScanHandled
                     setPaymentType(p.id);
                     if (p.id === 'বাকি') setPaidAmount('0');
                     else setPaidAmount('');
+                    setCashReceived('');
                   }}
                   className={`btn btn-sm ${isSelected ? 'btn-primary' : 'btn-secondary'}`}
                   style={{ padding: '8px 4px', fontSize: '0.78rem', flexDirection: 'column', gap: '3px' }}
@@ -1008,6 +1020,60 @@ export default function PosPage({ onCompleteSale, scanRequest = 0, onScanHandled
               );
             })}
           </div>
+
+          {/* Cash received & change */}
+          {cart.length > 0 && paymentType !== 'বাকি' && (
+            <div className="cash-box">
+              <label className="cash-label" htmlFor="cash-received">ক্রেতা কত টাকা দিলেন?</label>
+              <div className="cash-input-row">
+                <span className="cash-currency">৳</span>
+                <input
+                  id="cash-received"
+                  className="cash-input"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder={String(grandTotal)}
+                  value={cashReceived}
+                  onChange={(e) => {
+                    const v = e.target.value
+                      .replace(/[০-৯]/g, (d) => String('০১২৩৪৫৬৭৮৯'.indexOf(d)))
+                      .replace(/[^0-9.]/g, '')
+                      .replace(/(\..*)\./g, '$1');
+                    setCashReceived(v);
+                  }}
+                />
+                {cashReceived !== '' && (
+                  <button type="button" className="cash-clear" onClick={() => setCashReceived('')} aria-label="মুছুন">
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+              <div className="cash-chips">
+                {cashSuggestions.map((v, i) => (
+                  <button
+                    key={v}
+                    type="button"
+                    className={`cash-chip ${Number(cashReceived) === v ? 'active' : ''}`}
+                    onClick={() => setCashReceived(String(v))}
+                  >
+                    {i === 0 ? 'ঠিক ঠিক' : formatCurrency(v)}
+                  </button>
+                ))}
+              </div>
+              {received !== null && received >= grandTotal && (
+                <div className="cash-result ok">
+                  <span>{changeAmount > 0 ? 'ফেরত দিন' : 'ফেরত নেই — হুবহু পরিশোধ'}</span>
+                  {changeAmount > 0 && <strong>{formatCurrency(changeAmount)}</strong>}
+                </div>
+              )}
+              {received !== null && received < grandTotal && (
+                <div className="cash-result short">
+                  <span>{formatCurrency(grandTotal - received)} কম — বাকি থাকবে</span>
+                  <small>বাকির জন্য ক্রেতার নাম দিন</small>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Maintenance Notice if active */}
           {isMaintenanceMode && (
