@@ -53,6 +53,8 @@ export default function PosPage({ onCompleteSale, scanRequest = 0, onScanHandled
   // Modals for Held Carts & Return
   const [showHeldCartsModal, setShowHeldCartsModal] = useState(false);
   const [showCameraScanner, setShowCameraScanner] = useState(false);
+  // Phones: the cart opens as a full-screen sheet from the floating cart bar.
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
   // The floating bar's "স্ক্যান" button opens this page with the camera already running.
   useEffect(() => {
     if (scanRequest > 0) {
@@ -353,6 +355,7 @@ export default function PosPage({ onCompleteSale, scanRequest = 0, onScanHandled
       };
 
       const result = await createSale(saleData);
+      setMobileCartOpen(false);
 
       // Reset Form
       setCart([]);
@@ -805,7 +808,16 @@ export default function PosPage({ onCompleteSale, scanRequest = 0, onScanHandled
       </div>
 
       {/* RIGHT: Live POS Cart & Cashier Panel */}
-      <div className="pos-cart-panel">
+      {cart.length > 0 && !mobileCartOpen && (
+        <button type="button" className="pos-cart-fab" onClick={() => setMobileCartOpen(true)}>
+          <span className="pos-cart-fab-count"><ShoppingBag size={18} /><b>{cart.reduce((n, it) => n + Number(it.quantity || 0), 0)}</b></span>
+          <span className="pos-cart-fab-text"><small>কার্ট দেখুন ও বিল করুন</small><strong>{formatCurrency(grandTotal)}</strong></span>
+          <span className="pos-cart-fab-go">বিল করুন →</span>
+        </button>
+      )}
+
+      <div className={`pos-cart-panel ${mobileCartOpen ? 'mobile-open' : ''}`}>
+        <button type="button" className="pos-cart-back" onClick={() => setMobileCartOpen(false)}>← পণ্যে ফিরুন</button>
         <div className="pos-cart-header" style={{ flexWrap: 'wrap', gap: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <ShoppingBag size={20} color="var(--primary)" />

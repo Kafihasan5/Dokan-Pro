@@ -2679,3 +2679,80 @@ input:focus-visible + .slider {
 @keyframes scanPulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
 .scanner-photo { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; border: 1.5px solid var(--primary); border-radius: 12px; background: var(--primary-light); color: var(--primary); font: 700 .95rem/1 var(--font-bn); cursor: pointer; }
 .scanner-photo:disabled { opacity: .6; }
+
+/* POS on phones/tablets: floating cart bar + full-screen cart sheet (like the mobile app) */
+.pos-cart-fab, .pos-cart-back { display: none; }
+@media (max-width: 1024px) {
+  .pos-catalog-panel { height: auto; overflow: visible; }
+  .pos-layout { padding-bottom: calc(170px + env(safe-area-inset-bottom)); }
+  .pos-cart-panel { display: none; }
+  .pos-cart-panel.mobile-open {
+    display: flex; position: fixed; inset: 0; z-index: 70; height: 100dvh; min-height: 0; border: 0; border-radius: 0;
+    overflow-y: auto; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
+    animation: cartUp 220ms cubic-bezier(.2, .8, .2, 1);
+  }
+  @keyframes cartUp { from { transform: translateY(30px); opacity: .4; } to { transform: none; opacity: 1; } }
+  .pos-cart-back {
+    display: block; flex: none; margin: 10px 12px 0; padding: 10px 14px; align-self: flex-start;
+    border: 1px solid var(--border-subtle); border-radius: 999px; background: var(--bg-card);
+    color: var(--text-primary); font: 700 .9rem/1 var(--font-bn); cursor: pointer;
+  }
+  .pos-cart-fab {
+    position: fixed; left: 12px; right: 12px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 46;
+    display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 10px 8px 12px;
+    border: 0; border-radius: 18px; color: #fff; cursor: pointer; text-align: left; font-family: var(--font-bn);
+    background: linear-gradient(135deg, #047857, #0f766e); box-shadow: 0 16px 30px -12px rgba(4, 120, 87, .75);
+    animation: cartUp 200ms ease-out;
+  }
+  .pos-cart-fab-count { position: relative; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: rgba(255, 255, 255, .18); }
+  .pos-cart-fab-count b { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; display: grid; place-items: center; border-radius: 999px; background: #fff; color: #047857; font: 800 .72rem/1 var(--font-main); }
+  .pos-cart-fab-text { flex: 1; display: grid; gap: 2px; }
+  .pos-cart-fab-text small { font-size: .74rem; opacity: .85; }
+  .pos-cart-fab-text strong { font: 800 1.15rem/1.1 var(--font-mono); }
+  .pos-cart-fab-go { padding: 10px 12px; border-radius: 12px; background: #fff; color: #047857; font-weight: 800; font-size: .86rem; white-space: nowrap; }
+}
+@media (max-width: 900px) {
+  /* sit above the floating tab bar */
+  .pos-cart-fab { bottom: calc(66px + 18px + env(safe-area-inset-bottom)); }
+}
+
+/* ==========================================================================
+   PHONE WIDTH FIXES: nothing wider than the screen
+   ========================================================================== */
+.pos-catalog-panel, .pos-cart-panel { min-width: 0; }
+@media (max-width: 600px) {
+  .top-navbar { padding-left: 10px; padding-right: 10px; gap: 6px; }
+  .navbar-left { flex: 1 1 auto; min-width: 0; gap: 6px; }
+  .navbar-right { flex: none; gap: 4px; }
+  .navbar-shop-name { max-width: none !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .top-navbar .icon-btn { width: 34px; height: 34px; }
+  .sync-status-pill { padding: 0 7px; }
+
+  /* Tables become cards */
+  table.data-table, table.desk-table { display: block; width: 100% !important; min-width: 0 !important; border: 0; }
+  table.data-table thead, table.desk-table thead { display: none; }
+  table.data-table tbody, table.desk-table tbody { display: grid; gap: 10px; }
+  table.data-table tbody tr, table.desk-table tbody tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; padding: 12px 14px;
+    border: 1px solid var(--border-subtle); border-radius: 14px; background: var(--bg-surface); box-shadow: var(--shadow-sm);
+  }
+  table.data-table td, table.desk-table td {
+    display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 0 !important; border: 0 !important;
+    text-align: left !important; white-space: normal !important; word-break: break-word; font-size: .88rem;
+  }
+  table.data-table td::before, table.desk-table td::before {
+    content: attr(data-label); color: var(--text-muted); font-size: .7rem; font-weight: 600; line-height: 1.3;
+  }
+  table.data-table td[data-label=""]::before, table.desk-table td[data-label=""]::before,
+  table.data-table td:not([data-label])::before, table.desk-table td:not([data-label])::before { content: none; }
+  /* action buttons / single-cell rows take the full width */
+  table.data-table td[data-label=""], table.desk-table td[data-label=""], table.data-table td[colspan], table.desk-table td[colspan] { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; gap: 6px; }
+  table.data-table td:first-child, table.desk-table td:first-child { grid-column: 1 / -1; font-weight: 700; font-size: .95rem; }
+  .desk-table-scroll, .table-container, .table-responsive { overflow-x: visible !important; }
+}
+@media (max-width: 600px) {
+  /* Rows of buttons/tabs wrap onto a second line instead of running off the screen */
+  .page-wrapper div[style*="display: flex"]:has(> button + button),
+  .page-wrapper :has(> .tab-btn + .tab-btn) { flex-wrap: wrap !important; overflow-x: visible !important; }
+  .page-wrapper :has(> .tab-btn + .tab-btn) > .tab-btn { flex: 1 1 auto; }
+}

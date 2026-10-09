@@ -156,18 +156,6 @@ fun FloatingNavBar(
                     modifier = Modifier.weight(1f)
                 )
 
-                // 4. সেটিংস
-                NavSlot(
-                    icon = Icons.Default.Settings,
-                    label = "সেটিংস",
-                    isSelected = currentScreen == AppScreen.SETTINGS,
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        onNavigate(AppScreen.SETTINGS)
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-
                 // 5. রিপোর্ট (Reports) - শুধুমাত্র দোকান মালিকের জন্য
                 if (!isStaff) {
                     NavSlot(
@@ -181,6 +169,18 @@ fun FloatingNavBar(
                         modifier = Modifier.weight(1f)
                     )
                 }
+                // 6. সেটিংস — always the last tab
+                NavSlot(
+                    icon = Icons.Default.Settings,
+                    label = "সেটিংস",
+                    isSelected = currentScreen == AppScreen.SETTINGS,
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        onNavigate(AppScreen.SETTINGS)
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+
             }
         }
     }

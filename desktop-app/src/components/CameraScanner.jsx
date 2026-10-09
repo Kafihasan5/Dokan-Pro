@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
-import { Camera, ImageUp, Keyboard, Repeat, X } from 'lucide-react';
+import { Camera, Keyboard, Repeat, X } from 'lucide-react';
 
 const FORMATS = [
   BarcodeFormat.QR_CODE, BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
@@ -31,12 +31,10 @@ async function makeNativeDetector() {
  * Camera barcode / QR scanner for the POS (iPhone Safari, Android Chrome, desktop).
  * - Live: scans the framed centre of the camera picture several times a second
  *   (native BarcodeDetector where available, ZXing otherwise).
- * - Photo: takes a still picture with the phone's own camera app (best on iPhone) and reads it.
  * onDetected(code) returns true when the code matched a product.
  */
 export default function CameraScanner({ onDetected, onClose }) {
   const videoRef = useRef(null);
-  const photoRef = useRef(null);
   const lastRef = useRef({ code: '', at: 0 });
   const continuousRef = useRef(true);
   const onDetectedRef = useRef(onDetected);
@@ -45,7 +43,6 @@ export default function CameraScanner({ onDetected, onClose }) {
   const [scanning, setScanning] = useState(false);
   const [manual, setManual] = useState('');
   const [cameraError, setCameraError] = useState('');
-  const [reading, setReading] = useState(false);
 
   continuousRef.current = continuous;
   onDetectedRef.current = onDetected;
@@ -53,8 +50,13 @@ export default function CameraScanner({ onDetected, onClose }) {
   const handleCode = (raw) => {
     const code = String(raw || '').trim();
     const now = Date.now();
-    // The same label stays in view for a while; ignore repeats for 2s.
-    if (!code || (code === lastRef.current.code && now - lastRef.current.at < 2000)) return;
+    if (!code) return;
+    // While the same code stays in front of the camera it is counted once, however long it is held.
+    // "at" is refreshed on every sighting, so it only counts again after it has left the view for 1.5s.
+    if (code === lastRef.current.code && now - lastRef.current.at < 1500) {
+      lastRef.current.at = now;
+      return;
+    }
     lastRef.current = { code, at: now };
     if (navigator.vibrate) navigator.vibrate(60);
     const ok = onDetectedRef.current(code);
@@ -81,8 +83,8 @@ export default function CameraScanner({ onDetected, onClose }) {
         const denied = err?.name === 'NotAllowedError' || err?.name === 'SecurityError';
         setCameraError(
           denied
-            ? 'ক্যামেরার অনুমতি দেওয়া হয়নি। Safari/ব্রাউজারের সেটিংসে এই সাইটকে ক্যামেরার অনুমতি দিন, অথবা নিচের "ছবি তুলে স্ক্যান" ব্যবহার করুন।'
-            : 'ক্যামেরা চালু করা যায়নি। নিচের "ছবি তুলে স্ক্যান" বা কোড লিখে যোগ করুন।'
+            ? 'ক্যামেরার অনুমতি দেওয়া হয়নি। Safari/ব্রাউজারের সেটিংসে এই সাইটকে ক্যামেরার অনুমতি দিন, অথবা নিচে কোড লিখুন।'
+            : 'ক্যামেরা চালু করা যায়নি। নিচে কোড লিখে যোগ করতে পারেন।'
         );
         return;
       }
@@ -138,33 +140,6 @@ export default function CameraScanner({ onDetected, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Still photo from the phone camera: autofocus + full resolution, very reliable on iPhone.
-  const readPhoto = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    setReading(true);
-    setStatus({ tone: 'info', text: 'ছবি থেকে কোড পড়া হচ্ছে…' });
-    const url = URL.createObjectURL(file);
-    try {
-      const native = await makeNativeDetector();
-      let code = '';
-      if (native) {
-        const bitmap = await createImageBitmap(file);
-        const found = await native.detect(bitmap);
-        code = found?.[0]?.rawValue || '';
-      }
-      if (!code) code = (await makeReader().decodeFromImageUrl(url)).getText();
-      lastRef.current = { code: '', at: 0 };
-      handleCode(code);
-    } catch {
-      setStatus({ tone: 'err', text: 'ছবিতে কোনো কোড পাওয়া যায়নি। কোডটি কাছে ও স্পষ্ট করে আবার তুলুন।' });
-    } finally {
-      URL.revokeObjectURL(url);
-      setReading(false);
-    }
-  };
-
   const submitManual = (e) => {
     e.preventDefault();
     const code = manual.trim();
@@ -196,10 +171,6 @@ export default function CameraScanner({ onDetected, onClose }) {
 
         <div className={`scanner-status-line ${status.tone}`}>{status.text}</div>
 
-        <input ref={photoRef} type="file" accept="image/*" capture="environment" hidden onChange={readPhoto} />
-        <button type="button" className="scanner-photo" onClick={() => photoRef.current?.click()} disabled={reading}>
-          <ImageUp size={18} /> {reading ? 'পড়া হচ্ছে…' : 'ছবি তুলে স্ক্যান করুন'}
-        </button>
 
         <label className="scanner-toggle">
           <span><Repeat size={16} /> একটানা স্ক্যান <small>(পরপর অনেক পণ্য)</small></span>

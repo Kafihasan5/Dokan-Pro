@@ -16,7 +16,7 @@ import {
   normalizeShopStatus,
 } from './normalizers';
 
-const ShopContext = createContext(null);
+export const ShopContext = createContext(null);
 
 const LEGACY_SESSION_KEY = 'dokan_web_auth';
 const LEGACY_SESSION_MS = 12 * 60 * 60 * 1000;
