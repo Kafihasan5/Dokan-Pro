@@ -1102,7 +1102,7 @@ private fun DashboardQuickActions(
         (if (!isStaff) Triple("খরচ", Icons.Default.NoteAdd, MaterialTheme.dokanColors.warning) else Triple("রিপোর্ট", Icons.Default.ReceiptLong, MaterialTheme.dokanColors.info)) to {
             if (!isStaff) onAddExpense() else onNavigate(AppScreen.REPORTS)
         }
-    }
+    )
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
