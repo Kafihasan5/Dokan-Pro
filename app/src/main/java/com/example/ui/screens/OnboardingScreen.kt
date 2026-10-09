@@ -528,6 +528,12 @@ fun OnboardingScreen(
                                 visualTransformation = PasswordVisualTransformation(),
                                 leadingIcon = Icons.Default.Key
                             )
+                            Text(
+                                text = "মাস্টার PINটি মনে রাখুন বা নিরাপদ স্থানে সংরক্ষণ করুন—হিসাব পুনরুদ্ধার ও নিরাপদ প্রবেশে এটি প্রয়োজন হবে।",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 18.sp
+                            )
 
                             DokanTextField(
                                 value = staffPin,

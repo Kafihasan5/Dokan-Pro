@@ -195,7 +195,8 @@ fun DokanProApp(
                     AppScreen.PRODUCTS,
                     AppScreen.POS,
                     AppScreen.DUE_KHATA,
-                    AppScreen.REPORTS -> true
+                    AppScreen.REPORTS,
+                    AppScreen.SETTINGS -> true
                     else -> false
                 }
 
@@ -252,4 +253,3 @@ fun DokanProApp(
 fun PaponApp(viewModel: PaponViewModel = androidx.lifecycle.viewmodel.compose.viewModel()) {
     DokanProApp(viewModel = viewModel)
 }
-

@@ -27,9 +27,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.PointOfSale
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -156,14 +156,14 @@ fun FloatingNavBar(
                     modifier = Modifier.weight(1f)
                 )
 
-                // 4. খাতা (Due Khata)
+                // 4. সেটিংস
                 NavSlot(
-                    icon = Icons.Default.MenuBook,
-                    label = "খাতা",
-                    isSelected = currentScreen == AppScreen.DUE_KHATA,
+                    icon = Icons.Default.Settings,
+                    label = "সেটিংস",
+                    isSelected = currentScreen == AppScreen.SETTINGS,
                     onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        onNavigate(AppScreen.DUE_KHATA)
+                        onNavigate(AppScreen.SETTINGS)
                     },
                     modifier = Modifier.weight(1f)
                 )
