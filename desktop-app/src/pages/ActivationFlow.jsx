@@ -105,7 +105,7 @@ export default function ActivationFlow() {
     const result = await activateDesktopLicense(licenseEmail);
     setOwnerEmail(licenseEmail.trim().toLowerCase());
     setShopName(result.customer_name ? `${result.customer_name} স্টোর` : '');
-    setFlow('setup'); setStep(1);
+    setFlow('restore-check');
   });
   const handleTrial = () => run(async () => {
     await startDesktopTrial();
@@ -113,6 +113,10 @@ export default function ActivationFlow() {
   });
   const handleLogin = (role) => run(async () => {
     await login(identifier.trim(), pin, role, { remember: true });
+  });
+  const handlePreviousShopRestore = () => run(async () => {
+    if (!licenseEmail.trim()) throw new Error('আগের দোকানের নিবন্ধিত ইমেইল লিখুন।');
+    await login(licenseEmail.trim(), pin, 'owner', { remember: true });
   });
   const validateAndContinue = () => {
     setError('');
@@ -216,6 +220,19 @@ export default function ActivationFlow() {
               {error && <div className="alert alert-error"><CircleHelp size={16} /><span>{error}</span></div>}
               <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={busy || !identifier.trim() || !pin}>{busy ? <><LoaderCircle className="spin" size={17} /> যাচাই করা হচ্ছে…</> : <>কর্মচারী হিসেবে প্রবেশ করুন <ArrowRight size={17} /></>}</button>
             </form>
+          </>}
+
+          {flow === 'restore-check' && <>
+            <div className="activation-heading"><span className="activation-kicker">লাইসেন্স সক্রিয় • ডাটা সুরক্ষা</span><h2>আগের দোকানের ডাটা ফিরিয়ে আনবেন?</h2><p>নতুন দোকান তৈরির আগে আগের ব্যাকআপ খুঁজে নিন। একই লাইসেন্স ইমেইল ও আগের মাস্টার PIN দিয়ে প্রবেশ করলে দোকানের ক্লাউড ডাটা নিজে থেকেই সিঙ্ক হবে।</p></div>
+            <form className="activation-panel-card" onSubmit={(e) => { e.preventDefault(); handlePreviousShopRestore(); }}>
+              <div className="activation-panel-title"><span className="activation-mini-icon"><CloudDownload size={19} /></span><span><strong>আগের দোকানের ব্যাকআপ রিস্টোর</strong><small>সঠিক PIN ছাড়া কোনো ডাটা খোলা হবে না</small></span></div>
+              <Field id="previous-shop-email" label="লাইসেন্স / দোকানের নিবন্ধিত ইমেইল" icon={Mail} type="email" autoComplete="email" value={licenseEmail} onChange={(e) => setLicenseEmail(e.target.value)} required />
+              <div className="input-group"><label className="input-label" htmlFor="previous-shop-pin">আগের মাস্টার সিকিউরিটি PIN</label><PinInput id="previous-shop-pin" value={pin} onChange={setPin} placeholder="আগের দোকানের মাস্টার PIN" /></div>
+              {error && <div className="alert alert-error"><CircleHelp size={16} /><span>{error}</span></div>}
+              <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={busy || !licenseEmail.trim() || !pin}>{busy ? <><LoaderCircle className="spin" size={17} /> ব্যাকআপ খোঁজা হচ্ছে…</> : <>আগের দোকানের ডাটা ফিরিয়ে আনুন <ArrowRight size={17} /></>}</button>
+              <p className="activation-hint"><LockKeyhole size={15} /> PIN যাচাই হলেই নিরাপদ cloud login হবে; পণ্য, বিক্রি, বাকি ও সেটিংস সিঙ্ক হবে।</p>
+            </form>
+            <div className="activation-new-shop-prompt"><strong>এই ইমেইলে আগের কোনো দোকান নেই?</strong><small>নিশ্চিত হলে নতুন দোকান তৈরি করতে পারেন।</small><button type="button" className="btn btn-secondary btn-block" onClick={() => { setError(''); setPin(''); setFlow('setup'); setStep(1); }}>না, নতুন দোকান শুরু করব <ArrowRight size={16} /></button></div>
           </>}
 
           {flow === 'setup' && <>
