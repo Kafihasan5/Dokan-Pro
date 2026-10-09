@@ -1,7 +1,7 @@
 {
   "name": "dokan-pro-desktop",
   "private": true,
-  "version": "1.0.105",
+  "version": "1.0.107",
   "description": "Dokan Pro point of sale and store management desktop app",
   "author": "Webix Solution",
   "type": "module",
