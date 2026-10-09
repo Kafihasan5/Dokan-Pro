@@ -2666,3 +2666,5 @@ input:focus-visible + .slider {
 @media (max-width: 900px) {
   .chat-page { height: calc(100dvh - var(--navbar-h) - env(safe-area-inset-top) - 100px - env(safe-area-inset-bottom)); }
 }
+.chat-btn { position: relative; color: var(--primary); }
+.chat-count { background: var(--primary); }

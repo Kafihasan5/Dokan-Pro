@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useShop } from '../context/ShopContext';
-import { WifiOff, RefreshCw, LogOut, Menu, Moon, Sun, Lock, ShieldCheck, Search, Package, Receipt, Users } from 'lucide-react';
+import { WifiOff, RefreshCw, LogOut, Menu, Moon, Sun, Lock, ShieldCheck, Search, Package, Receipt, Users, MessageCircle } from 'lucide-react';
+import { useSupport } from '../utils/supportStore';
 import { formatDateTime } from '../utils/formatters';
 import { confirmDialog } from './Feedback';
 import NotificationBell from './NotificationBell';
@@ -8,6 +9,8 @@ import NotificationBell from './NotificationBell';
 export default function Navbar({ onNavigate, onOpenMobileMenu, theme, onToggleTheme, onLockNow }) {
   const { auth, logout, shopInfo, products, sales, customers, isFirebaseConnected, isSyncing, lastSyncTime, secureMode } = useShop();
   const [query, setQuery] = useState('');
+  const { messages: supportMessages, readAt: supportReadAt } = useSupport();
+  const unreadChat = supportMessages.filter((m) => m.sender === 'support' && m.ts > supportReadAt).length;
   const isOwner = auth?.role === 'owner';
   const searchResults = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -88,6 +91,11 @@ export default function Navbar({ onNavigate, onOpenMobileMenu, theme, onToggleTh
             <ShieldCheck size={12} /> সুরক্ষিত
           </span>
         )}
+
+        <button className="icon-btn chat-btn" onClick={() => onNavigate('support')} title="লাইভ চ্যাট" aria-label={`লাইভ চ্যাট${unreadChat ? ` (${unreadChat}টি নতুন উত্তর)` : ''}`}>
+          <MessageCircle size={17} />
+          {unreadChat > 0 && <span className="notif-count chat-count">{unreadChat > 9 ? '9+' : unreadChat}</span>}
+        </button>
 
         <NotificationBell onNavigate={onNavigate} />
 
