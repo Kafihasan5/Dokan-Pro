@@ -728,6 +728,9 @@ class PaponViewModel(application: Application) : AndroidViewModel(application) {
     val suppliers: StateFlow<List<Supplier>> = repository.allSuppliers
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val allSupplierLedgers: StateFlow<List<SupplierLedger>> = repository.allSupplierLedgers
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val purchases: StateFlow<List<Purchase>> = repository.allPurchases
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 

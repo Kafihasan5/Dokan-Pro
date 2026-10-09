@@ -154,10 +154,12 @@ fun DashboardScreen(
     val expenses by viewModel.expenses.collectAsState()
     val customers by viewModel.customers.collectAsState()
     val totalDue by viewModel.totalDue.collectAsState()
+    val supplierLedgers by viewModel.allSupplierLedgers.collectAsState()
     val lowStockProducts by viewModel.lowStockProducts.collectAsState()
     val products by viewModel.products.collectAsState()
     val totalStockSaleValue by viewModel.totalStockSaleValuePoisha.collectAsState()
     val totalStockPurchaseValue by viewModel.totalStockPurchaseValuePoisha.collectAsState()
+    val totalSupplierDue = supplierLedgers.sumOf { it.creditPoisha - it.debitPoisha }.coerceAtLeast(0L)
     val isSyncing by viewModel.isSyncing.collectAsState()
     val isDemoMode by viewModel.isDemoMode.collectAsState()
     val remainingDemoMillis by viewModel.remainingDemoMillis.collectAsState()
@@ -480,10 +482,18 @@ fun DashboardScreen(
                 DashboardDesktopMetrics(
                     orderCount = periodSales.size,
                     salesTotalPoisha = periodSalesTotalPoisha,
-                    newCustomerCount = periodCustomerCount,
+                    profitPoisha = periodNetProfitPoisha,
+                    expensePoisha = periodExpenseTotalPoisha,
                     lowStockCount = lowStockProducts.size,
+                    stockProductCount = products.size,
+                    stockSaleValuePoisha = totalStockSaleValue,
+                    stockEstimatedProfitPoisha = totalStockSaleValue - totalStockPurchaseValue,
+                    customerDuePoisha = totalDue,
+                    supplierDuePoisha = totalSupplierDue,
                     config = config,
-                    onOpenProducts = { onNavigate(AppScreen.PRODUCTS) }
+                    onOpenProducts = { onNavigate(AppScreen.PRODUCTS) },
+                    onOpenDue = { onNavigate(AppScreen.DUE_KHATA) },
+                    onOpenPurchases = { onNavigate(AppScreen.PURCHASES) }
                 )
 
                 // Optional Free Demo Session card (scrolls with dashboard, dismissable)
@@ -642,31 +652,6 @@ fun DashboardScreen(
                     }
                 }
 
-                // Sales, filter, profit and account cards flow together without a separate summary card.
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
-                ) {
-                    DashboardHeroSummary(
-                        grossProfitPoisha = periodGrossProfitPoisha,
-                        netProfitPoisha = periodNetProfitPoisha,
-                        config = config
-                    )
-
-                    DashboardSecondaryStats(
-                        periodExpenseTotalPoisha = periodExpenseTotalPoisha,
-                        periodExpensesCount = periodExpenses.size,
-                        totalDue = totalDue,
-                        totalStockSaleValue = totalStockSaleValue,
-                        totalStockPurchaseValue = totalStockPurchaseValue,
-                        productsCount = products.size,
-                        lowStockCount = lowStockProducts.size,
-                        config = config,
-                        onNavigateToDue = { onNavigate(AppScreen.DUE_KHATA) },
-                        onNavigateToProducts = { onNavigate(AppScreen.PRODUCTS) }
-                    )
-                }
-
                 // 4) WEEKLY CHART & EMPLOYEE SALES (Owner only)
                 if (!isStaff) {
                     DashboardWeeklyChart(sales = sales, config = config, onNavigateToReports = { onNavigate(AppScreen.REPORTS) })
@@ -745,51 +730,67 @@ fun DashboardScreen(
 private fun DashboardDesktopMetrics(
     orderCount: Int,
     salesTotalPoisha: Long,
-    newCustomerCount: Int,
+    profitPoisha: Long,
+    expensePoisha: Long,
     lowStockCount: Int,
+    stockProductCount: Int,
+    stockSaleValuePoisha: Long,
+    stockEstimatedProfitPoisha: Long,
+    customerDuePoisha: Long,
+    supplierDuePoisha: Long,
     config: ShopConfig,
-    onOpenProducts: () -> Unit
+    onOpenProducts: () -> Unit,
+    onOpenDue: () -> Unit,
+    onOpenPurchases: () -> Unit
 ) {
     val number: (Int) -> String = { value ->
         if (config.useBengaliNumerals) Formatters.toBengaliDigits(value.toString()) else value.toString()
     }
-    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            StatCard(
-                label = "মোট অর্ডার",
-                value = number(orderCount),
-                caption = "নির্বাচিত সময়ে",
-                icon = Icons.Default.ReceiptLong,
-                tone = StatTone.Neutral,
-                modifier = Modifier.weight(1f)
-            )
-            StatCard(
-                label = "মোট বিক্রয়",
-                value = Formatters.formatMoney(salesTotalPoisha, config.useBengaliNumerals, config.currencySymbol),
-                caption = "নির্বাচিত সময়ে",
-                icon = Icons.Default.AccountBalanceWallet,
-                tone = StatTone.Positive,
-                modifier = Modifier.weight(1f)
-            )
+    val money: (Long) -> String = { value ->
+        Formatters.formatMoney(value, config.useBengaliNumerals, config.currencySymbol)
+    }
+    val isStaff = config.userRole == "staff"
+    val metrics = buildList {
+        add(Triple("আজকের মোট বিক্রয়", money(salesTotalPoisha), StatTone.Positive to Icons.Default.ShoppingCart))
+        if (!isStaff) add(Triple("আজকের মোট লাভ", money(profitPoisha), StatTone.Positive to Icons.AutoMirrored.Filled.TrendingUp))
+        add(Triple("আজকের বিক্রয়", number(orderCount), StatTone.Neutral to Icons.Default.ReceiptLong))
+        if (!isStaff) add(Triple("আজকের খরচ", money(expensePoisha), StatTone.Negative to Icons.Default.Receipt))
+        add(Triple("কম স্টক পণ্য", number(lowStockCount), (if (lowStockCount > 0) StatTone.Negative else StatTone.Positive) to Icons.Default.WarningAmber))
+        add(Triple("মোট স্টক পণ্য", number(stockProductCount), StatTone.Neutral to Icons.Default.AddBox))
+        if (!isStaff) {
+            add(Triple("দোকানের মোট স্টক মূল্য", money(stockSaleValuePoisha), StatTone.Gold to Icons.Default.ShoppingCart))
+            add(Triple("আনুমানিক স্টক লাভ", money(stockEstimatedProfitPoisha), StatTone.Positive to Icons.AutoMirrored.Filled.TrendingUp))
+            add(Triple("কাস্টমারের মোট পাওনা", money(customerDuePoisha), StatTone.Negative to Icons.Default.AccountBalanceWallet))
+            add(Triple("সাপ্লায়ারের মোট দেনা", money(supplierDuePoisha), StatTone.Negative to Icons.Default.Person))
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            StatCard(
-                label = "নতুন কাস্টমার",
-                value = number(newCustomerCount),
-                caption = "নির্বাচিত সময়ে যুক্ত",
-                icon = Icons.Default.Person,
-                tone = StatTone.Gold,
-                modifier = Modifier.weight(1f)
-            )
-            StatCard(
-                label = "কম স্টক পণ্য",
-                value = number(lowStockCount),
-                caption = if (lowStockCount > 0) "স্টক শেষ হতে পারে" else "স্টক পর্যাপ্ত",
-                icon = Icons.Default.WarningAmber,
-                tone = if (lowStockCount > 0) StatTone.Negative else StatTone.Positive,
-                onClick = onOpenProducts,
-                modifier = Modifier.weight(1f)
-            )
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        metrics.chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                row.forEach { (label, value, style) ->
+                    val (tone, icon) = style
+                    StatCard(
+                        label = label,
+                        value = value,
+                        caption = when (label) {
+                            "কম স্টক পণ্য" -> if (lowStockCount > 0) "স্টক দেখে পুনরায় অর্ডার করুন" else "স্টক পর্যাপ্ত"
+                            "আনুমানিক স্টক লাভ" -> "বিক্রয়মূল্য − ক্রয়মূল্য"
+                            "আজকের মোট লাভ" -> "খরচ বাদে লাভ"
+                            else -> "আজকের হিসাব"
+                        },
+                        icon = icon,
+                        tone = tone,
+                        onClick = when (label) {
+                            "কম স্টক পণ্য", "মোট স্টক পণ্য", "দোকানের মোট স্টক মূল্য" -> onOpenProducts
+                            "কাস্টমারের মোট পাওনা" -> onOpenDue
+                            "সাপ্লায়ারের মোট দেনা" -> onOpenPurchases
+                            else -> null
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
         }
     }
 }
@@ -1092,35 +1093,17 @@ private fun DashboardQuickActions(
 ) {
     val isStaff = config.userRole == "staff"
     Column {
-        SectionHeader(title = "দ্রুত অ্যাকশন")
+        SectionHeader(title = "দ্রুত অর্ডার")
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = Spacing.sm),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
         ) {
+            Box(Modifier.weight(1f)) { QuickActionTile("নতুন পণ্য", Icons.Default.AddBox, MaterialTheme.dokanColors.info) { onNavigate(AppScreen.PRODUCTS) } }
+            Box(Modifier.weight(1f)) { QuickActionTile("নতুন বিক্রয়", Icons.Default.ShoppingCart, MaterialTheme.colorScheme.primary) { onNavigate(AppScreen.POS) } }
+            Box(Modifier.weight(1f)) { QuickActionTile("বাকি খাতা", Icons.Default.AccountBalanceWallet, MaterialTheme.dokanColors.danger) { onNavigate(AppScreen.DUE_KHATA) } }
             Box(Modifier.weight(1f)) {
-                QuickActionTile("নতুন পণ্য", Icons.Default.AddBox, MaterialTheme.dokanColors.info) { onNavigate(AppScreen.PRODUCTS) }
-            }
-            Box(Modifier.weight(1f)) {
-                QuickActionTile("নতুন বিক্রয়", Icons.Default.ShoppingCart, MaterialTheme.colorScheme.primary) { onNavigate(AppScreen.POS) }
-            }
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = Spacing.sm),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-        ) {
-            Box(Modifier.weight(1f)) {
-                QuickActionTile("বাকি খাতা", Icons.Default.AccountBalanceWallet, MaterialTheme.dokanColors.danger) { onNavigate(AppScreen.DUE_KHATA) }
-            }
-            Box(Modifier.weight(1f)) {
-                if (!isStaff) {
-                    QuickActionTile("খরচ যোগ", Icons.Default.NoteAdd, MaterialTheme.dokanColors.warning, onAddExpense)
-                } else {
-                    QuickActionTile("রিপোর্ট", Icons.Default.ReceiptLong, MaterialTheme.dokanColors.info) { onNavigate(AppScreen.REPORTS) }
-                }
+                if (!isStaff) QuickActionTile("খরচ যোগ", Icons.Default.NoteAdd, MaterialTheme.dokanColors.warning, onAddExpense)
+                else QuickActionTile("রিপোর্ট", Icons.Default.ReceiptLong, MaterialTheme.dokanColors.info) { onNavigate(AppScreen.REPORTS) }
             }
         }
     }
@@ -1135,43 +1118,30 @@ private fun QuickActionTile(
 ) {
     Surface(
         onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(68.dp)
-            .softShadow(1, RoundedCornerShape(Radius.md))
+        modifier = Modifier.fillMaxWidth().height(82.dp).softShadow(1, RoundedCornerShape(Radius.md))
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(Radius.md)),
         shape = RoundedCornerShape(Radius.md),
         color = MaterialTheme.dokanColors.surfaceAlt
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = Spacing.sm),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 2.dp, vertical = 7.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
         ) {
             Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(Radius.sm))
-                    .background(color.copy(alpha = 0.12f)),
+                modifier = Modifier.size(34.dp).clip(RoundedCornerShape(Radius.sm)).background(color.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = title,
-                    tint = color,
-                    modifier = Modifier.size(22.dp)
-                )
+                Icon(imageVector = icon, contentDescription = title, tint = color, modifier = Modifier.size(20.dp))
             }
             Text(
                 text = title,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
+                softWrap = false,
+                overflow = TextOverflow.Clip
             )
         }
     }

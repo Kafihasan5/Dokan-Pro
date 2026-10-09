@@ -376,6 +376,7 @@ class PaponRepository(private val dao: PaponDao) {
 
     // --- SUPPLIERS & PURCHASES ---
     val allSuppliers: Flow<List<Supplier>> = dao.getAllSuppliers()
+    val allSupplierLedgers: Flow<List<SupplierLedger>> = dao.getAllSupplierLedgers()
     val allPurchases: Flow<List<Purchase>> = dao.getAllPurchases()
 
     suspend fun saveSupplier(supplier: Supplier): Long {
@@ -1092,5 +1093,4 @@ class PaponRepository(private val dao: PaponDao) {
         syncWithSupabase()
     }
 }
-
 

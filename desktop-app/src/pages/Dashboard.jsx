@@ -3,14 +3,14 @@ import { useShop } from '../context/ShopContext';
 import {
   AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, Banknote,
   Boxes, CalendarDays, ChartNoAxesCombined, CircleDollarSign, ClipboardList,
-  CreditCard, Package, Plus, Receipt, ShoppingBag, ShoppingCart, Users,
+  CreditCard, Package, Plus, Receipt, ShoppingBag, ShoppingCart, Truck, Users,
 } from 'lucide-react';
 import { formatCurrency, formatDateTime } from '../utils/formatters';
 
 const dayStart = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 
 export default function Dashboard({ onNavigate, onSelectSale }) {
-  const { auth, products, sales, customers, expenses } = useShop();
+  const { auth, products, sales, customers, expenses, suppliers } = useShop();
   const isOwner = auth?.role === 'owner';
   const now = new Date();
   const startToday = dayStart(now);
@@ -20,6 +20,11 @@ export default function Dashboard({ onNavigate, onSelectSale }) {
   const todayExpenses = expenses.filter((expense) => expense.expenseDate >= startToday && expense.expenseDate < startTomorrow);
   const expenseTotal = todayExpenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
   const customerDue = customers.reduce((sum, customer) => sum + Number(customer.totalDue || 0), 0);
+  const supplierDue = suppliers.reduce((sum, supplier) => sum + Number(supplier.totalDue || 0), 0);
+  const activeProducts = products.filter((product) => product.isActive);
+  const stockSaleValue = activeProducts.reduce((sum, product) => sum + Number(product.stockQty || 0) * Number(product.salePrice || 0), 0);
+  const stockPurchaseValue = activeProducts.reduce((sum, product) => sum + Number(product.stockQty || 0) * Number(product.purchasePrice || 0), 0);
+  const stockEstimatedProfit = stockSaleValue - stockPurchaseValue;
   const dueCustomers = customers.filter((customer) => Number(customer.totalDue || 0) > 0).length;
   const lowStock = products.filter((product) => product.isActive && product.stockQty <= product.minStock);
   const totalProfit = useMemo(() => todaySales.reduce((sum, sale) => {
@@ -77,11 +82,25 @@ export default function Dashboard({ onNavigate, onSelectSale }) {
         <div className="desk-date-chip"><CalendarDays size={17} />{new Intl.DateTimeFormat('bn-BD', { dateStyle: 'long' }).format(now)}</div>
       </header>
 
-      <section className="desk-stats-grid" aria-label="আজকের সারাংশ">
-        <Stat icon={ShoppingBag} tone="green" title="মোট বিক্রয়" value={formatCurrency(todayTotal)} note={`${todaySales.length} টি বিক্রয় সম্পন্ন`} />
-        {isOwner && <Stat icon={CircleDollarSign} tone="blue" title="আজকের লাভ" value={formatCurrency(totalProfit)} note={`খরচ ${formatCurrency(expenseTotal)}`} />}
-        <Stat icon={Users} tone="purple" title="মোট বাকি" value={formatCurrency(customerDue)} note={`${dueCustomers} জন কাস্টমারের কাছে`} />
-        <Stat icon={Boxes} tone="orange" title="কম স্টক পণ্য" value={`${lowStock.length} টি`} note="স্টক দেখে পুনরায় অর্ডার করুন" trend="down" />
+      <section className="desk-quick-actions card">
+        <h2>দ্রুত অর্ডার</h2>
+        <button className="quick-action blue" onClick={() => onNavigate('products')}><Plus size={17} />নতুন পণ্য</button>
+        <button className="quick-action green" onClick={() => onNavigate('pos')}><ShoppingCart size={17} />নতুন বিক্রয়</button>
+        {isOwner ? <button className="quick-action purple" onClick={() => onNavigate('expenses')}><Banknote size={17} />খরচ যোগ</button> : <button className="quick-action purple" onClick={() => onNavigate('reports')}><ChartNoAxesCombined size={17} />রিপোর্ট</button>}
+        <button className="quick-action amber" onClick={() => onNavigate('due')}><ClipboardList size={17} />বাকি খাতা</button>
+      </section>
+
+      <section className="desk-stats-grid" aria-label="আজকের হিসাব ও স্টক সারাংশ">
+        <Stat icon={ShoppingBag} tone="green" title="আজকের মোট বিক্রয়" value={formatCurrency(todayTotal)} note={`${todaySales.length} টি বিক্রয়`} />
+        {isOwner && <Stat icon={CircleDollarSign} tone="blue" title="আজকের মোট লাভ" value={formatCurrency(totalProfit)} note="খরচ বাদে লাভ" />}
+        <Stat icon={Receipt} tone="purple" title="আজকের বিক্রয়" value={`${todaySales.length} টি`} note="সম্পন্ন বিক্রয়" />
+        {isOwner && <Stat icon={Banknote} tone="orange" title="আজকের খরচ" value={formatCurrency(expenseTotal)} note={`${todayExpenses.length} টি এন্ট্রি`} />}
+        <Stat icon={AlertTriangle} tone="orange" title="কম স্টক পণ্য" value={`${lowStock.length} টি`} note="স্টক দেখে পুনরায় অর্ডার করুন" trend="down" />
+        <Stat icon={Package} tone="blue" title="মোট স্টক পণ্য" value={`${activeProducts.length} টি`} note="সক্রিয় পণ্য" />
+        {isOwner && <Stat icon={Boxes} tone="green" title="দোকানের মোট স্টক মূল্য" value={formatCurrency(stockSaleValue)} note="বিক্রয়মূল্য অনুযায়ী" />}
+        {isOwner && <Stat icon={ChartNoAxesCombined} tone="purple" title="আনুমানিক স্টক লাভ" value={formatCurrency(stockEstimatedProfit)} note="বিক্রয়মূল্য − ক্রয়মূল্য" />}
+        {isOwner && <Stat icon={Users} tone="blue" title="কাস্টমারের মোট পাওনা" value={formatCurrency(customerDue)} note={`${dueCustomers} জন কাস্টমারের কাছে`} />}
+        {isOwner && <Stat icon={Truck} tone="orange" title="সাপ্লায়ারের মোট দেনা" value={formatCurrency(supplierDue)} note="ক্রয়ের বকেয়া" />}
       </section>
 
       <section className="desk-chart-grid">
@@ -125,14 +144,6 @@ export default function Dashboard({ onNavigate, onSelectSale }) {
         </article>
       </section>
 
-      <section className="desk-quick-actions card">
-        <h2>দ্রুত অ্যাকশন</h2>
-        <button className="quick-action blue" onClick={() => onNavigate('products')}><Plus size={17} />নতুন পণ্য</button>
-        <button className="quick-action green" onClick={() => onNavigate('pos')}><ShoppingCart size={17} />নতুন বিক্রয়</button>
-        {isOwner && <button className="quick-action purple" onClick={() => onNavigate('expenses')}><Banknote size={17} />খরচ যোগ</button>}
-        <button className="quick-action amber" onClick={() => onNavigate('due')}><ClipboardList size={17} />বাকি খাতা</button>
-        <button className="quick-action cyan" onClick={() => onNavigate('reports')}><ChartNoAxesCombined size={17} />রিপোর্ট</button>
-      </section>
     </div>
   );
 }

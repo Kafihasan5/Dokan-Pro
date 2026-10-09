@@ -172,6 +172,9 @@ interface PaponDao {
     @Query("SELECT * FROM supplier_ledger WHERE supplierId = :supplierId ORDER BY entryDate DESC")
     fun getSupplierLedger(supplierId: Long): Flow<List<SupplierLedger>>
 
+    @Query("SELECT * FROM supplier_ledger")
+    fun getAllSupplierLedgers(): Flow<List<SupplierLedger>>
+
     @Query("SELECT COALESCE(SUM(creditPoisha - debitPoisha), 0) FROM supplier_ledger WHERE supplierId = :supplierId")
     fun getSupplierBalance(supplierId: Long): Flow<Long>
 
@@ -344,4 +347,3 @@ interface PaponDao {
     @Query("DELETE FROM deleted_records")
     suspend fun clearDeletedRecords()
 }
-
