@@ -1095,26 +1095,20 @@ private fun DashboardQuickActions(
     onAddExpense: () -> Unit
 ) {
     val isStaff = config.userRole == "staff"
-    Column {
-        SectionHeader(title = "দ্রুত অর্ডার")
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
-            verticalArrangement = Arrangement.spacedBy(Spacing.xs)
-        ) {
-            listOf(
-                Triple("নতুন পণ্য", Icons.Default.AddBox, MaterialTheme.dokanColors.info) to { onNavigate(AppScreen.PRODUCTS) },
-                Triple("নতুন বিক্রয়", Icons.Default.ShoppingCart, MaterialTheme.colorScheme.primary) to { onNavigate(AppScreen.POS) },
-                Triple("বাকি খাতা", Icons.Default.AccountBalanceWallet, MaterialTheme.dokanColors.danger) to { onNavigate(AppScreen.DUE_KHATA) },
-                (if (!isStaff) Triple("খরচ যোগ", Icons.Default.NoteAdd, MaterialTheme.dokanColors.warning) else Triple("রিপোর্ট", Icons.Default.ReceiptLong, MaterialTheme.dokanColors.info)) to {
-                    if (!isStaff) onAddExpense() else onNavigate(AppScreen.REPORTS)
-                }
-            ).chunked(2).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    row.forEach { (action, click) ->
-                        Box(Modifier.weight(1f)) { QuickActionTile(action.first, action.second, action.third, click) }
-                    }
-                }
-            }
+    val actions = listOf(
+        Triple("পণ্য", Icons.Default.AddBox, MaterialTheme.dokanColors.info) to { onNavigate(AppScreen.PRODUCTS) },
+        Triple("বিক্রয়", Icons.Default.ShoppingCart, MaterialTheme.colorScheme.primary) to { onNavigate(AppScreen.POS) },
+        Triple("বাকি", Icons.Default.AccountBalanceWallet, MaterialTheme.dokanColors.danger) to { onNavigate(AppScreen.DUE_KHATA) },
+        (if (!isStaff) Triple("খরচ", Icons.Default.NoteAdd, MaterialTheme.dokanColors.warning) else Triple("রিপোর্ট", Icons.Default.ReceiptLong, MaterialTheme.dokanColors.info)) to {
+            if (!isStaff) onAddExpense() else onNavigate(AppScreen.REPORTS)
+        }
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+    ) {
+        actions.forEach { (action, click) ->
+            Box(Modifier.weight(1f)) { QuickActionTile(action.first, action.second, action.third, click) }
         }
     }
 }
@@ -1128,25 +1122,25 @@ private fun QuickActionTile(
 ) {
     Surface(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(54.dp).softShadow(1, RoundedCornerShape(Radius.md))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(Radius.md)),
+        modifier = Modifier.fillMaxWidth().height(46.dp)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f), RoundedCornerShape(Radius.md)),
         shape = RoundedCornerShape(Radius.md),
-        color = MaterialTheme.dokanColors.surfaceAlt
+        color = MaterialTheme.colorScheme.surface
     ) {
         Row(
-            modifier = Modifier.fillMaxSize().padding(horizontal = Spacing.sm, vertical = 4.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Box(
-                modifier = Modifier.size(32.dp).clip(RoundedCornerShape(Radius.sm)).background(color.copy(alpha = 0.12f)),
+                modifier = Modifier.size(24.dp).clip(RoundedCornerShape(Radius.xs)).background(color.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(imageVector = icon, contentDescription = title, tint = color, modifier = Modifier.size(18.dp))
+                Icon(imageVector = icon, contentDescription = title, tint = color, modifier = Modifier.size(15.dp))
             }
             Text(
                 text = title,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
