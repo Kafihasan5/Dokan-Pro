@@ -2570,3 +2570,26 @@ input:focus-visible + .slider {
 .cash-result.ok strong { font: 800 1.6rem/1 var(--font-mono); }
 .cash-result.short { flex-direction: column; align-items: flex-start; gap: 2px; background: var(--danger-light); color: var(--danger); }
 .cash-result.short small { font-weight: 500; opacity: .85; }
+
+/* Dashboard period filter */
+.desk-period-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+.desk-period-icon { color: var(--primary); flex: none; }
+.desk-period-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.desk-period-chips::-webkit-scrollbar { display: none; }
+.desk-period-chip {
+  flex: none; min-height: 36px; padding: 0 14px; border: 1px solid var(--border-subtle); border-radius: 999px;
+  background: var(--bg-surface); color: var(--text-secondary); font: 600 .86rem/1 var(--font-bn); cursor: pointer; white-space: nowrap;
+}
+.desk-period-chip:hover { border-color: var(--primary); color: var(--primary); }
+.desk-period-chip.active { border-color: var(--primary); background: var(--primary); color: #fff; box-shadow: 0 6px 14px -8px rgba(4, 120, 87, .8); }
+.desk-period-custom { display: flex; align-items: center; gap: 6px; color: var(--text-muted); }
+.desk-period-custom input {
+  min-height: 36px; padding: 0 10px; border: 1px solid var(--border-default); border-radius: 10px;
+  background: var(--bg-input); color: var(--text-primary); font: 500 .88rem/1 var(--font-main);
+}
+@media (max-width: 600px) {
+  .desk-period-bar { flex-wrap: nowrap; flex-direction: column; align-items: stretch; gap: 8px; }
+  .desk-period-icon { display: none; }
+  .desk-period-custom { width: 100%; }
+  .desk-period-custom input { flex: 1; min-width: 0; font-size: 16px; }
+}

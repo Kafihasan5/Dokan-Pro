@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useShop } from '../context/ShopContext';
 import {
   AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, Banknote,
@@ -8,16 +8,59 @@ import {
 import { formatCurrency, formatDateTime } from '../utils/formatters';
 
 const dayStart = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+const DAY = 86400000;
+const toInput = (ms) => {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const fromInput = (v) => {
+  const [y, m, d] = String(v).split('-').map(Number);
+  return y ? new Date(y, m - 1, d).getTime() : NaN;
+};
+
+const PERIODS = [
+  { id: 'today', label: 'আজ', prefix: 'আজকের' },
+  { id: 'yesterday', label: 'গতকাল', prefix: 'গতকালের' },
+  { id: '7d', label: '৭ দিন', prefix: 'গত ৭ দিনের' },
+  { id: 'month', label: 'এই মাস', prefix: 'এই মাসের' },
+  { id: 'lastMonth', label: 'গত মাস', prefix: 'গত মাসের' },
+  { id: 'custom', label: 'কাস্টম', prefix: 'নির্বাচিত সময়ের' },
+];
+
+/** [start, end) in ms for the chosen period. */
+function periodRange(id, today, custom) {
+  const t = new Date(today);
+  switch (id) {
+    case 'yesterday': return [today - DAY, today];
+    case '7d': return [today - 6 * DAY, today + DAY];
+    case 'month': return [new Date(t.getFullYear(), t.getMonth(), 1).getTime(), today + DAY];
+    case 'lastMonth': return [new Date(t.getFullYear(), t.getMonth() - 1, 1).getTime(), new Date(t.getFullYear(), t.getMonth(), 1).getTime()];
+    case 'custom': {
+      const a = fromInput(custom.from);
+      const b = fromInput(custom.to);
+      if (Number.isNaN(a) || Number.isNaN(b)) return [today, today + DAY];
+      return a <= b ? [a, b + DAY] : [b, a + DAY];
+    }
+    default: return [today, today + DAY];
+  }
+}
 
 export default function Dashboard({ onNavigate, onSelectSale }) {
   const { auth, products, sales, customers, expenses, suppliers } = useShop();
   const isOwner = auth?.role === 'owner';
   const now = new Date();
   const startToday = dayStart(now);
-  const startTomorrow = startToday + 86400000;
-  const todaySales = sales.filter((sale) => sale.createdAt >= startToday && sale.createdAt < startTomorrow && !sale.isReturned);
+  const [period, setPeriod] = useState('today');
+  const [custom, setCustom] = useState(() => ({ from: toInput(startToday - 6 * DAY), to: toInput(startToday) }));
+  const [rangeStart, rangeEnd] = periodRange(period, startToday, custom);
+  const prefix = PERIODS.find((p) => p.id === period)?.prefix || 'আজকের';
+  const fmtDate = (ms) => new Intl.DateTimeFormat('bn-BD', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(ms));
+  const rangeText = rangeEnd - rangeStart <= DAY ? fmtDate(rangeStart) : `${fmtDate(rangeStart)} — ${fmtDate(rangeEnd - DAY)}`;
+  // Names kept from the "today only" version; they now hold the selected period.
+  const startTomorrow = rangeEnd;
+  const todaySales = sales.filter((sale) => sale.createdAt >= rangeStart && sale.createdAt < rangeEnd && !sale.isReturned);
   const todayTotal = todaySales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
-  const todayExpenses = expenses.filter((expense) => expense.expenseDate >= startToday && expense.expenseDate < startTomorrow);
+  const todayExpenses = expenses.filter((expense) => expense.expenseDate >= rangeStart && expense.expenseDate < startTomorrow);
   const expenseTotal = todayExpenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
   const customerDue = customers.reduce((sum, customer) => sum + Number(customer.totalDue || 0), 0);
   const supplierDue = suppliers.reduce((sum, supplier) => sum + Number(supplier.totalDue || 0), 0);
@@ -35,15 +78,31 @@ export default function Dashboard({ onNavigate, onSelectSale }) {
     return sum + Number(sale.subtotal ?? sale.total ?? 0) - cost - Number(sale.discount || 0);
   }, 0) - expenseTotal, [todaySales, products, expenseTotal]);
 
-  const chart = useMemo(() => Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(startToday - (6 - index) * 86400000);
-    const start = dayStart(date);
-    const amount = sales.filter((sale) => sale.createdAt >= start && sale.createdAt < start + 86400000 && !sale.isReturned)
-      .reduce((sum, sale) => sum + Number(sale.total || 0), 0);
-    return { date, amount };
-  }), [sales, startToday]);
+  const chartMonthly = rangeEnd - rangeStart > 31 * DAY;
+  const chart = useMemo(() => {
+    const sum = (a, b) => sales.filter((sale) => sale.createdAt >= a && sale.createdAt < b && !sale.isReturned)
+      .reduce((total, sale) => total + Number(sale.total || 0), 0);
+    if (chartMonthly) {
+      const out = [];
+      const s0 = new Date(rangeStart);
+      for (let d = new Date(s0.getFullYear(), s0.getMonth(), 1); d.getTime() < rangeEnd; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) {
+        const next = new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime();
+        out.push({ date: d, amount: sum(Math.max(d.getTime(), rangeStart), Math.min(next, rangeEnd)) });
+      }
+      return out;
+    }
+    const days = Math.max(7, Math.round((rangeEnd - rangeStart) / DAY));
+    const first = rangeEnd - days * DAY;
+    return Array.from({ length: days }, (_, i) => {
+      const start = first + i * DAY;
+      return { date: new Date(start), amount: sum(start, start + DAY) };
+    });
+  }, [sales, rangeStart, rangeEnd, chartMonthly]);
   const maxChart = Math.max(...chart.map((item) => item.amount), 1);
-  const points = chart.map((item, index) => `${36 + index * 112},${145 - (item.amount / maxChart) * 112}`).join(' ');
+  const stepX = chart.length > 1 ? 672 / (chart.length - 1) : 0;
+  const xAt = (index) => 36 + index * stepX;
+  const labelEvery = Math.ceil(chart.length / 8);
+  const points = chart.map((item, index) => `${xAt(index)},${145 - (item.amount / maxChart) * 112}`).join(' ');
   const chartArea = `36,145 ${points} 708,145`;
 
   const paymentGroups = [
@@ -77,10 +136,25 @@ export default function Dashboard({ onNavigate, onSelectSale }) {
       <header className="desk-welcome">
         <div>
           <h1>স্বাগতম, {auth?.userName || 'দোকানদার'} <span aria-hidden="true">👋</span></h1>
-          <p>আজ আপনার দোকানের সারাংশ দেখে নিন</p>
+          <p>{prefix} দোকানের সারাংশ • {rangeText}</p>
         </div>
-        <div className="desk-date-chip"><CalendarDays size={17} />{new Intl.DateTimeFormat('bn-BD', { dateStyle: 'long' }).format(now)}</div>
       </header>
+
+      <section className="desk-period-bar" aria-label="তারিখ বাছাই">
+        <CalendarDays size={17} className="desk-period-icon" />
+        <div className="desk-period-chips" role="tablist">
+          {PERIODS.map((p) => (
+            <button key={p.id} type="button" role="tab" aria-selected={period === p.id} className={`desk-period-chip ${period === p.id ? 'active' : ''}`} onClick={() => setPeriod(p.id)}>{p.label}</button>
+          ))}
+        </div>
+        {period === 'custom' && (
+          <div className="desk-period-custom">
+            <input type="date" value={custom.from} max={custom.to || undefined} onChange={(e) => setCustom((c) => ({ ...c, from: e.target.value }))} aria-label="শুরুর তারিখ" />
+            <span>—</span>
+            <input type="date" value={custom.to} min={custom.from || undefined} max={toInput(startToday)} onChange={(e) => setCustom((c) => ({ ...c, to: e.target.value }))} aria-label="শেষের তারিখ" />
+          </div>
+        )}
+      </section>
 
       <section className="desk-quick-actions card">
         <h2>দ্রুত অর্ডার</h2>
@@ -90,11 +164,11 @@ export default function Dashboard({ onNavigate, onSelectSale }) {
         {isOwner ? <button className="quick-action purple" onClick={() => onNavigate('expenses')}><Banknote size={17} /><span className="qa-long">খরচ যোগ</span><span className="qa-short">খরচ</span></button> : <button className="quick-action purple" onClick={() => onNavigate('reports')}><ChartNoAxesCombined size={17} /><span className="qa-long">রিপোর্ট</span><span className="qa-short">রিপোর্ট</span></button>}
       </section>
 
-      <section className="desk-stats-grid" aria-label="আজকের হিসাব ও স্টক সারাংশ">
-        <Stat icon={ShoppingBag} tone="green" title="আজকের মোট বিক্রয়" value={formatCurrency(todayTotal)} note={`${todaySales.length} টি বিক্রয়`} />
-        {isOwner && <Stat icon={CircleDollarSign} tone="blue" title="আজকের মোট লাভ" value={formatCurrency(totalProfit)} note="খরচ বাদে লাভ" />}
-        <Stat icon={Receipt} tone="purple" title="আজকের বিক্রয়" value={`${todaySales.length} টি`} note="সম্পন্ন বিক্রয়" />
-        {isOwner && <Stat icon={Banknote} tone="orange" title="আজকের খরচ" value={formatCurrency(expenseTotal)} note={`${todayExpenses.length} টি এন্ট্রি`} />}
+      <section className="desk-stats-grid" aria-label="নির্বাচিত সময়ের হিসাব ও স্টক সারাংশ">
+        <Stat icon={ShoppingBag} tone="green" title={`${prefix} মোট বিক্রয়`} value={formatCurrency(todayTotal)} note={`${todaySales.length} টি বিক্রয়`} />
+        {isOwner && <Stat icon={CircleDollarSign} tone="blue" title={`${prefix} মোট লাভ`} value={formatCurrency(totalProfit)} note="খরচ বাদে লাভ" />}
+        <Stat icon={Receipt} tone="purple" title={`${prefix} বিক্রয়`} value={`${todaySales.length} টি`} note="সম্পন্ন বিক্রয়" />
+        {isOwner && <Stat icon={Banknote} tone="orange" title={`${prefix} খরচ`} value={formatCurrency(expenseTotal)} note={`${todayExpenses.length} টি এন্ট্রি`} />}
         <Stat icon={AlertTriangle} tone="orange" title="কম স্টক পণ্য" value={`${lowStock.length} টি`} note="স্টক দেখে পুনরায় অর্ডার করুন" trend="down" />
         <Stat icon={Package} tone="blue" title="মোট স্টক পণ্য" value={`${activeProducts.length} টি`} note="সক্রিয় পণ্য" />
         {isOwner && <Stat icon={Boxes} tone="green" title="দোকানের মোট স্টক মূল্য" value={formatCurrency(stockSaleValue)} note="বিক্রয়মূল্য অনুযায়ী" />}
@@ -105,7 +179,7 @@ export default function Dashboard({ onNavigate, onSelectSale }) {
 
       <section className="desk-chart-grid">
         <article className="card desk-panel">
-          <div className="desk-panel-heading"><div><h2>বিক্রয়ের গ্রাফ</h2><p>গত ৭ দিনের বিক্রয়</p></div><button className="desk-select-chip" onClick={() => onNavigate('reports')}>রিপোর্ট দেখুন <ArrowRight size={14} /></button></div>
+          <div className="desk-panel-heading"><div><h2>বিক্রয়ের গ্রাফ</h2><p>{chartMonthly ? 'মাসভিত্তিক বিক্রয়' : rangeEnd - rangeStart <= 7 * DAY ? 'গত ৭ দিনের বিক্রয়' : 'দিনভিত্তিক বিক্রয়'}</p></div><button className="desk-select-chip" onClick={() => onNavigate('reports')}>রিপোর্ট দেখুন <ArrowRight size={14} /></button></div>
           <div className="sales-chart-wrap">
             <div className="chart-y-labels"><span>{formatCurrency(maxChart)}</span><span>{formatCurrency(maxChart / 2)}</span><span>৳ ০</span></div>
             <svg className="sales-chart" viewBox="0 0 744 176" role="img" aria-label="গত সাত দিনের বিক্রয় চার্ট" preserveAspectRatio="none">
@@ -113,14 +187,14 @@ export default function Dashboard({ onNavigate, onSelectSale }) {
               {[33, 89, 145].map((y) => <line key={y} x1="36" x2="708" y1={y} y2={y} className="chart-grid-line" />)}
               <polygon points={chartArea} fill="url(#salesFill)" />
               <polyline points={points} fill="none" stroke="#10b981" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-              {chart.map((item, index) => <circle key={item.date.toISOString()} cx={36 + index * 112} cy={145 - (item.amount / maxChart) * 112} r="4.5" className="chart-dot" />)}
+              {chart.map((item, index) => <circle key={item.date.toISOString()} cx={xAt(index)} cy={145 - (item.amount / maxChart) * 112} r="4.5" className="chart-dot" />)}
             </svg>
           </div>
-          <div className="chart-x-labels">{chart.map((item) => <span key={item.date.toISOString()}>{new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' }).format(item.date)}</span>)}</div>
+          <div className="chart-x-labels">{chart.filter((_, i) => i % labelEvery === 0).map((item) => <span key={item.date.toISOString()}>{new Intl.DateTimeFormat('en-GB', chartMonthly ? { month: 'short', year: '2-digit' } : { day: '2-digit', month: 'short' }).format(item.date)}</span>)}</div>
         </article>
 
         <article className="card desk-panel payment-panel">
-          <div className="desk-panel-heading"><div><h2>পেমেন্টের ধরন</h2><p>আজকের বিক্রয়ের ভিত্তিতে</p></div><CreditCard size={19} className="panel-heading-icon" /></div>
+          <div className="desk-panel-heading"><div><h2>পেমেন্টের ধরন</h2><p>{prefix} বিক্রয়ের ভিত্তিতে</p></div><CreditCard size={19} className="panel-heading-icon" /></div>
           <div className="payment-content">
             <div className="payment-donut" style={{ background: `conic-gradient(${pieGradient})` }}><div><strong>{formatCurrency(todayTotal)}</strong><span>মোট বিক্রয়</span></div></div>
             <div className="payment-legend">{paymentGroups.map((group) => <div className="payment-legend-row" key={group.key}><i style={{ background: group.color }} /><span>{group.key}</span><strong>{Math.round((group.amount / paymentSum) * 100)}%</strong></div>)}</div>
@@ -131,9 +205,9 @@ export default function Dashboard({ onNavigate, onSelectSale }) {
       <section className="desk-lower-grid">
         <article className="card desk-panel recent-sales-panel">
           <div className="desk-panel-heading"><div><h2>সাম্প্রতিক বিক্রয়</h2><p>সর্বশেষ লেনদেনগুলো</p></div><button className="desk-link-button" onClick={() => onNavigate('sales')}>সব বিক্রয় <ArrowRight size={14} /></button></div>
-          {sales.length === 0 ? <div className="desk-empty"><Receipt size={26} /><span>এখনো কোনো বিক্রয় রেকর্ড হয়নি</span></div> : (
+          {todaySales.length === 0 ? <div className="desk-empty"><Receipt size={26} /><span>এই সময়ে কোনো বিক্রয় নেই</span></div> : (
             <div className="desk-table-scroll"><table className="desk-table"><thead><tr><th>ইনভয়েস</th><th>কাস্টমার</th><th>পণ্য</th><th>তারিখ</th><th>পেমেন্ট</th><th className="align-right">মোট</th></tr></thead><tbody>
-              {sales.slice(0, 6).map((sale) => <tr key={sale.id} onClick={() => onSelectSale(sale)} className="desk-sale-row" title="রসিদ দেখুন"><td className="invoice-cell">{sale.invoiceNumber}</td><td>{sale.customerName || 'সাধারণ ক্রেতা'}</td><td>{sale.items?.[0]?.nameBn || sale.items?.[0]?.productName || 'পণ্য'}{sale.items?.length > 1 ? ` +${sale.items.length - 1}` : ''}</td><td>{formatDateTime(sale.createdAt)}</td><td><span className={`payment-badge ${sale.paymentType === 'বাকি' ? 'due' : 'paid'}`}>{sale.paymentType || 'নগদ'}</span></td><td className="align-right amount-cell">{formatCurrency(sale.total)}</td></tr>)}
+              {[...todaySales].sort((a, b) => b.createdAt - a.createdAt).slice(0, 6).map((sale) => <tr key={sale.id} onClick={() => onSelectSale(sale)} className="desk-sale-row" title="রসিদ দেখুন"><td className="invoice-cell">{sale.invoiceNumber}</td><td>{sale.customerName || 'সাধারণ ক্রেতা'}</td><td>{sale.items?.[0]?.nameBn || sale.items?.[0]?.productName || 'পণ্য'}{sale.items?.length > 1 ? ` +${sale.items.length - 1}` : ''}</td><td>{formatDateTime(sale.createdAt)}</td><td><span className={`payment-badge ${sale.paymentType === 'বাকি' ? 'due' : 'paid'}`}>{sale.paymentType || 'নগদ'}</span></td><td className="align-right amount-cell">{formatCurrency(sale.total)}</td></tr>)}
             </tbody></table></div>
           )}
         </article>
