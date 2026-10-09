@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useShop } from '../context/ShopContext';
-import { Save, Store, Percent, ShieldCheck, Users, History, KeyRound, Timer, Info } from 'lucide-react';
+import { Save, Store, Percent, ShieldCheck, Users, History, KeyRound, Info } from 'lucide-react';
 import { notify } from '../components/Feedback';
 import { PinInput } from '../components/StatusScreens';
 import { formatDateTime } from '../utils/formatters';
@@ -130,14 +130,12 @@ function ShopTab() {
 }
 
 function SecurityTab() {
-  const { updateMasterPin, securitySettings, updateSecuritySettings, secureMode } = useShop();
+  const { updateMasterPin, secureMode } = useShop();
   const [oldPin, setOldPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [busy, setBusy] = useState(false);
-  const [lockMinutes, setLockMinutes] = useState(securitySettings.autoLockMinutes || 15);
 
-  useEffect(() => setLockMinutes(securitySettings.autoLockMinutes || 15), [securitySettings.autoLockMinutes]);
 
   const changePin = async (e) => {
     e.preventDefault();
@@ -159,14 +157,6 @@ function SecurityTab() {
     }
   };
 
-  const saveLock = async () => {
-    try {
-      await updateSecuritySettings({ autoLockMinutes: Number(lockMinutes) });
-      notify('অটো-লক সময় সংরক্ষিত হয়েছে।', 'success');
-    } catch (err) {
-      notify(err.message, 'error');
-    }
-  };
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, alignItems: 'start' }}>
@@ -195,27 +185,6 @@ function SecurityTab() {
       </form>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <div className="card">
-          <h3 className="card-title" style={{ marginBottom: 6 }}>
-            <Timer size={18} color="var(--accent-cyan)" /> স্বয়ংক্রিয় স্ক্রিন লক
-          </h3>
-          <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginBottom: 16 }}>
-            নির্দিষ্ট সময় কোনো কাজ না হলে স্ক্রিন লক হবে। কর্মচারীর সেশন সরাসরি লগআউট হবে।
-          </p>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <select className="input-field" value={lockMinutes} onChange={(e) => setLockMinutes(e.target.value)}>
-              {[2, 5, 10, 15, 30, 60, 120].map((m) => (
-                <option key={m} value={m}>
-                  {m} মিনিট
-                </option>
-              ))}
-            </select>
-            <button className="btn btn-secondary" onClick={saveLock} disabled={Number(lockMinutes) === Number(securitySettings.autoLockMinutes)}>
-              সংরক্ষণ
-            </button>
-          </div>
-        </div>
-
         <div className={`alert ${secureMode ? 'alert-info' : 'alert-warning'}`} style={{ marginBottom: 0 }}>
           <Info size={16} />
           <span>

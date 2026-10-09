@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { db, firebaseAuth, callable, SECURE_AUTH, setRememberDevice } from '../config/firebase';
 import { ref, onValue, set, update, remove, get, runTransaction } from 'firebase/database';
 import { onIdTokenChanged, signInWithCustomToken, signOut } from 'firebase/auth';
@@ -564,32 +564,11 @@ export function ShopProvider({ children }) {
     await logAuditEvent('MASTER_PIN_CHANGED', 'মাস্টার সিকিউরিটি পিন পরিবর্তন করা হয়েছে');
   };
 
-  // ---------- idle auto-lock ----------
-  const lastActivity = useRef(Date.now());
-  useEffect(() => {
-    if (!auth || sessionBlocked) return undefined;
-    const bump = () => {
-      lastActivity.current = Date.now();
-    };
-    const events = ['pointerdown', 'keydown', 'wheel', 'touchstart'];
-    events.forEach((e) => window.addEventListener(e, bump, { passive: true }));
-    const minutes = Math.min(240, Math.max(1, Number(securitySettings.autoLockMinutes) || 15));
-    const id = setInterval(() => {
-      if (Date.now() - lastActivity.current > minutes * 60000) {
-        if (role === 'owner') setIsLocked(true);
-        else logout();
-      }
-    }, 15000);
-    return () => {
-      events.forEach((e) => window.removeEventListener(e, bump));
-      clearInterval(id);
-    };
-  }, [auth, role, sessionBlocked, securitySettings.autoLockMinutes, logout]);
+  // No idle auto-lock: the screen locks only when the owner presses the lock button.
 
   const unlock = async (pin) => {
     const ok = await verifyMasterPin(pin);
     if (ok) {
-      lastActivity.current = Date.now();
       setIsLocked(false);
     }
     return ok;
