@@ -1,12 +1,12 @@
 {
-  "versionCode": 119,
-  "versionName": "1.0.107",
+  "versionCode": 120,
+  "versionName": "1.0.108",
   "applicationId": "com.webix.dokanpro",
   "bundleFile": "app-release.aab",
   "format": "Android App Bundle (AAB)",
   "targetSdk": 36,
   "minSdk": 24,
-  "buildTime": "2026-10-09T06:30:09Z",
+  "buildTime": "2026-10-09T07:11:43Z",
   "releaseNotes": "• নতুন উন্নতি ও ফিচার আপডেট\n• বাগ ফিক্স ও নিরাপত্তা উন্নয়ন\n• অ্যাপ আরও দ্রুত ও স্থিতিশীল",
   "note": "Ready for Google Play Console upload"
 }
