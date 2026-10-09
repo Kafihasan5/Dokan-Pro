@@ -15,6 +15,19 @@ import {
 } from './components/StatusScreens';
 import ActivationFlow from './pages/ActivationFlow';
 
+// The landing page is only for visitors on the website: not inside the desktop app and not
+// when the site was opened from the iPhone Home Screen.
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+function wantsLanding() {
+  if (/Electron/i.test(navigator.userAgent)) return false;
+  if (window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone) return false;
+  try {
+    return sessionStorage.getItem('dokan_open_app') !== '1';
+  } catch {
+    return true;
+  }
+}
+
 // Pages load on demand so the login screen stays fast.
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const PosPage = lazy(() => import('./pages/PosPage'));
@@ -56,6 +69,16 @@ function AppContent() {
   const { theme, toggle: toggleTheme } = useTheme();
 
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [showLanding, setShowLanding] = useState(wantsLanding);
+  const openApp = () => {
+    try {
+      sessionStorage.setItem('dokan_open_app', '1');
+    } catch {
+      /* storage blocked */
+    }
+    setShowLanding(false);
+    window.scrollTo(0, 0);
+  };
   const [activeReceiptSale, setActiveReceiptSale] = useState(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     try {
@@ -82,7 +105,15 @@ function AppContent() {
     return <MaintenanceScreen message={globalSettings.maintenanceMessage} onLogout={auth ? logout : null} />;
   }
 
-  if (!auth?.shopCode) return <ActivationFlow />;
+  if (!auth?.shopCode) {
+    return showLanding ? (
+      <Suspense fallback={<SplashScreen />}>
+        <LandingPage onOpenApp={openApp} />
+      </Suspense>
+    ) : (
+      <ActivationFlow />
+    );
+  }
 
   if (auth.pinChangeRequired) return <ForcePinChangeScreen />;
 
