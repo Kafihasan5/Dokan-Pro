@@ -33,7 +33,7 @@
     },
     "win": {
       "target": [
-        "zip"
+        "nsis"
       ],
       "icon": "build-resources/icon.ico",
       "signAndEditExecutable": false
@@ -48,7 +48,7 @@
     "build:desktop": "npm run build && electron-builder --mac dmg --arm64",
     "build:desktop:mac:arm64": "npm run build && electron-builder --mac dmg --arm64",
     "build:desktop:mac:x64": "npm run build && electron-builder --mac dmg --x64",
-    "build:desktop:win": "npm run build && electron-builder --win zip --x64"
+    "build:desktop:win": "npm run build && electron-builder --win nsis --x64"
   },
   "dependencies": {
     "firebase": "^12.19.0",

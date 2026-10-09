@@ -1,0 +1,100 @@
+name: Build Mac DMG & Windows EXE
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing GitHub release tag to update
+        required: true
+        type: string
+      version:
+        description: Desktop app version matching the Android release
+        required: true
+        type: string
+      source_ref:
+        description: Source commit used for this release
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    name: Build macOS DMG
+    runs-on: macos-latest
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop-app/package-lock.json
+      - name: Set desktop version
+        run: npm version "${{ inputs.version }}" --no-git-tag-version
+        working-directory: desktop-app
+      - name: Install dependencies
+        run: npm ci
+        working-directory: desktop-app
+      - name: Build DMG
+        run: npm run build:desktop:mac:arm64
+        working-directory: desktop-app
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-dmg
+          path: desktop-app/release/*.dmg
+          if-no-files-found: error
+          retention-days: 2
+
+  windows:
+    name: Build Windows installer EXE
+    runs-on: windows-latest
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop-app/package-lock.json
+      - name: Set desktop version
+        run: npm version "${{ inputs.version }}" --no-git-tag-version
+        working-directory: desktop-app
+      - name: Install dependencies
+        run: npm ci
+        working-directory: desktop-app
+      - name: Build Windows installer
+        run: npm run build:desktop:win
+        working-directory: desktop-app
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: desktop-app/release/*.exe
+          if-no-files-found: error
+          retention-days: 2
+
+  publish:
+    name: Replace desktop files on GitHub release
+    needs: [mac, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download desktop installers
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Replace DMG and EXE on release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ inputs.tag }}" release-assets/*.dmg release-assets/*.exe \
+            --repo "${GITHUB_REPOSITORY}" --clobber

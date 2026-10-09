@@ -125,8 +125,18 @@ jobs:
             playstore_release/app-release.aab \
             --clobber
 
+      - name: Dispatch Mac DMG and Windows EXE builds
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run build-desktop.yml --repo "${GITHUB_REPOSITORY}" --ref main \
+            -f tag="v${{ github.run_number }}" \
+            -f version="1.0.${{ github.run_number }}" \
+            -f source_ref="${GITHUB_SHA}"
+
       - name: Update version.json & Commit PlayStore Release
         run: |
+          npm version "1.0.${{ github.run_number }}" --no-git-tag-version --prefix desktop-app
           cat <<EOF > version.json
           {
             "versionCode": $(( ${{ github.run_number }} + 12 )),
@@ -138,5 +148,5 @@ jobs:
           EOF
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add version.json playstore_release/
+          git add version.json playstore_release/ desktop-app/package.json desktop-app/package-lock.json
           git diff --staged --quiet || (git commit -m "Auto-update version v1.0.${{ github.run_number }} and playstore bundle [skip ci]" && git pull --rebase origin main && git push origin main)
