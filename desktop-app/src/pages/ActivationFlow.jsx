@@ -105,7 +105,8 @@ export default function ActivationFlow() {
     const result = await activateDesktopLicense(licenseEmail);
     setOwnerEmail(licenseEmail.trim().toLowerCase());
     setShopName(result.customer_name ? `${result.customer_name} স্টোর` : '');
-    setFlow('restore-check');
+    setStep(1);
+    setFlow('setup');
   });
   const handleTrial = () => run(async () => {
     await startDesktopTrial();
@@ -164,7 +165,7 @@ export default function ActivationFlow() {
       <main className="auth-form-panel activation-form-panel">
         <div className="auth-form activation-form">
           {isNested && (
-            <button type="button" className="activation-back" onClick={flow === 'setup' ? () => setStep((n) => Math.max(1, n - 1)) : backToRoles}>
+            <button type="button" className="activation-back" onClick={flow === 'setup' ? () => setStep((n) => Math.max(1, n - 1)) : flow === 'restore-check' ? () => { setError(''); setFlow('setup'); setStep(1); } : backToRoles}>
               <ArrowLeft size={16} /> {flow === 'setup' ? 'পূর্ববর্তী ধাপ' : 'পেছনে যান • ভূমিকা পরিবর্তন'}
             </button>
           )}
@@ -246,6 +247,7 @@ export default function ActivationFlow() {
               <div className="input-group"><label className="input-label" htmlFor="master-pin">মাস্টার সিকিউরিটি PIN *</label><PinInput id="master-pin" value={masterPin} onChange={setMasterPin} placeholder="নিরাপদ ৪-১২ সংখ্যার PIN" /></div>
               <div className="input-group"><label className="input-label" htmlFor="setup-staff-pin">কর্মচারী PIN (ঐচ্ছিক)</label><PinInput id="setup-staff-pin" value={staffPin} onChange={setStaffPin} placeholder="খালি রাখলে বন্ধ থাকবে" /></div>
               <Field id="shop-tagline" label="স্লোগান / ট্যাগলাইন" icon={BadgeCheck} placeholder="আপনার বিশ্বস্ত মুদি দোকান" value={tagline} onChange={(e) => setTagline(e.target.value)} />
+              <button type="button" className="btn btn-secondary btn-block" onClick={() => { setError(''); setPin(''); setFlow('restore-check'); }}>সংরক্ষিত হিসাব পুনরুদ্ধার করতে চান? <ArrowRight size={16} /></button>
               {error && <div className="alert alert-error"><CircleHelp size={16} /><span>{error}</span></div>}
               <button type="button" className="btn btn-primary btn-lg btn-block" onClick={validateAndContinue}>পরবর্তী ধাপ <ArrowRight size={17} /></button>
             </div>}

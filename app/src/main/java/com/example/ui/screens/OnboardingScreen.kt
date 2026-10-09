@@ -45,10 +45,9 @@ fun OnboardingScreen(
     var isSeedingData by remember { mutableStateOf(false) }
 
     // Setup choice: "new" (নতুন দোকান সেটআপ) or "restore" (আগের ডাটা রিস্টোর)
-    // A verified license email may already belong to an older shop. Start with cloud
-    // recovery in that case so a returning owner does not accidentally make an empty shop.
+    // New activations start with fresh setup; returning owners can explicitly choose recovery.
     var setupMode by remember {
-        mutableStateOf(if (config.ownerEmail.contains("@")) "restore" else "new")
+        mutableStateOf("new")
     }
 
     // Cloud Restore State
