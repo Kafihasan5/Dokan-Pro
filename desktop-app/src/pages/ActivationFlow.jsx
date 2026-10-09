@@ -140,7 +140,7 @@ export default function ActivationFlow() {
   const isNested = flow !== 'roles';
   return (
     <div className="auth-screen">
-      <aside className="auth-brand-panel">
+      <aside className="auth-brand-panel activation-brand-panel">
         <div className="activation-brand-lockup">
           <div className="activation-brand-mark"><Store size={24} /></div>
           <div><strong>Dokan Pro</strong><small>Business Suite</small></div>
@@ -164,7 +164,7 @@ export default function ActivationFlow() {
               <ArrowLeft size={16} /> {flow === 'setup' ? 'পূর্ববর্তী ধাপ' : 'পেছনে যান • ভূমিকা পরিবর্তন'}
             </button>
           )}
-          {flow === 'roles' && <>
+          {flow === 'roles' && <section className="activation-role-screen">
             <div className="activation-heading"><span className="activation-kicker">শুরু করুন</span><h2>আপনার ভূমিকা বেছে নিন</h2><p>মোবাইল অ্যাপের মতো ধাপে ধাপে অ্যাক্টিভেশন সম্পন্ন করুন।</p></div>
             <div className="activation-action-list">
               <ActionCard icon={Crown} title="আমি দোকান মালিক" description="নতুন লাইসেন্স চালু বা আগের দোকান ফিরিয়ে আনুন" onClick={() => { setOwnerMode('license'); openFlow('owner'); }} />
@@ -181,7 +181,7 @@ export default function ActivationFlow() {
               <a href="https://webixsolution.store/product/dokan-pro" target="_blank" rel="noreferrer">লাইসেন্স নিন <ArrowRight size={14} /></a>
             </div>
             {error && <div className="alert alert-error"><CircleHelp size={16} /><span>{error}</span></div>}
-          </>}
+          </section>}
 
           {flow === 'owner' && <>
             <div className="activation-heading"><span className="activation-kicker">মালিক • ধাপ ১</span><h2>দোকান শুরু করুন</h2><p>নতুন লাইসেন্স চালু করুন অথবা আগের দোকানের ক্লাউড ডাটা রিস্টোর করুন।</p></div>
