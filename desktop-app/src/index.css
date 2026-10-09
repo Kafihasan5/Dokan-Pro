@@ -2280,3 +2280,12 @@ input:focus-visible + .slider {
     break-inside: avoid !important;
   }
 }
+
+/* iPhone Safari zooms into any field with text smaller than 16px; keep phones from zooming. */
+@media (max-width: 900px) and (hover: none) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
