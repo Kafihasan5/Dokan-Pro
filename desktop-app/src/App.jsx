@@ -94,6 +94,7 @@ function AppContent() {
     }
   });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [scanRequest, setScanRequest] = useState(0);
   const [dismissed, setDismissed] = useState(readDismissed);
 
   const setCollapsed = (v) => {
@@ -189,7 +190,7 @@ function AppContent() {
         <main style={{ flex: 1 }}>
           <Suspense fallback={<div className="empty-state"><span className="spin" style={{ display: 'inline-block' }}>◌</span></div>}>
           {page === 'dashboard' && <Dashboard onNavigate={setCurrentPage} onSelectSale={setActiveReceiptSale} />}
-          {page === 'pos' && gated('pos', 'ক্যাশ কাউন্টার (POS)', <PosPage onCompleteSale={setActiveReceiptSale} />)}
+          {page === 'pos' && gated('pos', 'ক্যাশ কাউন্টার (POS)', <PosPage onCompleteSale={setActiveReceiptSale} scanRequest={scanRequest} onScanHandled={() => setScanRequest(0)} />)}
           {page === 'products' && gated('inventoryEdit', 'পণ্য ও ইনভেন্টরি', <ProductsPage />)}
           {page === 'sales' && gated('reports', 'বিক্রয় খাতা', <SalesPage onSelectSale={setActiveReceiptSale} />)}
           {page === 'due' && gated('dueKhata', 'বাকির খাতা', <DueKhataPage />)}
@@ -203,7 +204,15 @@ function AppContent() {
         </main>
       </div>
 
-      <MobileTabBar currentPage={page} onNavigate={setCurrentPage} onOpenMenu={() => setIsMobileMenuOpen(true)} />
+      <MobileTabBar
+        currentPage={page}
+        onNavigate={setCurrentPage}
+        onScan={() => {
+          setCurrentPage('pos');
+          setScanRequest((n) => n + 1);
+        }}
+        onOpenMenu={() => setIsMobileMenuOpen(true)}
+      />
 
       {activeReceiptSale && (
         <ReceiptModal

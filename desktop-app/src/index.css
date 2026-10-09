@@ -2528,3 +2528,26 @@ input:focus-visible + .slider {
   border: 0; border-radius: 50%; background: var(--bg-card); color: var(--text-secondary); cursor: pointer;
 }
 .lock-close:hover { background: var(--danger-light); color: var(--danger); }
+
+/* Floating bottom bar (mirrors the mobile app's FloatingNavBar) */
+@media (max-width: 900px) {
+  .mobile-tabbar {
+    left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom));
+    grid-template-columns: repeat(6, 1fr);
+    height: 66px; padding: 0 4px; align-items: center;
+    border: 1px solid var(--border-subtle); border-radius: 22px;
+    background: color-mix(in srgb, var(--bg-surface) 94%, transparent);
+    box-shadow: 0 14px 30px -12px rgba(15, 23, 42, .28), 0 2px 6px rgba(15, 23, 42, .05);
+  }
+  .mobile-tab { min-height: 58px; padding: 4px 0; }
+  .mobile-tab-icon { width: 44px; height: 30px; }
+  .mobile-tab-label { font-size: .68rem; }
+  .mobile-tab.featured .mobile-tab-icon {
+    width: 46px; height: 32px; color: #fff;
+    background: linear-gradient(135deg, #047857, #0f766e);
+    box-shadow: 0 8px 16px -8px rgba(4, 120, 87, .8);
+  }
+  .mobile-tab.featured { color: var(--primary); }
+  .mobile-tab.featured.active .mobile-tab-icon { background: linear-gradient(135deg, #065f46, #047857); }
+  .app-container .main-content { padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
+}

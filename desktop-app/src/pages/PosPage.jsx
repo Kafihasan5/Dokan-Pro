@@ -30,7 +30,7 @@ import { notify } from '../components/Feedback';
 // Loaded only when the camera opens (the barcode library is large).
 const CameraScanner = lazy(() => import('../components/CameraScanner'));
 
-export default function PosPage({ onCompleteSale }) {
+export default function PosPage({ onCompleteSale, scanRequest = 0, onScanHandled }) {
   const {
     products,
     categories,
@@ -53,6 +53,14 @@ export default function PosPage({ onCompleteSale }) {
   // Modals for Held Carts & Return
   const [showHeldCartsModal, setShowHeldCartsModal] = useState(false);
   const [showCameraScanner, setShowCameraScanner] = useState(false);
+  // The floating bar's "স্ক্যান" button opens this page with the camera already running.
+  useEffect(() => {
+    if (scanRequest > 0) {
+      setShowCameraScanner(true);
+      onScanHandled?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanRequest]);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnProductId, setReturnProductId] = useState('');
   const [returnQty, setReturnQty] = useState('1');
