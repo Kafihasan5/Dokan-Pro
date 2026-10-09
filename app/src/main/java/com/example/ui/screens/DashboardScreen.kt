@@ -480,6 +480,7 @@ fun DashboardScreen(
                 )
 
                 DashboardDesktopMetrics(
+                    periodLabel = periodLabel,
                     orderCount = periodSales.size,
                     salesTotalPoisha = periodSalesTotalPoisha,
                     profitPoisha = periodNetProfitPoisha,
@@ -728,6 +729,7 @@ fun DashboardScreen(
 // ==============================================================================
 @Composable
 private fun DashboardDesktopMetrics(
+    periodLabel: String,
     orderCount: Int,
     salesTotalPoisha: Long,
     profitPoisha: Long,
@@ -751,10 +753,10 @@ private fun DashboardDesktopMetrics(
     }
     val isStaff = config.userRole == "staff"
     val metrics = buildList {
-        add(Triple("আজকের মোট বিক্রয়", money(salesTotalPoisha), StatTone.Positive to Icons.Default.ShoppingCart))
-        if (!isStaff) add(Triple("আজকের মোট লাভ", money(profitPoisha), StatTone.Positive to Icons.AutoMirrored.Filled.TrendingUp))
-        add(Triple("আজকের বিক্রয়", number(orderCount), StatTone.Neutral to Icons.Default.ReceiptLong))
-        if (!isStaff) add(Triple("আজকের খরচ", money(expensePoisha), StatTone.Negative to Icons.Default.Receipt))
+        add(Triple("$periodLabel মোট বিক্রয়", money(salesTotalPoisha), StatTone.Positive to Icons.Default.ShoppingCart))
+        if (!isStaff) add(Triple("$periodLabel মোট লাভ", money(profitPoisha), StatTone.Positive to Icons.AutoMirrored.Filled.TrendingUp))
+        add(Triple("$periodLabel বিক্রয়", number(orderCount), StatTone.Neutral to Icons.Default.ReceiptLong))
+        if (!isStaff) add(Triple("$periodLabel খরচ", money(expensePoisha), StatTone.Negative to Icons.Default.Receipt))
         add(Triple("কম স্টক পণ্য", number(lowStockCount), (if (lowStockCount > 0) StatTone.Negative else StatTone.Positive) to Icons.Default.WarningAmber))
         add(Triple("মোট স্টক পণ্য", number(stockProductCount), StatTone.Neutral to Icons.Default.AddBox))
         if (!isStaff) {
@@ -772,11 +774,12 @@ private fun DashboardDesktopMetrics(
                     StatCard(
                         label = label,
                         value = value,
-                        caption = when (label) {
-                            "কম স্টক পণ্য" -> if (lowStockCount > 0) "স্টক দেখে পুনরায় অর্ডার করুন" else "স্টক পর্যাপ্ত"
-                            "আনুমানিক স্টক লাভ" -> "বিক্রয়মূল্য − ক্রয়মূল্য"
-                            "আজকের মোট লাভ" -> "খরচ বাদে লাভ"
-                            else -> "আজকের হিসাব"
+                        caption = when {
+                            label == "কম স্টক পণ্য" -> if (lowStockCount > 0) "স্টক দেখে পুনরায় অর্ডার করুন" else "স্টক পর্যাপ্ত"
+                            label == "আনুমানিক স্টক লাভ" -> "বিক্রয়মূল্য − ক্রয়মূল্য"
+                            label.endsWith("মোট লাভ") -> "খরচ বাদে লাভ · $periodLabel"
+                            label.startsWith("কম স্টক") || label.startsWith("মোট স্টক") || label.startsWith("দোকানের মোট") || label.startsWith("আনুমানিক") || label.startsWith("কাস্টমারের") || label.startsWith("সাপ্লায়ারের") -> "বর্তমান স্টক/বকেয়া"
+                            else -> "$periodLabel হিসাব"
                         },
                         icon = icon,
                         tone = tone,
@@ -1094,16 +1097,23 @@ private fun DashboardQuickActions(
     val isStaff = config.userRole == "staff"
     Column {
         SectionHeader(title = "দ্রুত অর্ডার")
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs)
         ) {
-            Box(Modifier.weight(1f)) { QuickActionTile("নতুন পণ্য", Icons.Default.AddBox, MaterialTheme.dokanColors.info) { onNavigate(AppScreen.PRODUCTS) } }
-            Box(Modifier.weight(1f)) { QuickActionTile("নতুন বিক্রয়", Icons.Default.ShoppingCart, MaterialTheme.colorScheme.primary) { onNavigate(AppScreen.POS) } }
-            Box(Modifier.weight(1f)) { QuickActionTile("বাকি খাতা", Icons.Default.AccountBalanceWallet, MaterialTheme.dokanColors.danger) { onNavigate(AppScreen.DUE_KHATA) } }
-            Box(Modifier.weight(1f)) {
-                if (!isStaff) QuickActionTile("খরচ যোগ", Icons.Default.NoteAdd, MaterialTheme.dokanColors.warning, onAddExpense)
-                else QuickActionTile("রিপোর্ট", Icons.Default.ReceiptLong, MaterialTheme.dokanColors.info) { onNavigate(AppScreen.REPORTS) }
+            listOf(
+                Triple("নতুন পণ্য", Icons.Default.AddBox, MaterialTheme.dokanColors.info) to { onNavigate(AppScreen.PRODUCTS) },
+                Triple("নতুন বিক্রয়", Icons.Default.ShoppingCart, MaterialTheme.colorScheme.primary) to { onNavigate(AppScreen.POS) },
+                Triple("বাকি খাতা", Icons.Default.AccountBalanceWallet, MaterialTheme.dokanColors.danger) to { onNavigate(AppScreen.DUE_KHATA) },
+                (if (!isStaff) Triple("খরচ যোগ", Icons.Default.NoteAdd, MaterialTheme.dokanColors.warning) else Triple("রিপোর্ট", Icons.Default.ReceiptLong, MaterialTheme.dokanColors.info)) to {
+                    if (!isStaff) onAddExpense() else onNavigate(AppScreen.REPORTS)
+                }
+            ).chunked(2).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    row.forEach { (action, click) ->
+                        Box(Modifier.weight(1f)) { QuickActionTile(action.first, action.second, action.third, click) }
+                    }
+                }
             }
         }
     }
@@ -1118,21 +1128,21 @@ private fun QuickActionTile(
 ) {
     Surface(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(82.dp).softShadow(1, RoundedCornerShape(Radius.md))
+        modifier = Modifier.fillMaxWidth().height(54.dp).softShadow(1, RoundedCornerShape(Radius.md))
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(Radius.md)),
         shape = RoundedCornerShape(Radius.md),
         color = MaterialTheme.dokanColors.surfaceAlt
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 2.dp, vertical = 7.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
+        Row(
+            modifier = Modifier.fillMaxSize().padding(horizontal = Spacing.sm, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
             Box(
-                modifier = Modifier.size(34.dp).clip(RoundedCornerShape(Radius.sm)).background(color.copy(alpha = 0.12f)),
+                modifier = Modifier.size(32.dp).clip(RoundedCornerShape(Radius.sm)).background(color.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(imageVector = icon, contentDescription = title, tint = color, modifier = Modifier.size(20.dp))
+                Icon(imageVector = icon, contentDescription = title, tint = color, modifier = Modifier.size(18.dp))
             }
             Text(
                 text = title,
@@ -1141,7 +1151,7 @@ private fun QuickActionTile(
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 softWrap = false,
-                overflow = TextOverflow.Clip
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

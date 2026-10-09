@@ -11,8 +11,13 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
 import com.example.data.entity.StaffSalesSummary
@@ -47,198 +52,264 @@ fun ReportsScreen(
     val saleItems by viewModel.allSaleItems.collectAsState()
     val expenses by viewModel.expenses.collectAsState()
     val products by viewModel.products.collectAsState()
-
     var selectedPeriod by remember { mutableStateOf("আজ") }
-    val periods = listOf("আজ", "এই সপ্তাহ", "এই মাস", "সব সময়")
-
-    // Filter range calculation
-    val calendar = Calendar.getInstance()
-
-    val filterStartTime = remember(selectedPeriod) {
+    var selectedReport by remember { mutableStateOf<String?>(null) }
+    var customDate by remember { mutableLongStateOf(0L) }
+    var customRangeStart by remember { mutableLongStateOf(0L) }
+    var customRangeEnd by remember { mutableLongStateOf(0L) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val periods = listOf("আজ", "গতকাল", "এই সপ্তাহ", "এই মাস", "সব সময়", "নির্দিষ্ট দিন", "তারিখসীমা")
+    val nowCalendar = Calendar.getInstance()
+    val todayStart = (nowCalendar.clone() as Calendar).apply {
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+    val yesterdayStart = todayStart - 86_400_000L
+    val rangeStart = remember(selectedPeriod, customDate, customRangeStart, todayStart) {
         when (selectedPeriod) {
-            "আজ" -> {
-                calendar.apply {
-                    set(Calendar.HOUR_OF_DAY, 0)
-                    set(Calendar.MINUTE, 0)
-                    set(Calendar.SECOND, 0)
-                    set(Calendar.MILLISECOND, 0)
-                }.timeInMillis
-            }
-            "এই সপ্তাহ" -> {
-                calendar.apply {
-                    set(Calendar.DAY_OF_WEEK, calendar.firstDayOfWeek)
-                    set(Calendar.HOUR_OF_DAY, 0)
-                    set(Calendar.MINUTE, 0)
-                }.timeInMillis
-            }
-            "এই মাস" -> {
-                calendar.apply {
-                    set(Calendar.DAY_OF_MONTH, 1)
-                    set(Calendar.HOUR_OF_DAY, 0)
-                    set(Calendar.MINUTE, 0)
-                }.timeInMillis
-            }
+            "আজ" -> todayStart
+            "গতকাল" -> yesterdayStart
+            "এই সপ্তাহ" -> (Calendar.getInstance().apply {
+                set(Calendar.DAY_OF_WEEK, firstDayOfWeek)
+                set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            }).timeInMillis
+            "এই মাস" -> (Calendar.getInstance().apply {
+                set(Calendar.DAY_OF_MONTH, 1)
+                set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            }).timeInMillis
+            "নির্দিষ্ট দিন" -> customDate.takeIf { it > 0L } ?: todayStart
+            "তারিখসীমা" -> customRangeStart.takeIf { it > 0L } ?: todayStart
             else -> 0L
         }
     }
-
-    val periodSales = sales.filter { it.saleDate >= filterStartTime && !it.isReturned }
+    val rangeEnd = when (selectedPeriod) {
+        "আজ" -> todayStart + 86_400_000L
+        "গতকাল" -> todayStart
+        "নির্দিষ্ট দিন" -> rangeStart + 86_400_000L
+        "তারিখসীমা" -> (customRangeEnd.takeIf { it > 0L } ?: todayStart) + 86_400_000L
+        else -> todayStart + 86_400_000L
+    }
+    val periodSales = sales.filter { it.saleDate >= rangeStart && it.saleDate < rangeEnd && !it.isReturned }
     val periodSaleIds = periodSales.map { it.id }.toSet()
     val periodSoldItems = saleItems.filter { it.saleId in periodSaleIds }
-
     val periodSalesTotalPoisha = periodSales.sumOf { it.totalPoisha }
     val periodCostPoisha = periodSoldItems.sumOf { (it.qty * it.purchasePriceAtSalePoisha).toLong() }
-    val periodGrossProfitPoisha = (periodSalesTotalPoisha - periodCostPoisha).coerceAtLeast(0)
-
-    val periodExpenses = expenses.filter { it.expenseDate >= filterStartTime }
+    val periodGrossProfitPoisha = (periodSalesTotalPoisha - periodCostPoisha).coerceAtLeast(0L)
+    val periodExpenses = expenses.filter { it.expenseDate >= rangeStart && it.expenseDate < rangeEnd }
     val periodExpenseTotalPoisha = periodExpenses.sumOf { it.amountPoisha }
     val periodNetProfitPoisha = periodGrossProfitPoisha - periodExpenseTotalPoisha
-
     val isStaff = config.userRole == "staff"
     val staffSalesSummaries = remember(periodSales, config.staffMembersJson) {
-        try {
-            viewModel.calculateStaffSalesSummaries(periodSales)
-        } catch (_: Throwable) {
-            emptyList()
-        }
+        try { viewModel.calculateStaffSalesSummaries(periodSales) } catch (_: Throwable) { emptyList() }
     }
-
-    // Stock Valuation (All current active products)
     val totalStockCostPoisha = products.sumOf { (it.stockQty * it.purchasePricePoisha).toLong() }
     val totalStockSaleValuePoisha = products.sumOf { (it.stockQty * it.salePricePoisha).toLong() }
-    val expectedFutureProfitPoisha = (totalStockSaleValuePoisha - totalStockCostPoisha).coerceAtLeast(0)
-
-    // Daily Cash Register Closing simulation
+    val expectedFutureProfitPoisha = (totalStockSaleValuePoisha - totalStockCostPoisha).coerceAtLeast(0L)
     val cashSalesPoisha = periodSales.filter { it.paymentMethod == "cash" }.sumOf { it.paidAmountPoisha }
     val mfsSalesPoisha = periodSales.filter { it.paymentMethod == "mfs" }.sumOf { it.paidAmountPoisha }
     val dueSalesPoisha = periodSales.sumOf { it.dueAmountPoisha }
-    val netDrawerCashPoisha = (cashSalesPoisha - periodExpenseTotalPoisha).coerceAtLeast(0)
-
-    // Top Products ranking by Qty
+    val netDrawerCashPoisha = (cashSalesPoisha - periodExpenseTotalPoisha).coerceAtLeast(0L)
     val productSalesMap = mutableMapOf<String, Pair<Double, Long>>()
-    for (item in periodSoldItems) {
-        val cur = productSalesMap.getOrDefault(item.productName, Pair(0.0, 0L))
-        productSalesMap[item.productName] = Pair(cur.first + item.qty, cur.second + item.lineTotalPoisha)
+    periodSoldItems.forEach { item ->
+        val current = productSalesMap[item.productName] ?: (0.0 to 0L)
+        productSalesMap[item.productName] = (current.first + item.qty) to (current.second + item.lineTotalPoisha)
     }
-    val topProducts = productSalesMap.entries.sortedByDescending { it.value.first }.take(5)
+    val topProducts = productSalesMap.entries.sortedByDescending { it.value.first }.take(10)
+
+    val reportCards = buildList {
+        add(ReportCardInfo("বিক্রয় ও লাভ", "বিক্রয়, পণ্যের খরচ ও নিট লাভ", Icons.Default.TrendingUp))
+        add(ReportCardInfo("খরচের বিস্তারিত", "খরচের ধরন ও মোট পরিমাণ", Icons.Default.Calculate))
+        add(ReportCardInfo("দৈনিক হিসাব", "প্রতিদিনের বিক্রয়, লাভ ও খরচ", Icons.Default.CalendarMonth))
+        add(ReportCardInfo("ক্যাশ ও বাকি", "নগদ, ডিজিটাল ও বকেয়া বিক্রয়", Icons.Default.AccountBalanceWallet))
+        add(ReportCardInfo("স্টক ও সম্ভাব্য লাভ", "বর্তমান পণ্যের বিনিয়োগ ও মূল্য", Icons.Default.Inventory2))
+        add(ReportCardInfo("সর্বাধিক বিক্রিত পণ্য", "পরিমাণ ও বিক্রয়মূল্য অনুযায়ী", Icons.Default.ShoppingCart))
+        if (!isStaff) add(ReportCardInfo("কর্মচারীভিত্তিক বিক্রয়", "কর্মী অনুযায়ী বিক্রির তুলনা", Icons.Default.Person))
+    }
 
     LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(
-            start = Spacing.lg,
-            end = Spacing.lg,
-            top = Spacing.md,
-            bottom = 120.dp
-        ),
-        verticalArrangement = Arrangement.spacedBy(Spacing.lg)
+        modifier = modifier.fillMaxSize().statusBarsPadding().background(MaterialTheme.colorScheme.background),
+        contentPadding = PaddingValues(start = Spacing.lg, end = Spacing.lg, top = Spacing.md, bottom = 120.dp),
+        verticalArrangement = Arrangement.spacedBy(Spacing.md)
     ) {
-        // Screen Header & Period Selector
         item {
-            Surface(
-                shape = RoundedCornerShape(Radius.lg),
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(Spacing.lg),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
-                ) {
-                    Text(
-                        text = "দোকানের হিসাব ও রিপোর্ট",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                    Text(
-                        text = "বিক্রয়, লাভ, খরচ ও স্টকের সারাংশ",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f)
-                    )
+            Surface(shape = RoundedCornerShape(Radius.lg), color = MaterialTheme.colorScheme.primary, modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth().padding(Spacing.lg), verticalAlignment = Alignment.CenterVertically) {
+                    if (selectedReport != null) {
+                        IconButton(onClick = { selectedReport = null }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "রিপোর্ট তালিকায় ফিরুন", tint = MaterialTheme.colorScheme.onPrimary)
+                        }
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(selectedReport ?: "রিপোর্ট ও বিশ্লেষণ", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
+                        Text(if (selectedReport == null) "যে হিসাব দরকার, কার্ডে ট্যাপ করুন" else "$selectedPeriod · বিস্তারিত হিসাব", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = .82f))
+                    }
                 }
             }
-            FilterChipRow(
-                options = periods,
-                selected = selectedPeriod,
-                onSelect = { selectedPeriod = it }
-            )
+            FilterChipRow(options = periods, selected = selectedPeriod, onSelect = { period ->
+                if (period == "নির্দিষ্ট দিন") {
+                    val c = Calendar.getInstance().apply { timeInMillis = if (customDate > 0L) customDate else todayStart }
+                    android.app.DatePickerDialog(context, { _, year, month, day ->
+                        customDate = Calendar.getInstance().apply { set(year, month, day, 0, 0, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
+                        selectedPeriod = "নির্দিষ্ট দিন"
+                    }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show()
+                } else if (period == "তারিখসীমা") {
+                    val initial = Calendar.getInstance().apply { timeInMillis = if (customRangeStart > 0L) customRangeStart else todayStart }
+                    android.app.DatePickerDialog(context, { _, startYear, startMonth, startDay ->
+                        val start = Calendar.getInstance().apply { set(startYear, startMonth, startDay, 0, 0, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
+                        customRangeStart = start
+                        val endInitial = Calendar.getInstance().apply { timeInMillis = if (customRangeEnd >= start) customRangeEnd else start }
+                        android.app.DatePickerDialog(context, { _, endYear, endMonth, endDay ->
+                            val end = Calendar.getInstance().apply { set(endYear, endMonth, endDay, 0, 0, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
+                            customRangeEnd = end.coerceAtLeast(start)
+                            selectedPeriod = "তারিখসীমা"
+                        }, endInitial.get(Calendar.YEAR), endInitial.get(Calendar.MONTH), endInitial.get(Calendar.DAY_OF_MONTH)).show()
+                    }, initial.get(Calendar.YEAR), initial.get(Calendar.MONTH), initial.get(Calendar.DAY_OF_MONTH)).show()
+                } else selectedPeriod = period
+            })
         }
-
-        // 2) PROFIT & LOSS WATERFALL
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                SectionHeader(title = "লাভ ও ক্ষতি বিবরণী ($selectedPeriod)")
-
-                ProfitLossWaterfallCard(
-                    salesTotal = periodSalesTotalPoisha,
-                    costTotal = periodCostPoisha,
-                    grossProfit = periodGrossProfitPoisha,
-                    expensesTotal = periodExpenseTotalPoisha,
-                    netProfit = periodNetProfitPoisha,
-                    config = config
-                )
-            }
-        }
-
-        // 3) CASH DRAWER RECONCILIATION CARD
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                SectionHeader(title = "দৈনিক ক্যাশ ড্রয়ার মিলকরণ (ক্যাশ ক্লোজিং)")
-
-                CashDrawerReconciliationCard(
-                    cashSales = cashSalesPoisha,
-                    mfsSales = mfsSalesPoisha,
-                    expenses = periodExpenseTotalPoisha,
-                    dueSales = dueSalesPoisha,
-                    netDrawerCash = netDrawerCashPoisha,
-                    config = config
-                )
-            }
-        }
-
-        // 4) STOCK VALUATION
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                SectionHeader(title = "স্টক ভ্যালুয়েশন (দোকানের মোট ইনভেস্টমেন্ট)")
-
-                StockValuationCard(
-                    totalCost = totalStockCostPoisha,
-                    totalSaleValue = totalStockSaleValuePoisha,
-                    expectedProfit = expectedFutureProfitPoisha,
-                    productCount = products.size,
-                    config = config
-                )
-            }
-        }
-
-        // 5) TOP PRODUCTS RANKED LIST
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                SectionHeader(title = "সর্বাধিক বিক্রিত পণ্য ($selectedPeriod)")
-
-                TopProductsCard(
-                    topProducts = topProducts,
-                    config = config
-                )
-            }
-        }
-
-        // 6) EMPLOYEE SALES BREAKDOWN (কর্মচারীভিত্তিক বিক্রয় ও পারফরম্যান্স)
-        if (!isStaff) {
+        if (selectedReport == null) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    SectionHeader(title = "কর্মচারীভিত্তিক বিক্রয় হিসাব ($selectedPeriod)")
-
-                    EmployeeSalesCard(
-                        summaries = staffSalesSummaries,
-                        totalPeriodSales = periodSalesTotalPoisha,
-                        config = config
-                    )
+                    SectionHeader(title = "$selectedPeriod · সারাংশ")
+                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        Box(Modifier.weight(1f)) { StatCard("মোট বিক্রয়", Formatters.formatMoney(periodSalesTotalPoisha, config.useBengaliNumerals, config.currencySymbol), tone = StatTone.Positive) }
+                        Box(Modifier.weight(1f)) { StatCard("নিট লাভ", Formatters.formatMoney(periodNetProfitPoisha, config.useBengaliNumerals, config.currencySymbol), tone = if (periodNetProfitPoisha >= 0) StatTone.Positive else StatTone.Negative) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        Box(Modifier.weight(1f)) { StatCard("মোট খরচ", Formatters.formatMoney(periodExpenseTotalPoisha, config.useBengaliNumerals, config.currencySymbol), tone = StatTone.Negative) }
+                        Box(Modifier.weight(1f)) { StatCard("বিক্রির সংখ্যা", if (config.useBengaliNumerals) Formatters.toBengaliDigits(periodSales.size.toString()) else periodSales.size.toString(), tone = StatTone.Neutral) }
+                    }
+                }
+            }
+            itemsIndexed(reportCards.chunked(2)) { _, row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    row.forEach { card ->
+                        Box(Modifier.weight(1f)) { ReportCategoryCard(card = card, onClick = { selectedReport = card.title }) }
+                    }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+        } else {
+            item {
+                when (selectedReport) {
+                    "বিক্রয় ও লাভ" -> Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        SectionHeader(title = "$selectedPeriod · লাভ-ক্ষতির হিসাব")
+                        ProfitLossWaterfallCard(periodSalesTotalPoisha, periodCostPoisha, periodGrossProfitPoisha, periodExpenseTotalPoisha, periodNetProfitPoisha, config)
+                    }
+                    "খরচের বিস্তারিত" -> Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        SectionHeader(title = "খরচের ধরন অনুযায়ী")
+                        ExpenseBreakdownCard(periodExpenses, config)
+                        SectionHeader(title = "দিনভিত্তিক খরচ ও লাভ")
+                        DailyBreakdownCard(periodSales, periodSoldItems, periodExpenses, config)
+                    }
+                    "দৈনিক হিসাব" -> Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        SectionHeader(title = "প্রতিদিনের হিসাব")
+                        DailyBreakdownCard(periodSales, periodSoldItems, periodExpenses, config)
+                    }
+                    "ক্যাশ ও বাকি" -> Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        SectionHeader(title = "পেমেন্টের বিস্তারিত")
+                        CashDrawerReconciliationCard(cashSalesPoisha, mfsSalesPoisha, periodExpenseTotalPoisha, dueSalesPoisha, netDrawerCashPoisha, config)
+                    }
+                    "স্টক ও সম্ভাব্য লাভ" -> Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        SectionHeader(title = "বর্তমান স্টক ভ্যালুয়েশন")
+                        StockValuationCard(totalStockCostPoisha, totalStockSaleValuePoisha, expectedFutureProfitPoisha, products.size, config)
+                    }
+                    "সর্বাধিক বিক্রিত পণ্য" -> Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        SectionHeader(title = "$selectedPeriod · জনপ্রিয় পণ্য")
+                        TopProductsCard(topProducts, config)
+                    }
+                    "কর্মচারীভিত্তিক বিক্রয়" -> if (!isStaff) Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        SectionHeader(title = "$selectedPeriod · কর্মচারী বিক্রয়")
+                        EmployeeSalesCard(staffSalesSummaries, periodSalesTotalPoisha, config)
+                    }
                 }
             }
         }
+    }
+}
+
+private data class ReportCardInfo(val title: String, val description: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
+
+@Composable
+private fun ReportCategoryCard(card: ReportCardInfo, onClick: () -> Unit) {
+    Surface(onClick = onClick, shape = RoundedCornerShape(Radius.lg), color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.dokanColors.border), modifier = Modifier.fillMaxWidth().heightIn(min = 112.dp).softShadow(1, RoundedCornerShape(Radius.lg))) {
+        Row(Modifier.fillMaxWidth().padding(Spacing.md), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            Box(Modifier.size(42.dp).clip(RoundedCornerShape(Radius.md)).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
+                Icon(card.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(card.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 2)
+                Text(card.description, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+            }
+            Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+@Composable
+private fun ExpenseBreakdownCard(expenses: List<com.example.data.entity.Expense>, config: ShopConfig) {
+    val grouped = expenses.groupBy { it.categoryName }.mapValues { (_, list) -> list.sumOf { it.amountPoisha } }.toList().sortedByDescending { it.second }
+    Surface(shape = RoundedCornerShape(Radius.lg), color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth().softShadow(1, RoundedCornerShape(Radius.lg))) {
+        if (grouped.isEmpty()) EmptyState(icon = Icons.Default.Calculate, title = "কোনো খরচের তথ্য নেই", message = "এই সময়ে খরচ যোগ করা হয়নি।")
+        else Column(Modifier.padding(Spacing.lg), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            grouped.forEachIndexed { index, (name, amount) ->
+                if (index > 0) HorizontalDivider(color = MaterialTheme.dokanColors.border)
+                Row(Modifier.fillMaxWidth().padding(vertical = Spacing.xs), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Text(Formatters.formatMoney(amount, config.useBengaliNumerals, config.currencySymbol), style = amountTextStyle(16.sp), fontWeight = FontWeight.SemiBold)
+                }
+            }
+            HorizontalDivider(color = MaterialTheme.dokanColors.border)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("সর্বমোট খরচ", fontWeight = FontWeight.Bold)
+                Text(Formatters.formatMoney(grouped.sumOf { it.second }, config.useBengaliNumerals, config.currencySymbol), fontWeight = FontWeight.Bold, color = MaterialTheme.dokanColors.danger)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DailyBreakdownCard(
+    sales: List<com.example.data.entity.Sale>,
+    items: List<com.example.data.entity.SaleItem>,
+    expenses: List<com.example.data.entity.Expense>,
+    config: ShopConfig
+) {
+    val dayFormatter = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale("bn", "BD"))
+    val salesByDay = sales.groupBy { Calendar.getInstance().apply { timeInMillis = it.saleDate; set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis }
+    val expenseByDay = expenses.groupBy { Calendar.getInstance().apply { timeInMillis = it.expenseDate; set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis }
+    val days = (salesByDay.keys + expenseByDay.keys).distinct().sortedDescending().take(60)
+    Surface(shape = RoundedCornerShape(Radius.lg), color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth().softShadow(1, RoundedCornerShape(Radius.lg))) {
+        if (days.isEmpty()) EmptyState(icon = Icons.Default.CalendarMonth, title = "কোনো হিসাব পাওয়া যায়নি", message = "সময়সীমা বদলে আবার দেখুন।")
+        else Column(Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            days.forEachIndexed { index, day ->
+                val daySales = salesByDay[day].orEmpty()
+                val ids = daySales.map { it.id }.toSet()
+                val cost = items.filter { it.saleId in ids }.sumOf { (it.qty * it.purchasePriceAtSalePoisha).toLong() }
+                val revenue = daySales.sumOf { it.totalPoisha }
+                val expense = expenseByDay[day].orEmpty().sumOf { it.amountPoisha }
+                val net = revenue - cost - expense
+                if (index > 0) HorizontalDivider(color = MaterialTheme.dokanColors.border)
+                Column(Modifier.fillMaxWidth().padding(vertical = Spacing.xs), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(dayFormatter.format(java.util.Date(day)), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    ReportValueRow("বিক্রয়", revenue, config)
+                    ReportValueRow("পণ্যের ক্রয়মূল্য", cost, config)
+                    ReportValueRow("খরচ", expense, config)
+                    ReportValueRow("নিট লাভ", net, config, emphasize = true)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReportValueRow(label: String, amount: Long, config: ShopConfig, emphasize: Boolean = false) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = if (emphasize) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodySmall,
+            fontWeight = if (emphasize) FontWeight.Bold else FontWeight.Normal, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(Formatters.formatMoney(amount, config.useBengaliNumerals, config.currencySymbol),
+            style = if (emphasize) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Bold, color = if (emphasize) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
     }
 }
 
