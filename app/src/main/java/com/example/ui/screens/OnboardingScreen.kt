@@ -133,7 +133,7 @@ fun OnboardingScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = if (setupMode == "restore") "পূর্বের দোকান ও ডাটা রিস্টোর" else "প্রথম ব্যবহারের প্রস্তুতি",
+                            text = if (setupMode == "restore") "সংরক্ষিত হিসাব পুনরুদ্ধার" else "প্রথম ব্যবহারের প্রস্তুতি",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -275,7 +275,7 @@ fun OnboardingScreen(
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                         Text(
-                            text = "আগের ডাটা ফিরিয়ে আনুন",
+                            text = "সংরক্ষিত হিসাব পুনরুদ্ধার",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground
@@ -460,7 +460,7 @@ fun OnboardingScreen(
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "আগের দোকানের ডাটা রিস্টোর করতে চান?",
+                                        text = "সংরক্ষিত হিসাব পুনরুদ্ধার করতে চান?",
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = Brand700
