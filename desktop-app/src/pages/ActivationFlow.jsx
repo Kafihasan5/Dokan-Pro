@@ -106,7 +106,7 @@ export default function ActivationFlow() {
     setOwnerEmail(licenseEmail.trim().toLowerCase());
     setShopName(result.customer_name ? `${result.customer_name} স্টোর` : '');
     setStep(1);
-    setFlow('setup');
+    setFlow('license-next');
   });
   const handleTrial = () => run(async () => {
     await startDesktopTrial();
@@ -165,7 +165,7 @@ export default function ActivationFlow() {
       <main className="auth-form-panel activation-form-panel">
         <div className="auth-form activation-form">
           {isNested && (
-            <button type="button" className="activation-back" onClick={flow === 'setup' ? () => setStep((n) => Math.max(1, n - 1)) : flow === 'restore-check' ? () => { setError(''); setFlow('setup'); setStep(1); } : backToRoles}>
+            <button type="button" className="activation-back" onClick={flow === 'setup' ? () => setStep((n) => Math.max(1, n - 1)) : flow === 'restore-check' ? () => { setError(''); setFlow('license-next'); } : flow === 'license-next' ? () => { setError(''); setFlow('owner'); setOwnerMode('license'); } : backToRoles}>
               <ArrowLeft size={16} /> {flow === 'setup' ? 'পূর্ববর্তী ধাপ' : 'পেছনে যান • ভূমিকা পরিবর্তন'}
             </button>
           )}
@@ -223,6 +223,14 @@ export default function ActivationFlow() {
             </form>
           </>}
 
+          {flow === 'license-next' && <>
+            <div className="activation-heading"><span className="activation-kicker">লাইসেন্স সক্রিয় • পরবর্তী ধাপ</span><h2>কীভাবে এগোতে চান?</h2><p>আগে থেকে Dokan Pro ব্যবহার করলে সংরক্ষিত হিসাব ফিরিয়ে আনুন। প্রথমবার হলে নতুন দোকান সেটআপ করুন।</p></div>
+            <div className="activation-action-list">
+              <ActionCard icon={CloudDownload} title="সংরক্ষিত হিসাব পুনরুদ্ধার" description="আগের দোকান কোড বা নিবন্ধিত ইমেইল এবং মাস্টার PIN দিয়ে প্রবেশ করুন" onClick={() => { setError(''); setPin(''); setFlow('restore-check'); }} />
+              <ActionCard icon={Store} title="নতুন দোকান সেটআপ" description="নতুন করে দোকানের তথ্য ও মাস্টার PIN দিয়ে শুরু করুন" tone="blue" onClick={() => { setError(''); setStep(1); setFlow('setup'); }} />
+            </div>
+          </>}
+
           {flow === 'restore-check' && <>
             <div className="activation-heading"><span className="activation-kicker">লাইসেন্স সক্রিয় • ডাটা সুরক্ষা</span><h2>সংরক্ষিত হিসাব পুনরুদ্ধার</h2><p>আপনার পণ্য, বিক্রি, বাকি ও অন্যান্য হিসাব ফিরে পেতে নিবন্ধিত ইমেইল এবং মাস্টার PIN দিন।</p></div>
             <form className="activation-panel-card" onSubmit={(e) => { e.preventDefault(); handlePreviousShopRestore(); }}>
@@ -247,7 +255,6 @@ export default function ActivationFlow() {
               <div className="input-group"><label className="input-label" htmlFor="master-pin">মাস্টার সিকিউরিটি PIN *</label><PinInput id="master-pin" value={masterPin} onChange={setMasterPin} placeholder="নিরাপদ ৪-১২ সংখ্যার PIN" /></div>
               <div className="input-group"><label className="input-label" htmlFor="setup-staff-pin">কর্মচারী PIN (ঐচ্ছিক)</label><PinInput id="setup-staff-pin" value={staffPin} onChange={setStaffPin} placeholder="খালি রাখলে বন্ধ থাকবে" /></div>
               <Field id="shop-tagline" label="স্লোগান / ট্যাগলাইন" icon={BadgeCheck} placeholder="আপনার বিশ্বস্ত মুদি দোকান" value={tagline} onChange={(e) => setTagline(e.target.value)} />
-              <button type="button" className="btn btn-secondary btn-block" onClick={() => { setError(''); setPin(''); setFlow('restore-check'); }}>সংরক্ষিত হিসাব পুনরুদ্ধার করতে চান? <ArrowRight size={16} /></button>
               {error && <div className="alert alert-error"><CircleHelp size={16} /><span>{error}</span></div>}
               <button type="button" className="btn btn-primary btn-lg btn-block" onClick={validateAndContinue}>পরবর্তী ধাপ <ArrowRight size={17} /></button>
             </div>}
