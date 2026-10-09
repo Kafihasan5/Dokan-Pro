@@ -2390,3 +2390,84 @@ input:focus-visible + .slider {
 :root[data-theme='dark'] .as-card .activation-mini-icon.blue { background: rgba(59, 130, 246, .18); color: #93c5fd; }
 :root[data-theme='dark'] .as-card .activation-trial-icon { background: rgba(245, 158, 11, .18); color: #fbbf24; }
 :root[data-theme='dark'] .as-card .activation-license-icon { background: rgba(59, 130, 246, .18); color: #93c5fd; }
+
+/* ==========================================================================
+   PHONE: app-style bottom tab bar + install sheet (web version)
+   ========================================================================== */
+.mobile-tabbar { display: none; }
+
+@media (max-width: 900px) {
+  .mobile-tabbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--bg-surface) 88%, transparent);
+    backdrop-filter: saturate(170%) blur(16px); -webkit-backdrop-filter: saturate(170%) blur(16px);
+    border-top: 1px solid var(--border-subtle);
+    box-shadow: 0 -8px 24px -18px rgba(15, 23, 42, .35);
+  }
+  .mobile-tab {
+    display: flex; flex-direction: column; align-items: center; gap: 3px; min-height: 52px; padding: 4px 2px;
+    border: 0; background: none; color: var(--text-muted); cursor: pointer; font-family: var(--font-bn);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mobile-tab-icon { display: grid; place-items: center; width: 52px; height: 30px; border-radius: 999px; transition: background var(--transition-fast), color var(--transition-fast); }
+  .mobile-tab-label { font-size: .72rem; font-weight: 600; line-height: 1; }
+  .mobile-tab.active { color: var(--primary); }
+  .mobile-tab.active .mobile-tab-icon { background: var(--primary-light); }
+  .mobile-tab:active .mobile-tab-icon { transform: scale(.94); }
+
+  /* keep page content clear of the tab bar */
+  .app-container .main-content { padding-bottom: calc(70px + env(safe-area-inset-bottom)); }
+  .top-navbar { padding-top: env(safe-area-inset-top); height: calc(var(--navbar-h) + env(safe-area-inset-top)); }
+  .as-nav, .lp-nav { padding-top: env(safe-area-inset-top); }
+}
+
+.install-backdrop {
+  position: fixed; inset: 0; z-index: 120; display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(15, 23, 42, .42); animation: fadeIn 160ms ease-out;
+}
+.install-sheet {
+  position: relative; width: min(100%, 460px); margin: 0 auto;
+  padding: 22px 20px calc(18px + env(safe-area-inset-bottom));
+  border-radius: 24px 24px 0 0; background: var(--bg-surface); color: var(--text-primary);
+  box-shadow: 0 -20px 50px -20px rgba(0, 0, 0, .4); font-family: var(--font-bn);
+  animation: installUp 260ms cubic-bezier(.2, .8, .2, 1);
+}
+@media (min-width: 700px) {
+  .install-backdrop { align-items: center; }
+  .install-sheet { border-radius: 24px; padding-bottom: 20px; }
+}
+@keyframes installUp { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+.install-close {
+  position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 34px; height: 34px;
+  border: 0; border-radius: 50%; background: var(--bg-card); color: var(--text-secondary); cursor: pointer;
+}
+.install-app-row { display: flex; align-items: center; gap: 14px; padding-right: 36px; }
+.install-app-icon { width: 60px; height: 60px; border-radius: 15px; box-shadow: 0 8px 18px -8px rgba(4, 120, 87, .6); }
+.install-app-row h2 { margin: 0 0 4px; font-size: 1.15rem; }
+.install-app-row p { margin: 0; color: var(--text-secondary); font-size: .9rem; line-height: 1.5; }
+.install-perks { display: grid; gap: 8px; margin: 18px 0; padding: 0; list-style: none; }
+.install-perks li { display: flex; align-items: center; gap: 9px; color: var(--text-secondary); font-size: .9rem; }
+.install-perks svg { color: var(--primary); flex: none; }
+.install-primary {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 52px;
+  border: 0; border-radius: 999px; color: #fff; font: 700 1.02rem/1 var(--font-bn); cursor: pointer;
+  background: linear-gradient(135deg, #047857, #0f766e); box-shadow: 0 12px 26px -12px rgba(4, 120, 87, .8);
+}
+.install-steps { display: grid; gap: 10px; margin: 18px 0 6px; padding: 0; list-style: none; }
+.install-steps li {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 12px 14px; border-radius: 14px;
+  background: var(--bg-card); font-size: .93rem; line-height: 1.5;
+}
+.install-steps li > span {
+  display: grid; place-items: center; width: 26px; height: 26px; margin-right: 4px; border-radius: 8px;
+  background: var(--primary-light); color: var(--primary); font-weight: 700; flex: none;
+}
+.install-steps small { width: 100%; padding-left: 36px; color: var(--text-muted); font-size: .8rem; }
+.install-ico { color: var(--info); vertical-align: -3px; }
+.install-arrow { display: flex; justify-content: center; margin-top: 8px; color: var(--primary); animation: installBob 1.2s ease-in-out infinite; }
+@keyframes installBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(7px); } }
+.install-later { display: block; width: 100%; margin-top: 10px; padding: 10px; border: 0; background: none; color: var(--text-muted); font: 600 .92rem/1 var(--font-bn); cursor: pointer; }
+.install-done { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 20px 0 6px; padding: 14px; border-radius: 14px; background: var(--primary-light); color: var(--primary); font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .install-arrow, .install-sheet { animation: none; } }

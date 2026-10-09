@@ -4,6 +4,7 @@ import {
   Monitor, PlusSquare, ReceiptText, Share, ShieldCheck, ShoppingCart, Smartphone, Store, Users, Wifi,
 } from 'lucide-react';
 import '../landing.css';
+import { openInstallPrompt } from '../components/InstallPrompt';
 
 const RELEASES_URL = 'https://github.com/Kafihasan5/Dokan-Pro/releases/latest';
 const ANDROID_APK_URL = 'https://github.com/Kafihasan5/Dokan-Pro/releases/latest/download/app-debug.apk';
@@ -23,6 +24,8 @@ const STEPS = [
   { n: '২', title: 'দোকান সাজান', text: 'দোকানের নাম আর মাস্টার পিন দিন, চাইলে নমুনা পণ্য দিয়ে শুরু করুন।' },
   { n: '৩', title: 'বিক্রি শুরু', text: 'প্রথম বিক্রি থেকেই হিসাব জমা হতে থাকবে — সব জায়গা থেকে দেখা যাবে।' },
 ];
+
+const isPhone = () => /Android/i.test(navigator.userAgent) || isIphone();
 
 function isIphone() {
   return /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -99,8 +102,8 @@ export default function LandingPage({ onOpenApp }) {
               <p className="lp-lead">বিক্রি, স্টক, বাকি খাতা আর লাভের হিসাব — খাতা-কলম ছাড়াই। মোবাইল, কম্পিউটার আর iPhone-এ একই দোকান, সব সময় আপডেট।</p>
               <div className="lp-cta-row">
                 <button type="button" className="lp-btn lp-btn-primary" onClick={onOpenApp}>বিনামূল্যে শুরু করুন <ArrowRight size={18} /></button>
-                <button type="button" className="lp-btn lp-btn-ghost" onClick={() => scrollTo(iphone ? 'install' : 'devices')}>
-                  {iphone ? <><Smartphone size={18} /> iPhone-এ ইনস্টল করুন</> : <><Download size={18} /> ডাউনলোড ও ইনস্টল</>}
+                <button type="button" className="lp-btn lp-btn-ghost" onClick={() => (isPhone() ? openInstallPrompt() : scrollTo('devices'))}>
+                  {iphone ? <><Smartphone size={18} /> iPhone-এ ইনস্টল করুন</> : /Android/i.test(navigator.userAgent) ? <><Download size={18} /> ফোনে ইনস্টল করুন</> : <><Download size={18} /> ডাউনলোড ও ইনস্টল</>}
                 </button>
               </div>
               <ul className="lp-hero-points">
@@ -172,7 +175,7 @@ export default function LandingPage({ onOpenApp }) {
                 <span className="lp-device-icon lp-tone-blue"><Smartphone size={24} /></span>
                 <h3>iPhone</h3>
                 <p>কোনো ডাউনলোড লাগবে না — Safari থেকে Home Screen-এ যোগ করুন।</p>
-                <button type="button" className="lp-btn lp-btn-outline" onClick={() => scrollTo('install')}><PlusSquare size={16} /> ইনস্টলের নিয়ম</button>
+                <button type="button" className="lp-btn lp-btn-outline" onClick={() => (iphone ? openInstallPrompt() : scrollTo('install'))}><PlusSquare size={16} /> {iphone ? 'Home Screen-এ যোগ করুন' : 'ইনস্টলের নিয়ম'}</button>
               </div>
               <div className="lp-device">
                 <span className="lp-device-icon lp-tone-purple"><Monitor size={24} /></span>

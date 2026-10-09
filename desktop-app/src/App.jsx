@@ -14,6 +14,8 @@ import {
   ForcePinChangeScreen,
 } from './components/StatusScreens';
 import ActivationFlow from './pages/ActivationFlow';
+import MobileTabBar from './components/MobileTabBar';
+import InstallPrompt from './components/InstallPrompt';
 
 // The landing page is only for the website (and the iPhone Home Screen app), not the desktop app.
 const LandingPage = lazy(() => import('./pages/LandingPage'));
@@ -201,6 +203,8 @@ function AppContent() {
         </main>
       </div>
 
+      <MobileTabBar currentPage={page} onNavigate={setCurrentPage} onOpenMenu={() => setIsMobileMenuOpen(true)} />
+
       {activeReceiptSale && (
         <ReceiptModal
           sale={activeReceiptSale}
@@ -218,6 +222,7 @@ function Shell() {
     <>
       <AppContent />
       {isLocked && <LockScreen />}
+      <InstallPrompt />
       <FeedbackHost />
     </>
   );

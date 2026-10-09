@@ -6,6 +6,13 @@ import { applyInitialTheme } from './utils/theme'
 
 applyInitialTheme()
 
+// Chrome/Android: keep the install event so our own "ইনস্টল করুন" button can trigger it later.
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault()
+  window.__dokanInstallEvent = e
+  window.dispatchEvent(new Event('dokan:installready'))
+})
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <App />
