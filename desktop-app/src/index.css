@@ -2674,3 +2674,8 @@ input:focus-visible + .slider {
 @media (max-width: 900px) {
   .notice-banner { top: calc(var(--navbar-h) + env(safe-area-inset-top)); padding: 8px 14px; font-size: .8rem; flex-wrap: wrap; row-gap: 2px; }
 }
+.scanner-live { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; background: rgba(0, 0, 0, .55); color: #fff; font: 600 .78rem/1 var(--font-bn); }
+.scanner-live b { width: 8px; height: 8px; border-radius: 50%; background: #34d399; animation: scanPulse 1s ease-in-out infinite; }
+@keyframes scanPulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+.scanner-photo { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; border: 1.5px solid var(--primary); border-radius: 12px; background: var(--primary-light); color: var(--primary); font: 700 .95rem/1 var(--font-bn); cursor: pointer; }
+.scanner-photo:disabled { opacity: .6; }

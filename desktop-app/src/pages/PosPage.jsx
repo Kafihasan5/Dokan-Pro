@@ -216,7 +216,13 @@ export default function PosPage({ onCompleteSale, scanRequest = 0, onScanHandled
   // Camera scan (barcode or QR): exact barcode match goes straight into the cart.
   const handleCameraCode = (code) => {
     const c = String(code).trim().toLowerCase();
-    const matched = products.find((p) => p.barcode && String(p.barcode).trim().toLowerCase() === c);
+    // Also tolerate spaces/dashes and the extra leading 0 that UPC/EAN readers sometimes add.
+    const loose = (v) => String(v ?? '').toLowerCase().replace(/[^a-z0-9]/g, '').replace(/^0+/, '');
+    const lc = loose(c);
+    const matched =
+      products.find((p) => p.barcode && String(p.barcode).trim().toLowerCase() === c) ||
+      (lc && products.find((p) => p.barcode && loose(p.barcode) === lc)) ||
+      products.find((p) => String(p.id) === c || [p.nameBn, p.nameEn].some((n) => n && String(n).trim().toLowerCase() === c));
     if (!matched) {
       playErrorBeep();
       return false;
