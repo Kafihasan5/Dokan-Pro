@@ -452,6 +452,55 @@ export function ShopProvider({ children }) {
     }
   };
 
+  const createOwnerShop = async ({ shopCode, pin: rawPin, ownerEmail, shopName, profile, demoProducts = [] }) => {
+    if (!SECURE_AUTH) throw new Error('নতুন দোকান তৈরি করতে নিরাপদ লগইন চালু থাকতে হবে।');
+    const code = sanitizeFirebaseKey(cleanText(shopCode, 40).toUpperCase());
+    const pin = normalizePin(rawPin);
+    const email = cleanText(ownerEmail, 120).toLowerCase();
+    const name = cleanText(shopName, 120);
+    if (!code || !name || !isValidPin(pin) || isWeakPin(pin)) {
+      throw new Error('দোকানের নাম ও নিরাপদ ৪-১২ সংখ্যার মাস্টার পিন দিন।');
+    }
+    try {
+      await setRememberDevice(true);
+      const { data } = await callable('registerShop')({ shopCode: code, pin, ownerEmail: email, shopName: name });
+      await signInWithCustomToken(firebaseAuth, data.token);
+      const targetCode = sanitizeFirebaseKey(String(data.shopCode || code).toUpperCase());
+      const allowedProfile = {};
+      for (const [key, max] of Object.entries({ shopName: 120, shopAddress: 300, shopPhone: 40, tagline: 200, ownerEmail: 120, currencySymbol: 8 })) {
+        if (profile?.[key] !== undefined) allowedProfile[key] = cleanText(profile[key], max);
+      }
+      if (profile?.vatEnabled !== undefined) allowedProfile.vatEnabled = Boolean(profile.vatEnabled);
+      if (profile?.vatPercentage !== undefined) allowedProfile.vatPercentage = Math.min(100, Math.max(0, Number(profile.vatPercentage) || 0));
+      if (profile?.useBengaliNumerals !== undefined) allowedProfile.useBengaliNumerals = Boolean(profile.useBengaliNumerals);
+      if (profile?.themeMode) allowedProfile.themeMode = cleanText(profile.themeMode, 20);
+      await update(ref(db, `shops/${targetCode}/info`), allowedProfile);
+      if (Array.isArray(demoProducts) && demoProducts.length) {
+        await Promise.all(demoProducts.map((product, index) => {
+          const id = Date.now() + index;
+          return set(ref(db, `shops/${targetCode}/products/${id}`), {
+            id,
+            nameBn: cleanText(product.nameBn, 120),
+            nameEn: cleanText(product.nameEn || '', 120),
+            barcode: '',
+            purchasePricePoisha: Math.round((Number(product.purchasePrice) || 0) * 100),
+            salePricePoisha: Math.round((Number(product.salePrice) || 0) * 100),
+            wholesalePricePoisha: 0,
+            stockQty: Number(product.stockQty) || 0,
+            minStock: 5,
+            unitName: cleanText(product.unitName || 'পিস', 30),
+            categoryId: 1,
+            isActive: true,
+            updatedAt: Date.now(),
+          });
+        }));
+      }
+      return data;
+    } catch (err) {
+      throw new Error(friendlyError(err));
+    }
+  };
+
   const logout = useCallback(async () => {
     setIsLocked(false);
     if (SECURE_AUTH) {
@@ -1160,6 +1209,7 @@ export function ShopProvider({ children }) {
         lockScreen: () => role === 'owner' && setIsLocked(true),
         unlock,
         login,
+        createOwnerShop,
         logout,
         secureMode: SECURE_AUTH,
         globalNotices,

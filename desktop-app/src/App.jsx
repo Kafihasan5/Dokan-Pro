@@ -13,7 +13,7 @@ import {
   LockScreen,
   ForcePinChangeScreen,
 } from './components/StatusScreens';
-import Login from './pages/Login';
+import ActivationFlow from './pages/ActivationFlow';
 
 // Pages load on demand so the login screen stays fast.
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -82,7 +82,7 @@ function AppContent() {
     return <MaintenanceScreen message={globalSettings.maintenanceMessage} onLogout={auth ? logout : null} />;
   }
 
-  if (!auth?.shopCode) return <Login />;
+  if (!auth?.shopCode) return <ActivationFlow />;
 
   if (auth.pinChangeRequired) return <ForcePinChangeScreen />;
 
@@ -90,10 +90,15 @@ function AppContent() {
     return <SuspendedScreen shopCode={auth.shopCode} reason={currentShopStatus.reason} onLogout={logout} />;
   }
 
-  const isTrialExpired =
+  const localTrialExpiry = Number(localStorage.getItem('dokan_desktop_trial_expires_at') || 0);
+  const isLocalTrialExpired = localStorage.getItem('dokan_desktop_trial_shop') === auth.shopCode
+    && localTrialExpiry > 0
+    && Date.now() > localTrialExpiry;
+  const isTrialExpired = isLocalTrialExpired || (
     (currentShopStatus?.licenseType === 'trial' || currentShopStatus?.plan === 'trial') &&
     currentShopStatus?.expiresAt &&
-    Date.now() > currentShopStatus.expiresAt;
+    Date.now() > currentShopStatus.expiresAt
+  );
   if (isTrialExpired) return <TrialExpiredScreen shopCode={auth.shopCode} onLogout={logout} />;
 
   const isOwner = auth.role === 'owner';
