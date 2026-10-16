@@ -1,0 +1,205 @@
+name: Build Android APK & Play Store Bundle
+
+# Started by the private source repo (Kafihasan5/Dokan-Pro-Source) on every push to main,
+# or by hand from the Actions tab. This public repo holds no code: only releases and version.json.
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Commit or branch of Dokan-Pro-Source to build
+        required: false
+        default: main
+        type: string
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  build:
+    name: Build APK, Play Store AAB & Release
+    runs-on: ubuntu-latest
+    concurrency:
+      group: android-release
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout source (private repo)
+        uses: actions/checkout@v4
+        with:
+          repository: Kafihasan5/Dokan-Pro-Source
+          token: ${{ secrets.SOURCE_REPO_TOKEN }}
+          ref: ${{ inputs.source_ref || 'main' }}
+
+      - name: Remember the exact source commit
+        run: echo "SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Checkout this public repo (for version.json)
+        uses: actions/checkout@v4
+        with:
+          path: public-repo
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      # Signing keys are no longer committed (this repository is public). They come from secrets:
+      #   LEGACY_DEBUG_KEYSTORE_BASE64  – signs the GitHub APK (same key as before, so installed apps update)
+      #   PLAY_UPLOAD_KEYSTORE_BASE64, PLAY_UPLOAD_STORE_PASSWORD, PLAY_UPLOAD_KEY_ALIAS, PLAY_UPLOAD_KEY_PASSWORD
+      - name: Restore Signing Keys
+        env:
+          LEGACY_DEBUG_KEYSTORE_BASE64: ${{ secrets.LEGACY_DEBUG_KEYSTORE_BASE64 }}
+          PLAY_UPLOAD_KEYSTORE_BASE64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
+          PLAY_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+        run: |
+          # The APK key is required (same key as before, so installed apps update).
+          if [ -z "$LEGACY_DEBUG_KEYSTORE_BASE64" ]; then
+            echo "::error::LEGACY_DEBUG_KEYSTORE_BASE64 is missing; refusing to build with a new or public key."
+            exit 1
+          fi
+          echo "$LEGACY_DEBUG_KEYSTORE_BASE64" | base64 --decode > debug.keystore
+          # The Play Store bundle is optional: built only when its key and passwords are set.
+          if [ -n "$PLAY_UPLOAD_KEYSTORE_BASE64" ] && [ -n "$PLAY_STORE_PASSWORD" ]; then
+            echo "$PLAY_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.jks"
+            echo "KEYSTORE_PATH=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+            echo "HAS_PLAY_KEY=1" >> "$GITHUB_ENV"
+          else
+            echo "::notice::Play Store key not set; skipping the AAB."
+          fi
+
+      - name: Accept Android SDK Licenses
+        run: |
+          mkdir -p "$ANDROID_HOME/licenses"
+          echo -e "\n8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$ANDROID_HOME/licenses/android-sdk-license"
+          echo -e "\n84831b9409646a3e80e4a2e7439f7b6630450182" > "$ANDROID_HOME/licenses/android-sdk-preview-license"
+          yes | sdkmanager --licenses || true
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Choose release version
+        # RELEASE_OFFSET (repository variable) keeps numbers above every earlier release,
+        # so installed apps see the new build as newer (last release before this repo: v133).
+        run: |
+          OFFSET='${{ vars.RELEASE_OFFSET }}'
+          if [ -z "$OFFSET" ]; then echo "::error::Repository variable RELEASE_OFFSET is missing"; exit 1; fi
+          RELEASE_NUMBER=$(( ${{ github.run_number }} + OFFSET ))
+          echo "RELEASE_NUMBER=$RELEASE_NUMBER" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$(( RELEASE_NUMBER + 12 ))" >> "$GITHUB_ENV"
+
+      - name: Prepare Environment Files
+        run: |
+          if [ ! -f .env ]; then
+            cp .env.example .env
+          fi
+
+      - name: Build GitHub Version (Debug APK)
+        run: |
+          gradle assembleDebug -PversionCode="$VERSION_CODE" -PversionName="1.0.$RELEASE_NUMBER" --no-daemon --stacktrace
+
+      - name: Build Play Store Version (Release AAB)
+        if: env.HAS_PLAY_KEY == '1'
+        env:
+          STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+        run: |
+          gradle bundleRelease -PversionCode="$VERSION_CODE" -PversionName="1.0.$RELEASE_NUMBER" --no-daemon --stacktrace
+
+      - name: Remove Signing Keys
+        if: always()
+        run: rm -f debug.keystore "$RUNNER_TEMP/upload.jks"
+
+      - name: Prepare PlayStore Release Folder
+        if: env.HAS_PLAY_KEY == '1'
+        run: |
+          mkdir -p playstore_release
+          cp app/build/outputs/bundle/release/*.aab playstore_release/app-release.aab
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          cat <<EOF > playstore_release/release_info.json
+          {
+            "versionCode": $VERSION_CODE,
+            "versionName": "1.0.$RELEASE_NUMBER",
+            "applicationId": "com.webix.dokanpro",
+            "bundleFile": "app-release.aab",
+            "format": "Android App Bundle (AAB)",
+            "targetSdk": 36,
+            "minSdk": 24,
+            "buildTime": "$BUILD_TIME",
+            "releaseNotes": "• নতুন উন্নতি ও ফিচার আপডেট\n• বাগ ফিক্স ও নিরাপত্তা উন্নয়ন\n• অ্যাপ আরও দ্রুত ও স্থিতিশীল",
+            "note": "Ready for Google Play Console upload"
+          }
+          EOF
+
+      - name: Upload GitHub APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 7
+
+      # The Play Store bundle is only kept as a workflow artifact (Actions → this run → Artifacts);
+      # it is not attached to the public release or committed.
+      - name: Upload PlayStore AAB Artifact
+        if: env.HAS_PLAY_KEY == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playstore-bundle
+          path: playstore_release/app-release.aab
+          retention-days: 30
+
+      - name: Name the APK for the release
+        run: cp app/build/outputs/apk/debug/app-debug.apk "Dokan.Pro-1.0.$RELEASE_NUMBER-android.apk"
+
+      - name: Create or Update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v$RELEASE_NUMBER" --repo "$GITHUB_REPOSITORY" --target main \
+            "Dokan.Pro-1.0.$RELEASE_NUMBER-android.apk" \
+            --title "Release v1.0.$RELEASE_NUMBER" \
+            --notes "$(printf '• নতুন উন্নতি ও ফিচার আপডেট\n• বাগ ফিক্স ও নিরাপত্তা উন্নয়ন\n• অ্যাপ আরও দ্রুত ও স্থিতিশীল')" \
+            --latest || \
+          gh release upload "v$RELEASE_NUMBER" --repo "$GITHUB_REPOSITORY" \
+            "Dokan.Pro-1.0.$RELEASE_NUMBER-android.apk" \
+            --clobber
+
+      - name: Keep only the five newest releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName \
+            --jq '.[5:][] | .tagName' |
+          while IFS= read -r tag; do
+            [ -z "$tag" ] || gh release delete "$tag" --yes --cleanup-tag --repo "$GITHUB_REPOSITORY"
+          done
+
+      - name: Dispatch Mac DMG and Windows EXE builds
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run build-desktop.yml --repo "${GITHUB_REPOSITORY}" --ref main \
+            -f tag="v$RELEASE_NUMBER" \
+            -f version="1.0.$RELEASE_NUMBER" \
+            -f source_ref="${SOURCE_SHA}"
+
+      - name: Update version.json
+        working-directory: public-repo
+        run: |
+          cat <<EOF > version.json
+          {
+            "versionCode": $VERSION_CODE,
+            "versionName": "1.0.$RELEASE_NUMBER",
+            "downloadUrl": "https://github.com/${{ github.repository }}/releases/download/v$RELEASE_NUMBER/Dokan.Pro-1.0.$RELEASE_NUMBER-android.apk",
+            "releaseNotes": "• নতুন উন্নতি ও ফিচার আপডেট\n• বাগ ফিক্স ও নিরাপত্তা উন্নয়ন\n• অ্যাপ আরও দ্রুত ও স্থিতিশীল"
+          }
+          EOF
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          git diff --staged --quiet || (git commit -m "Auto-update version v1.0.$RELEASE_NUMBER [skip ci]" && git pull --rebase origin main && git push origin main)
